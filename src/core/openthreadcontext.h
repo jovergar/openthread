@@ -35,9 +35,6 @@
 #ifndef OPENTHREADCONTEXT_H_
 #define OPENTHREADCONTEXT_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-
 #include <openthread-types.h>
 #include <thread/thread_netif.hpp>
 #include <net/ip6_mpl.hpp>
@@ -57,6 +54,7 @@ typedef struct otContext
     //
     Thread::Ip6::NetifCallback mNetifCallback;
     otReceiveIp6DatagramCallback mReceiveIp6DatagramCallback;
+    void *mReceiveIp6DatagramCallbackContext;
 
     //
     // Variables

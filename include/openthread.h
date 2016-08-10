@@ -35,9 +35,6 @@
 #ifndef OPENTHREAD_H_
 #define OPENTHREAD_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-
 #include <openthread-types.h>
 #include <platform/radio.h>
 
@@ -1557,19 +1554,34 @@ int otWriteMessage(otMessage aMessage, uint16_t aOffset, const void *aBuf, uint1
  * This function pointer is called when an IPv6 datagram is received.
  *
  * @param[in]  aMessage  A pointer to the message buffer containing the received IPv6 datagram.
+ * @param[in]  aContext  A pointer to application-specific context.
  *
  */
-typedef void (*otReceiveIp6DatagramCallback)(otMessage aMessage);
+typedef void (*otReceiveIp6DatagramCallback)(otMessage aMessage, void *aContext);
 
 /**
  * This function registers a callback to provide received IPv6 datagrams.
  *
- * @param[in]  aContext   The OpenThread context structure.
- * @param[in]  aCallback  A pointer to a function that is called when an IPv6 datagram is received or NULL to disable
- *                        the callback.
+ * @param[in]  aContext          The OpenThread context structure.
+ * @param[in]  aCallback         A pointer to a function that is called when an IPv6 datagram is received or NULL to disable
+ *                               the callback.
+ * @param[in]  aCallbackContext  A pointer to application-specific context.
  *
  */
-void otSetReceiveIp6DatagramCallback(otContext *aContext, otReceiveIp6DatagramCallback aCallback);
+void otSetReceiveIp6DatagramCallback(otContext *aContext, otReceiveIp6DatagramCallback aCallback,
+                                     void *aCallbackContext);
+
+/**
+ * Allocate a new message buffer for sending an IPv6 message.
+ *
+ * @param[in]  aContext  The OpenThread context structure.
+ * @param[in]  aLength   The required length of the message.
+ *
+ * @returns A pointer to the message buffer or NULL if no message buffers are available.
+ *
+ * @sa otFreeMessage
+ */
+otMessage otNewIPv6Message(otContext *aContext, uint16_t aLength);
 
 /**
  * This function sends an IPv6 datagram via the Thread interface.

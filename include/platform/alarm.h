@@ -35,7 +35,7 @@
 #ifndef ALARM_H_
 #define ALARM_H_
 
-#include <stdint.h>
+#include <openthread-std-types.h>
 
 #ifdef __cplusplus
 extern "C" {

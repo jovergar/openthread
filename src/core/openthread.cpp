@@ -44,6 +44,9 @@
 #include <thread/thread_netif.hpp>
 #include <openthreadcontext.h>
 
+#ifdef WINDOWS_LOGGING
+#include "openthread.tmh"
+#endif
 
 otContext::otContext(void) :
     mReceiveIp6DatagramCallback(NULL),
@@ -81,7 +84,9 @@ static void HandleMleDiscover(otActiveScanResult *aResult, void *aContext);
 
 void otProcessNextTasklet(otContext *aContext)
 {
+    otLogFuncEntry();
     TaskletScheduler::RunNextTasklet(aContext);
+    otLogFuncExit();
 }
 
 bool otAreTaskletsPending(otContext *aContext)
@@ -700,6 +705,7 @@ otContext *otEnable(void *aContextBuffer, uint64_t *aContextBufferSize)
 {
     otContext *aContext = NULL;
 
+    otLogFuncEntry();
 
     otLogInfoApi("otEnable\n");
 
@@ -712,12 +718,15 @@ otContext *otEnable(void *aContextBuffer, uint64_t *aContextBufferSize)
 
 exit:
 
+    otLogFuncExit();
     return aContext;
 }
 
 ThreadError otDisable(otContext *aContext)
 {
     ThreadError error = kThreadError_None;
+
+    otLogFuncEntry();
 
     VerifyOrExit(aContext->mEnabled, error = kThreadError_InvalidState);
 
@@ -726,6 +735,8 @@ ThreadError otDisable(otContext *aContext)
     aContext->mEnabled = false;
 
 exit:
+
+    otLogFuncExitErr(error);
     return error;
 }
 
@@ -733,11 +744,15 @@ ThreadError otInterfaceUp(otContext *aContext)
 {
     ThreadError error = kThreadError_None;
 
+    otLogFuncEntry();
+
     VerifyOrExit(aContext->mEnabled, error = kThreadError_InvalidState);
 
     error = aContext->mThreadNetif.Up();
 
 exit:
+
+    otLogFuncExitErr(error);
     return error;
 }
 
@@ -745,11 +760,15 @@ ThreadError otInterfaceDown(otContext *aContext)
 {
     ThreadError error = kThreadError_None;
 
+    otLogFuncEntry();
+
     VerifyOrExit(aContext->mEnabled, error = kThreadError_InvalidState);
 
     error = aContext->mThreadNetif.Down();
 
 exit:
+
+    otLogFuncExitErr(error);
     return error;
 }
 
@@ -762,11 +781,15 @@ ThreadError otThreadStart(otContext *aContext)
 {
     ThreadError error = kThreadError_None;
 
+    otLogFuncEntry();
+
     VerifyOrExit(aContext->mEnabled, error = kThreadError_InvalidState);
 
     error = aContext->mThreadNetif.GetMle().Start();
 
 exit:
+
+    otLogFuncExitErr(error);
     return error;
 }
 
@@ -774,11 +797,15 @@ ThreadError otThreadStop(otContext *aContext)
 {
     ThreadError error = kThreadError_None;
 
+    otLogFuncEntry();
+
     VerifyOrExit(aContext->mEnabled, error = kThreadError_InvalidState);
 
     error = aContext->mThreadNetif.GetMle().Stop();
 
 exit:
+
+    otLogFuncExitErr(error);
     return error;
 }
 
@@ -850,15 +877,30 @@ void HandleMleDiscover(otActiveScanResult *aResult, void *aContext)
     handler(aResult);
 }
 
-void otSetReceiveIp6DatagramCallback(otContext *aContext, otReceiveIp6DatagramCallback aCallback)
+void otSetReceiveIp6DatagramCallback(otContext *aContext, otReceiveIp6DatagramCallback aCallback,
+                                     void *aCallbackContext)
 {
-    Ip6::Ip6::SetReceiveDatagramCallback(aContext, aCallback);
+    Ip6::Ip6::SetReceiveDatagramCallback(aContext, aCallback, aCallbackContext);
+}
+
+otMessage otNewIPv6Message(otContext *aContext, uint16_t aLength)
+{
+    return Ip6::Ip6::NewPrepopulatedMessage(aContext, aLength);
 }
 
 ThreadError otSendIp6Datagram(otContext *aContext, otMessage aMessage)
 {
-    return Ip6::Ip6::HandleDatagram(*static_cast<Message *>(aMessage), NULL, aContext->mThreadNetif.GetInterfaceId(),
-                                    NULL, true);
+    otLogFuncEntry();
+    ThreadError error =
+        Ip6::Ip6::HandleDatagram(
+            *static_cast<Message *>(aMessage),
+            NULL,
+            (uint8_t)aContext->mThreadNetif.GetInterfaceId(),
+            NULL,
+            true
+        );
+    otLogFuncExitErr(error);
+    return error;
 }
 
 otMessage otNewUdpMessage(otContext *aContext)

@@ -15,7 +15,6 @@
  */
 
 #include <assert.h>
-#include <stdbool.h>
 #include <string.h>
 
 #include <openthread-types.h>

@@ -35,8 +35,7 @@
 #ifndef HMAC_SHA256_H_
 #define HMAC_SHA256_H_
 
-#include <stdint.h>
-
+#include <openthread-std-types.h>
 #include <cryptocontext.h>
 
 #ifdef __cplusplus

@@ -314,7 +314,7 @@ NcpBase::NcpBase(otContext *aContext):
     }
 
     otSetStateChangedCallback(mContext, &NcpBase::HandleNetifStateChanged, this);
-    otSetReceiveIp6DatagramCallback(mContext, &NcpBase::HandleDatagramFromStack);
+    otSetReceiveIp6DatagramCallback(mContext, &NcpBase::HandleDatagramFromStack, this);
     otSetIcmpEchoEnabled(mContext, false);
 }
 
@@ -323,9 +323,9 @@ NcpBase::NcpBase(otContext *aContext):
 // MARK: Outbound Datagram Handling
 // ----------------------------------------------------------------------------
 
-void NcpBase::HandleDatagramFromStack(otMessage aMessage)
+void NcpBase::HandleDatagramFromStack(otMessage aMessage, void *aContext)
 {
-    sNcpContext->HandleDatagramFromStack(*static_cast<Message *>(aMessage));
+    ((NcpBase*)aContext)->HandleDatagramFromStack(*static_cast<Message *>(aMessage));
 }
 
 void NcpBase::HandleDatagramFromStack(Message &aMessage)

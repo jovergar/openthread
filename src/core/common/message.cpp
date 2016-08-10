@@ -38,6 +38,10 @@
 #include <net/ip6.hpp>
 #include <openthreadcontext.h>
 
+#ifdef WINDOWS_LOGGING
+#include "message.tmh"
+#endif
+
 namespace Thread {
 
 static Buffer *NewBuffer(otContext *aContext);

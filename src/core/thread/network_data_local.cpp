@@ -41,6 +41,10 @@
 #include <thread/thread_tlvs.hpp>
 #include <thread/thread_uris.hpp>
 
+#ifdef WINDOWS_LOGGING
+#include "network_data_local.tmh"
+#endif
+
 namespace Thread {
 namespace NetworkData {
 

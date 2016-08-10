@@ -28,12 +28,14 @@
 #ifndef MBEDTLS_CONFIG_H
 #define MBEDTLS_CONFIG_H
 
+#ifndef WINDOWS_KERNEL
 #include <inttypes.h>
+#endif
 #include <stdlib.h>
 
 #include <platform/logging.h>
 
-#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_DEPRECATE)
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_DEPRECATE) && !defined(WINDOWS_KERNEL)
 #define _CRT_SECURE_NO_DEPRECATE 1
 #endif
 

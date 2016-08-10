@@ -126,7 +126,7 @@ private:
     /**
      * Trampoline for HandleDatagramFromStack().
      */
-    static void HandleDatagramFromStack(otMessage aMessage);
+    static void HandleDatagramFromStack(otMessage aMessage, void *aContext);
 
     void HandleDatagramFromStack(Message &aMessage);
 

@@ -42,6 +42,9 @@
 #include <platform/logging.h>
 
 #ifdef WINDOWS_LOGGING
+#ifdef WINDOWS_KERNEL
+#include <wdm.h>
+#endif
 #include <platform/logging-windows.h>
 #endif
 

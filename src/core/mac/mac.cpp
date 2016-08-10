@@ -44,6 +44,9 @@
 #include <thread/thread_netif.hpp>
 #include <openthreadcontext.h>
 
+#ifdef WINDOWS_LOGGING
+#include "mac.tmh"
+#endif
 
 namespace Thread {
 namespace Mac {

@@ -34,7 +34,7 @@
 #ifndef CODE_UTILS_HPP_
 #define CODE_UTILS_HPP_
 
-#include <stdbool.h>
+#include <openthread-std-types.h>
 
 // Calculates the aligned variable size.
 #define otALIGNED_VAR_SIZE(size, align_type)            \

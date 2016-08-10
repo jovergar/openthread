@@ -149,7 +149,11 @@ ThreadError LinkQualityInfo::GetAverageRssAsString(char *aCharBuffer, size_t aBu
     {
         VerifyOrExit(aBufferLen >= sizeof(kUnknownRssString), error = kThreadError_NoBufs);
 
+#ifdef _WIN32
+        strncpy_s(aCharBuffer, aBufferLen, kUnknownRssString, aBufferLen);
+#else
         strncpy(aCharBuffer, kUnknownRssString, aBufferLen);
+#endif
     }
     else
     {

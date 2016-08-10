@@ -484,6 +484,17 @@ public:
      * This static method allocates a new message buffer from the buffer pool.
      *
      * @param[in]  aContext   The OpenThread context structure.
+     * @param[in]  aReserved  The number of header bytes to reserve including any existing IPv6 headers.
+     *
+     * @returns A pointer to the message or NULL if insufficient message buffers are available.
+     *
+     */
+    static Message *NewPrepopulatedMessage(otContext *aContext, uint16_t aReserved);
+
+    /**
+     * This static method allocates a new message buffer from the buffer pool.
+     *
+     * @param[in]  aContext   The OpenThread context structure.
      * @param[in]  aReserved  The number of header bytes to reserve following the IPv6 header.
      *
      * @returns A pointer to the message or NULL if insufficient message buffers are available.
@@ -571,12 +582,14 @@ public:
     /**
      * This function registers a callback to provide received raw IPv6 datagrams.
      *
-     * @param[in]  aContext   The OpenThread context structure.
-     * @param[in]  aCallback  A pointer to a function that is called when an IPv6 datagram is received or NULL to
-     *                        disable the callback.
+     * @param[in]  aContext          The OpenThread context structure.
+     * @param[in]  aCallback         A pointer to a function that is called when an IPv6 datagram is received or NULL to
+     *                               disable the callback.
+     * @param[in]  aCallbackContext  A pointer to application-specific context.
      *
      */
-    static void SetReceiveDatagramCallback(otContext *aContext, otReceiveIp6DatagramCallback aCallback);
+    static void SetReceiveDatagramCallback(otContext *aContext, otReceiveIp6DatagramCallback aCallback,
+                                           void *aCallbackContext);
 
 private:
     static void ProcessReceiveCallback(Message &aMessage);

@@ -35,8 +35,6 @@
 #ifndef AES_ECB_H_
 #define AES_ECB_H_
 
-#include <stdint.h>
-
 #include <openthread-types.h>
 #include <cryptocontext.h>
 

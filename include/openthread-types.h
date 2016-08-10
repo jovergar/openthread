@@ -35,9 +35,7 @@
 #ifndef OPENTHREAD_TYPES_H_
 #define OPENTHREAD_TYPES_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-
+#include <openthread-std-types.h>
 #include <platform/toolchain.h>
 
 #ifdef __cplusplus
@@ -50,7 +48,7 @@ extern "C" {
 typedef struct otContext otContext;
 
 // Size of the OpenThread context structure (bytes)
-#define OT_CONTEXT_SIZE   (9500 + OPENTHREAD_CONFIG_NUM_MESSAGE_BUFFERS * OPENTHREAD_CONFIG_MESSAGE_BUFFER_SIZE)
+#define OT_CONTEXT_SIZE   (9800 + OPENTHREAD_CONFIG_NUM_MESSAGE_BUFFERS * OPENTHREAD_CONFIG_MESSAGE_BUFFER_SIZE)
 
 /**
  * This enumeration represents error codes used throughout OpenThread.
@@ -208,6 +206,19 @@ typedef struct otExtAddress
 /**
  * This structure represents an IPv6 address.
  */
+#ifdef _WIN32
+OT_TOOL_PACKED_BEGIN
+typedef struct otIp6Address
+{
+    union
+    {
+        uint8_t  m8[OT_IP6_ADDRESS_SIZE];                      ///< 8-bit fields
+        uint16_t m16[OT_IP6_ADDRESS_SIZE / sizeof(uint16_t)];  ///< 16-bit fields
+        uint32_t m32[OT_IP6_ADDRESS_SIZE / sizeof(uint32_t)];  ///< 32-bit fields
+    } mFields;                                                 ///< IPv6 accessor fields
+} otIp6Address;
+OT_TOOL_PACKED_END
+#else
 typedef OT_TOOL_PACKED_BEGIN struct otIp6Address
 {
     union
@@ -217,6 +228,7 @@ typedef OT_TOOL_PACKED_BEGIN struct otIp6Address
         uint32_t m32[OT_IP6_ADDRESS_SIZE / sizeof(uint32_t)];  ///< 32-bit fields
     } mFields;                                                 ///< IPv6 accessor fields
 } OT_TOOL_PACKED_END otIp6Address;
+#endif
 
 /**
  * @addtogroup commands  Commands

@@ -35,8 +35,6 @@
 #ifndef CRYPTO_CONTEXT_H_
 #define CRYPTO_CONTEXT_H_
 
-#include <stdint.h>
-
 #include <openthread-types.h>
 
 #ifdef __cplusplus
