@@ -41,7 +41,7 @@
 #include <stdbool.h>
 
 #else
-    
+
 // Copied from stdint.h
 typedef signed char        int8_t;
 typedef short              int16_t;
