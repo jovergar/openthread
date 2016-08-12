@@ -152,10 +152,18 @@ extern void otSignalTaskletPending(otContext *aContext);
  */
 
 /**
+ * Get the OpenThread version string.
+ *
+ * @returns A pointer to the OpenThread version.
+ *
+ */
+const char *otGetVersionString(void);
+
+/**
  * This function initializes the OpenThread library.
  *
  * This function initializes OpenThread and prepares it for subsequent OpenThread API calls.  This function must be
- * called before any other calls to OpenThread.
+ * called before any other calls to OpenThread. By default, OpenThread is initialized in the 'enabled' state.
  *
  * @param[in]    aContextBuffer      The buffer for OpenThread to use for allocating the otContext structure.
  * @param[inout] aContextBufferSize  On input, the size of aContextBuffer. On output, if not enough space for otContext,
@@ -164,12 +172,34 @@ extern void otSignalTaskletPending(otContext *aContext);
  * @retval otContext*  The new OpenThread context structure.
  *
  */
-otContext *otEnable(void *aContextBuffer, uint64_t *aContextBufferSize);
+otContext *otInit(void *aContextBuffer, uint64_t *aContextBufferSize);
 
 /**
  * This function disables the OpenThread library.
  *
- * Call this function when OpenThread is no longer in use.  The client must call otEnable() to use OpenThread
+ * Call this function when OpenThread is no longer in use.
+ *
+ * @param[in] aContext  The OpenThread context structure.
+ *
+ */
+void otFreeContext(otContext *aContext);
+
+/**
+ * This function initializes the OpenThread library.
+ *
+ * This function enables OpenThread processing.
+ *
+ * @param[in] aContext  The OpenThread context structure.
+ *
+ * @retval kThreadError_None  Successfully enabled the Thread interface.
+ *
+ */
+ThreadError otEnable(otContext *aContext);
+
+/**
+ * This function disables the OpenThread library.
+ *
+ * This function disables OpenThread processing. The client must call otEnable() to use OpenThread
  * again.
  *
  * @param[in] aContext  The OpenThread context structure.
@@ -927,7 +957,7 @@ void otSetKeySequenceCounter(otContext *aContext, uint32_t aKeySequenceCounter);
  *
  * @sa otSetNetworkIdTimeout
  */
-uint32_t otGetNetworkIdTimeout(otContext *aContext);
+uint8_t otGetNetworkIdTimeout(otContext *aContext);
 
 /**
  * Set the NETWORK_ID_TIMEOUT parameter used in the Leader role.
@@ -937,7 +967,7 @@ uint32_t otGetNetworkIdTimeout(otContext *aContext);
  *
  * @sa otGetNetworkIdTimeout
  */
-void otSetNetworkIdTimeout(otContext *aContext, uint32_t aTimeout);
+void otSetNetworkIdTimeout(otContext *aContext, uint8_t aTimeout);
 
 /**
  * Get the ROUTER_UPGRADE_THRESHOLD parameter used in the REED role.

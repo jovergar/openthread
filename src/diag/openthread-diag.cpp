@@ -28,33 +28,42 @@
 
 /**
  * @file
- * @brief
- *   This file includes the posix platform-specific initializers.
+ *   This file implements the top-level interface to diagnostics module.
  */
 
-#ifndef PLATFORM_H_
-#define PLATFORM_H_
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <openthread-diag.h>
+#include <diag_process.hpp>
+
+namespace Thread {
+
+namespace Diagnostics {
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/**
- * This function performs all platform-specific initialization.
- *
- */
-void PlatformInit(int argc, char *argv[]);
+void diagInit(otContext *aContext)
+{
+    Diag::Init(aContext);
+}
 
-/**
- * This function performs all platform-specific processing.
- *
- * @param[in]  aContext  The OpenThread context structure.
- *
- */
-void PlatformProcessDrivers(otContext *aContext);
+char *diagProcessCmd(int argc, char *argv[])
+{
+    return Diag::ProcessCmd(argc, argv);
+}
+
+bool isDiagEnabled()
+{
+    return Diag::isEnabled();
+}
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif  // PLATFORM_H_
+}  // namespace Diagnostics
+}  // namespace Thread

@@ -83,6 +83,13 @@ uint32_t otPlatAlarmGetNow(void);
 extern void otPlatAlarmFired(otContext *aContext);
 
 /**
+ * Signal diagnostics module that the alarm has fired.
+ *
+ * @param[in] aContext  The OpenThread context structure.
+ */
+extern void otPlatDiagAlarmFired(otContext *aContext);
+
+/**
  * @}
  *
  */

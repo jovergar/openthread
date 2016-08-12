@@ -32,6 +32,7 @@
  */
 
 #include <openthread.h>
+#include <openthread-config.h>
 #include <common/code_utils.hpp>
 #include <common/debug.hpp>
 #include <common/logging.hpp>
@@ -40,6 +41,7 @@
 #include <common/tasklet.hpp>
 #include <common/timer.hpp>
 #include <net/icmp6.hpp>
+#include <net/ip6.hpp>
 #include <platform/random.h>
 #include <thread/thread_netif.hpp>
 #include <openthreadcontext.h>
@@ -75,6 +77,33 @@ namespace Thread {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+otContext *otInit(void *aContextBuffer, uint64_t *aContextBufferSize)
+{
+    otContext *aContext = NULL;
+
+    otLogInfoApi("otInit\n");
+
+    VerifyOrExit(aContextBufferSize != NULL, ;);
+
+    // Make sure the input buffer is big enough
+    VerifyOrExit(cAlignedContextSize <= *aContextBufferSize, *aContextBufferSize = cAlignedContextSize);
+
+    // Construct the context
+    aContext = new(aContextBuffer)otContext();
+
+exit:
+
+    return aContext;
+}
+
+void otFreeContext(otContext *aContext)
+{
+    // Ensure we are disabled
+    (void)otDisable(aContext);
+
+    // Nothing to actually free, since the caller supplied the buffer
+}
 
 static void HandleActiveScanResult(void *aContext, Mac::Frame *aFrame);
 static void HandleMleDiscover(otActiveScanResult *aResult, void *aContext);
@@ -407,12 +436,12 @@ void otSetKeySequenceCounter(otContext *aContext, uint32_t aKeySequenceCounter)
     aContext->mThreadNetif.GetKeyManager().SetCurrentKeySequence(aKeySequenceCounter);
 }
 
-uint32_t otGetNetworkIdTimeout(otContext *aContext)
+uint8_t otGetNetworkIdTimeout(otContext *aContext)
 {
     return aContext->mThreadNetif.GetMle().GetNetworkIdTimeout();
 }
 
-void otSetNetworkIdTimeout(otContext *aContext, uint32_t aTimeout)
+void otSetNetworkIdTimeout(otContext *aContext, uint8_t aTimeout)
 {
     aContext->mThreadNetif.GetMle().SetNetworkIdTimeout((uint8_t)aTimeout);
 }
@@ -696,23 +725,32 @@ void otSetStateChangedCallback(otContext *aContext, otStateChangedCallback aCall
     aContext->mThreadNetif.RegisterCallback(aContext->mNetifCallback);
 }
 
-otContext *otEnable(void *aContextBuffer, uint64_t *aContextBufferSize)
+const char *otGetVersionString(void)
 {
-    otContext *aContext = NULL;
+    static const char sVersion[] =
+        PACKAGE_NAME "/" PACKAGE_VERSION "; "
+#ifdef  PLATFORM_INFO
+        PLATFORM_INFO "; "
+#endif
+        __DATE__ " " __TIME__;
 
+    return sVersion;
+}
+
+ThreadError otEnable(otContext *aContext)
+{
+    ThreadError error = kThreadError_None;
+
+    VerifyOrExit(!aContext->mEnabled, error = kThreadError_InvalidState);
 
     otLogInfoApi("otEnable\n");
 
-    VerifyOrExit(aContextBufferSize != NULL, ;);
-
-    // Make sure the input buffer is big enough
-    VerifyOrExit(cAlignedContextSize <= *aContextBufferSize, *aContextBufferSize = cAlignedContextSize);
-
-    aContext = new(aContextBuffer)otContext();
+    otInterfaceUp(aContext);
+    otThreadStart(aContext);
+    aContext->mEnabled = true;
 
 exit:
-
-    return aContext;
+    return error;
 }
 
 ThreadError otDisable(otContext *aContext)
@@ -721,9 +759,11 @@ ThreadError otDisable(otContext *aContext)
 
     VerifyOrExit(aContext->mEnabled, error = kThreadError_InvalidState);
 
+    otLogInfoApi("otDisable\n");
+
+    aContext->mEnabled = false;
     otThreadStop(aContext);
     otInterfaceDown(aContext);
-    aContext->mEnabled = false;
 
 exit:
     return error;
