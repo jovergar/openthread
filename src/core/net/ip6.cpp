@@ -35,6 +35,7 @@
 #include <common/debug.hpp>
 #include <common/logging.hpp>
 #include <common/message.hpp>
+#include <common/new.hpp>
 #include <net/icmp6.hpp>
 #include <net/ip6.hpp>
 #include <net/ip6_address.hpp>
@@ -73,7 +74,7 @@ uint16_t Ip6::UpdateChecksum(uint16_t checksum, const void *buf, uint16_t len)
 
     for (int i = 0; i < len; i++)
     {
-        checksum = Ip6::UpdateChecksum(checksum, (i & 1) ? bytes[i] : (static_cast<uint16_t>(bytes[i])) << 8);
+        checksum = Ip6::UpdateChecksum(checksum, (i & 1) ? bytes[i] : static_cast<uint16_t>(bytes[i] << 8));
     }
 
     return checksum;
@@ -336,7 +337,7 @@ exit:
     }
 }
 
-ThreadError Ip6::HandleDatagram(Message &message, Netif *netif, uint8_t interfaceId, const void *linkMessageInfo,
+ThreadError Ip6::HandleDatagram(Message &message, Netif *netif, int8_t interfaceId, const void *linkMessageInfo,
                                 bool fromLocalHost)
 {
     ThreadError error = kThreadError_Drop;
@@ -456,7 +457,7 @@ exit:
 ThreadError ForwardMessage(Message &message, MessageInfo &messageInfo)
 {
     ThreadError error = kThreadError_None;
-    int interfaceId;
+    int8_t interfaceId;
     Netif *netif;
 
     if (messageInfo.GetSockAddr().IsMulticast())

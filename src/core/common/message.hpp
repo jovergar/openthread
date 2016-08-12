@@ -325,7 +325,7 @@ public:
      * @returns The number of bytes read.
      *
      */
-    int Read(uint16_t aOffset, uint16_t aLength, void *aBuf) const;
+    uint16_t Read(uint16_t aOffset, uint16_t aLength, void *aBuf) const;
 
     /**
      * This method writes bytes to the message.
@@ -664,7 +664,7 @@ private:
      * @retval kThreadError_Busy  The message is already enqueued in a list.
      *
      */
-    static ThreadError AddToList(int aListId, Message &aMessage);
+    static ThreadError AddToList(uint8_t aListId, Message &aMessage);
 
     /**
      * This static method removes a message from a list.
@@ -676,7 +676,7 @@ private:
      * @retval kThreadError_Busy  The message is not enqueued in the list.
      *
      */
-    static ThreadError RemoveFromList(int aListId, Message &aMessage);
+    static ThreadError RemoveFromList(uint8_t aListId, Message &aMessage);
 
     otContext *mContext;      ///< A pointer to the OpenThread context.
     MessageList mInterface;   ///< The instance-specific message list.

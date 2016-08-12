@@ -226,6 +226,25 @@ AC_PROG_LN_S
 PROSPECTIVE_CFLAGS="-Wall -std=c99 -pedantic-errors"
 PROSPECTIVE_CXXFLAGS="-Wall"
 
+AC_CACHE_CHECK([whether $CC is Clang],
+    [nl_cv_clang],
+    [nl_cv_clang=no
+    if test "x${GCC}" = "xyes"; then
+        AC_EGREP_CPP([NL_CC_IS_CLANG],
+            [/* Note: Clang 2.7 lacks __clang_[a-z]+__ */
+#            if defined(__clang__) && defined(__llvm__)
+             NL_CC_IS_CLANG
+#            endif
+            ],
+            [nl_cv_clang=yes])
+    fi
+    ])
+
+if test "${nl_cv_clang}" = "yes"; then
+    PROSPECTIVE_CFLAGS="${PROSPECTIVE_CFLAGS} -Wconversion"
+    PROSPECTIVE_CXXFLAGS="${PROSPECTIVE_CXXFLAGS} -Wconversion"
+fi
+
 AX_CHECK_COMPILER_OPTIONS([C],   ${PROSPECTIVE_CFLAGS})
 AX_CHECK_COMPILER_OPTIONS([C++], ${PROSPECTIVE_CXXFLAGS})
 
@@ -410,6 +429,37 @@ AM_CONDITIONAL([OPENTHREAD_ENABLE_NCP_SPI],  [test "${enable_ncp}"  = "spi"])
 AM_CONDITIONAL([OPENTHREAD_ENABLE_NCP_UART], [test "${enable_ncp}"  = "uart"])
 
 #
+# Diagnostics Library
+#
+
+AC_ARG_ENABLE(diag,
+    [AS_HELP_STRING([--enable-diag],[Enable diagnostics suport @<:@default=no@:>@.])],
+    [
+        case "${enableval}" in
+
+        no|yes)
+            enable_diag=${enableval}
+            ;;
+
+        *)
+            AC_MSG_ERROR([Invalid value ${enable_diag} for --enable-diag])
+            ;;
+        esac
+    ],
+    [enable_diag=no])
+
+if test "$enable_diag" = "yes"; then
+    OPENTHREAD_ENABLE_DIAG=1
+else
+    OPENTHREAD_ENABLE_DIAG=0
+fi
+
+AC_MSG_RESULT(${enable_diag})
+AC_SUBST(OPENTHREAD_ENABLE_DIAG)
+AM_CONDITIONAL([OPENTHREAD_ENABLE_DIAG], [test "${enable_diag}" = "yes"])
+AC_DEFINE_UNQUOTED([OPENTHREAD_ENABLE_DIAG],[${OPENTHREAD_ENABLE_DIAG}],[Define to 1 if you want to use diagnostics module])
+
+#
 # Examples
 #
 
@@ -455,6 +505,25 @@ AC_DEFINE_UNQUOTED([OPENTHREAD_EXAMPLES_POSIX],[${OPENTHREAD_EXAMPLES_POSIX}],[D
 AC_SUBST(OPENTHREAD_EXAMPLES_CC2538)
 AM_CONDITIONAL([OPENTHREAD_EXAMPLES_CC2538], [test "${OPENTHREAD_EXAMPLES}" = "cc2538"])
 AC_DEFINE_UNQUOTED([OPENTHREAD_EXAMPLES_CC2538],[${OPENTHREAD_EXAMPLES_CC2538}],[Define to 1 if you want to use cc2538 examples])
+
+#
+# Platform Information
+#
+
+AC_ARG_WITH(platform-info,
+    [AS_HELP_STRING([--with-platform-info=PLATFORM],
+        [Specify the platform information @<:@default=none@:>@.])],
+    [],
+    [with_platform_info=none])
+
+PLATFORM_INFO=${with_platform_info}
+
+AC_MSG_RESULT(${PLATFORM_INFO})
+
+if test "$PLATFORM_INFO" != "none"; then
+    AC_SUBST(PLATFORM_INFO)
+    AC_DEFINE_UNQUOTED([PLATFORM_INFO],["${PLATFORM_INFO}"],[OpenThread platform information])
+fi
 
 #
 # Tools
@@ -558,6 +627,7 @@ src/Makefile
 src/cli/Makefile
 src/ncp/Makefile
 src/core/Makefile
+src/diag/Makefile
 third_party/Makefile
 third_party/mbedtls/Makefile
 examples/Makefile
@@ -568,6 +638,7 @@ examples/platforms/Makefile
 examples/platforms/cc2538/Makefile
 examples/platforms/posix/Makefile
 tools/Makefile
+tools/harness-automation/Makefile
 tools/spi-hdlc-adapter/Makefile
 tests/Makefile
 tests/scripts/Makefile
@@ -631,6 +702,8 @@ AC_MSG_NOTICE([
   Pretty check args                         : ${PRETTY_CHECK_ARGS:--}
   OpenThread CLI support                    : ${enable_cli}
   OpenThread NCP support                    : ${enable_ncp}
+  OpenThread Diagnostics support            : ${enable_diag}
   OpenThread examples                       : ${OPENTHREAD_EXAMPLES}
+  OpenThread platform information           : ${PLATFORM_INFO}
 
 ])

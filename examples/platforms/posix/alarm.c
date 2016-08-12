@@ -32,8 +32,10 @@
 #include <sys/time.h>
 
 #include <openthread.h>
+#include <openthread-config.h>
 
 #include <platform/alarm.h>
+#include <platform/diag.h>
 #include "platform-posix.h"
 
 static bool s_is_running = false;
@@ -52,7 +54,7 @@ uint32_t otPlatAlarmGetNow(void)
     gettimeofday(&tv, NULL);
     timersub(&tv, &s_start, &tv);
 
-    return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+    return (uint32_t)((tv.tv_sec * 1000) + (tv.tv_usec / 1000));
 }
 
 void otPlatAlarmStartAt(otContext *aCtx, uint32_t t0, uint32_t dt)
@@ -79,7 +81,7 @@ void posixAlarmUpdateTimeout(struct timeval *aTimeout)
 
     if (s_is_running)
     {
-        remaining = s_alarm - otPlatAlarmGetNow();
+        remaining = (int32_t)(s_alarm - otPlatAlarmGetNow());
 
         if (remaining > 0)
         {
@@ -105,12 +107,23 @@ void posixAlarmProcess(otContext *aContext)
 
     if (s_is_running)
     {
-        remaining = s_alarm - otPlatAlarmGetNow();
+        remaining = (int32_t)(s_alarm - otPlatAlarmGetNow());
 
         if (remaining <= 0)
         {
             s_is_running = false;
-            otPlatAlarmFired(aContext);
+
+#if OPENTHREAD_ENABLE_DIAG
+
+            if (otPlatDiagModeGet())
+            {
+                otPlatDiagAlarmFired(aContext);
+            }
+            else
+#endif
+            {
+                otPlatAlarmFired(aContext);
+            }
         }
     }
 }

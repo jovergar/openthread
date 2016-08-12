@@ -576,7 +576,7 @@ public:
      * @returns The receive Link Quality Indicator.
      *
      */
-    int8_t GetLqi(void) const { return mLqi; }
+    uint8_t GetLqi(void) const { return mLqi; }
 
     /**
      * This method sets the receive Link Quality Indicator.
@@ -584,7 +584,7 @@ public:
      * @param[in]  aLqi  The receive Link Quality Indicator.
      *
      */
-    void SetLqi(int8_t aLqi) { mLqi = aLqi; }
+    void SetLqi(uint8_t aLqi) { mLqi = aLqi; }
 
     /**
      * This method indicates whether or not frame security was enabled and passed security validation.
@@ -789,7 +789,7 @@ public:
      *
      */
     void SetNetworkName(const char *aNetworkName) {
-        int length = strnlen(aNetworkName, sizeof(mNetworkName));
+        size_t length = strnlen(aNetworkName, sizeof(mNetworkName));
         memset(mNetworkName, 0, sizeof(mNetworkName));
         memcpy(mNetworkName, aNetworkName, length);
     }
