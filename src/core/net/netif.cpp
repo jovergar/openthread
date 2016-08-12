@@ -110,7 +110,7 @@ ThreadError Netif::AddNetif()
         mInterfaceId = mContext->mNextInterfaceId++;
     }
 
-    otLogDebgIp6("  new interface id=%d\n", mInterfaceId);
+    otLogDebgIp6("new interface id=%d\n", mInterfaceId);
 
 exit:
     return error;

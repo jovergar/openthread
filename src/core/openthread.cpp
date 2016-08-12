@@ -938,14 +938,22 @@ otMessage otNewIPv6Message(otContext *aContext, uint16_t aLength)
 ThreadError otSendIp6Datagram(otContext *aContext, otMessage aMessage)
 {
     otLogFuncEntry();
+    bool isDropped = false;
     ThreadError error =
         Ip6::Ip6::HandleDatagram(
             *static_cast<Message *>(aMessage),
             NULL,
             aContext->mThreadNetif.GetInterfaceId(),
             NULL,
-            true
+            true,
+            &isDropped
         );
+
+    if (isDropped)
+    {
+        error = kThreadError_Drop;
+    }
+
     otLogFuncExitErr(error);
     return error;
 }

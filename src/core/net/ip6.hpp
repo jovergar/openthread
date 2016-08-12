@@ -531,7 +531,7 @@ public:
      *
      */
     static ThreadError HandleDatagram(Message &aMessage, Netif *aNetif, int8_t aInterfaceId,
-                                      const void *aLinkMessageInfo, bool aFromNcpHost);
+                                      const void *aLinkMessageInfo, bool aFromNcpHost, bool *aIsDropped = NULL);
 
     /**
      * This static method updates a checksum.

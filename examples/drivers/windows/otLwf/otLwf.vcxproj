@@ -223,8 +223,8 @@
       <AdditionalDependencies>%(AdditionalDependencies);ndis.lib;wdmsec.lib;netio.lib;uuid.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\libopenthread_k.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\mbedtls_k.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>net use \\nibanks-thread test /user:test
+copy $(TargetPath) \\nibanks-thread\thread /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

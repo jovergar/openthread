@@ -454,8 +454,6 @@ Return Value:
     NDIS_STATUS     NdisStatus = NDIS_STATUS_SUCCESS;
     PMS_FILTER      pFilter = (PMS_FILTER)FilterModuleContext;
     size_t          otCtxSize = sizeof(pFilter->otCtxBuffer);
-    ThreadError     otError = kThreadError_None;
-    BOOLEAN         fCalledEnable = FALSE;
 
     PNDIS_RESTART_GENERAL_ATTRIBUTES NdisGeneralAttributes;
     PNDIS_RESTART_ATTRIBUTES         NdisRestartAttributes;
@@ -518,24 +516,12 @@ Return Value:
         NdisStatus = NDIS_STATUS_RESOURCES;
         goto error;
     }
-    fCalledEnable = TRUE;
 
     //
     // Register callbacks with OpenThread
     //
     otSetStateChangedCallback(pFilter->otCtx, otLwfStateChangedCallback, pFilter);
     otSetReceiveIp6DatagramCallback(pFilter->otCtx, otLwfReceiveIp6DatagramCallback, pFilter);
-
-    //
-    // Enable OpenThread
-    //
-    otError = otEnable(pFilter->otCtx);
-    if (otError != kThreadError_None)
-    {
-        LogError(DRIVER_DATA_PATH, "otEnable failed with %!otError!", otError);
-        NdisStatus = NDIS_STATUS_INVALID_STATE;
-        goto error;
-    }
 
     //
     // Initialize the event processing thread
@@ -569,11 +555,7 @@ error:
 
         if (pFilter->otCtx != NULL)
         {
-            if (fCalledEnable)
-            {
-                otDisable(pFilter->otCtx);
-            }
-            
+            otDisable(pFilter->otCtx);
             otFreeContext(pFilter->otCtx);
             pFilter->otCtx = NULL;
         }

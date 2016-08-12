@@ -331,7 +331,7 @@ otLwfCompleteNBLs(
     _In_ NTSTATUS               Status
     )
 {
-    LogVerbose(DRIVER_DATA_PATH, "otLwfCompleteNBLs, Filter:%p, NBL:%p, Recv:%u", pFilter, NetBufferLists, Received);
+    LogVerbose(DRIVER_DATA_PATH, "otLwfCompleteNBLs, Filter:%p, NBL:%p, Recv:%u, Status:%!STATUS!", pFilter, NetBufferLists, Received, Status);
 
     // Set the status for all the NBLs
     PNET_BUFFER_LIST CurrNbl = NetBufferLists;
@@ -613,7 +613,7 @@ otLwfEventWorkerThread(
                                         error = otSetMessageLength(message, (uint16_t)NET_BUFFER_DATA_LENGTH(CurrNb));
                                         if (error != kThreadError_None)
                                         {
-                                            LogError(DRIVER_DATA_PATH, "otSetMessageLength failed with 0x%x", (ULONG)error);
+                                            LogError(DRIVER_DATA_PATH, "otSetMessageLength failed with %!otError!", error);
                                             otFreeMessage(message);
                                         }
                                         else

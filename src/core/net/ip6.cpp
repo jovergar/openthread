@@ -45,6 +45,10 @@
 #include <net/udp6.hpp>
 #include <openthreadcontext.h>
 
+#ifdef WINDOWS_LOGGING
+#include "ip6.tmh"
+#endif
+
 namespace Thread {
 namespace Ip6 {
 
@@ -338,7 +342,7 @@ exit:
 }
 
 ThreadError Ip6::HandleDatagram(Message &message, Netif *netif, int8_t interfaceId, const void *linkMessageInfo,
-                                bool fromLocalHost)
+                                bool fromLocalHost, bool *aIsDropped)
 {
     ThreadError error = kThreadError_Drop;
     MessageInfo messageInfo;
@@ -348,6 +352,8 @@ ThreadError Ip6::HandleDatagram(Message &message, Netif *netif, int8_t interface
     bool forward = false;
     uint8_t nextHeader;
     uint8_t hopLimit;
+
+    otLogFuncEntry();
 
 #if 0
     uint8_t buf[1024];
@@ -449,8 +455,14 @@ exit:
     if (error == kThreadError_Drop)
     {
         Message::Free(message);
+
+        if (aIsDropped)
+        {
+            *aIsDropped = true;
+        }
     }
 
+    otLogFuncExitErr(error);
     return kThreadError_None;
 }
 
@@ -459,6 +471,8 @@ ThreadError ForwardMessage(Message &message, MessageInfo &messageInfo)
     ThreadError error = kThreadError_None;
     int8_t interfaceId;
     Netif *netif;
+
+    otLogFuncEntry();
 
     if (messageInfo.GetSockAddr().IsMulticast())
     {
@@ -493,6 +507,8 @@ ThreadError ForwardMessage(Message &message, MessageInfo &messageInfo)
     SuccessOrExit(error = netif->SendMessage(message));
 
 exit:
+
+    otLogFuncExitErr(error);
     return error;
 }
 
