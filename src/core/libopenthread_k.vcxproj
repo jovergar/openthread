@@ -195,7 +195,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);WINDOWS_LOGGING;WINDOWS_KERNEL;OPEN_THREAD_MAC_NO_MIN_BACKOFF_</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);WINDOWS_LOGGING;WINDOWS_KERNEL;PLATFORM_INFO="Windows"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)src\core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4100;4706;4748;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <WppEnabled>true</WppEnabled>
@@ -207,7 +207,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);WINDOWS_LOGGING;WINDOWS_KERNEL;OPEN_THREAD_MAC_NO_MIN_BACKOFF_</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);WINDOWS_LOGGING;WINDOWS_KERNEL;PLATFORM_INFO="Windows"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)src\core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4100;4603;4627;4706;4986;4987;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <WppEnabled>true</WppEnabled>
