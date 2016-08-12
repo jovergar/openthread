@@ -39,6 +39,10 @@
 #include <common/encoding.hpp>
 #include <common/message.hpp>
 
+#ifdef _WIN32
+#pragma warning(disable:4201)  //nonstandard extension used : nameless struct/union
+#endif
+
 using Thread::Encoding::BigEndian::HostSwap16;
 
 namespace Thread {

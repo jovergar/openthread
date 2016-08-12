@@ -38,6 +38,10 @@
 #include <net/netif.hpp>
 #include <openthreadcontext.h>
 
+#ifdef WINDOWS_LOGGING
+#include "netif.tmh"
+#endif
+
 namespace Thread {
 namespace Ip6 {
 

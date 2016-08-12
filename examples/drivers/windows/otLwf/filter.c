@@ -454,6 +454,8 @@ Return Value:
     NDIS_STATUS     NdisStatus = NDIS_STATUS_SUCCESS;
     PMS_FILTER      pFilter = (PMS_FILTER)FilterModuleContext;
     size_t          otCtxSize = sizeof(pFilter->otCtxBuffer);
+    ThreadError     otError = kThreadError_None;
+    BOOLEAN         fCalledEnable = FALSE;
 
     PNDIS_RESTART_GENERAL_ATTRIBUTES NdisGeneralAttributes;
     PNDIS_RESTART_ATTRIBUTES         NdisRestartAttributes;
@@ -508,7 +510,7 @@ Return Value:
     // Initialize the OpenThread library
     //
     pFilter->otCachedRole = kDeviceRoleDisabled;
-    pFilter->otCtx = otEnable(pFilter->otCtxBuffer, &otCtxSize);
+    pFilter->otCtx = otInit(pFilter->otCtxBuffer, &otCtxSize);
     NT_ASSERT(pFilter->otCtx);
     if (pFilter->otCtx == NULL)
     {
@@ -516,12 +518,24 @@ Return Value:
         NdisStatus = NDIS_STATUS_RESOURCES;
         goto error;
     }
+    fCalledEnable = TRUE;
 
     //
     // Register callbacks with OpenThread
     //
     otSetStateChangedCallback(pFilter->otCtx, otLwfStateChangedCallback, pFilter);
     otSetReceiveIp6DatagramCallback(pFilter->otCtx, otLwfReceiveIp6DatagramCallback, pFilter);
+
+    //
+    // Enable OpenThread
+    //
+    otError = otEnable(pFilter->otCtx);
+    if (otError != kThreadError_None)
+    {
+        LogError(DRIVER_DATA_PATH, "otEnable failed with %!otError!", otError);
+        NdisStatus = NDIS_STATUS_INVALID_STATE;
+        goto error;
+    }
 
     //
     // Initialize the event processing thread
@@ -552,6 +566,17 @@ error:
     if (NdisStatus != NDIS_STATUS_SUCCESS)
     {
         pFilter->State = FilterPaused;
+
+        if (pFilter->otCtx != NULL)
+        {
+            if (fCalledEnable)
+            {
+                otDisable(pFilter->otCtx);
+            }
+            
+            otFreeContext(pFilter->otCtx);
+            pFilter->otCtx = NULL;
+        }
     }
 
     LogFuncExitNDIS(DRIVER_DEFAULT, NdisStatus);
@@ -612,6 +637,8 @@ N.B.: When the filter is in Pausing state, it can still process OID requests,
     //
     otBecomeDetached(pFilter->otCtx); // TODO - This should block or we wait for it to complete
     otDisable(pFilter->otCtx);
+    otFreeContext(pFilter->otCtx);
+    pFilter->otCtx = NULL;
     
     otLwfNotifyInterfaceAvailableChange(pFilter, OTLWF_NOTIF_INTERFACE_REMOVAL);
     LogInfo(DRIVER_DEFAULT, "Interface %!GUID! removal.", &pFilter->InterfaceGuid);

@@ -942,7 +942,7 @@ ThreadError otSendIp6Datagram(otContext *aContext, otMessage aMessage)
         Ip6::Ip6::HandleDatagram(
             *static_cast<Message *>(aMessage),
             NULL,
-            (uint8_t)aContext->mThreadNetif.GetInterfaceId(),
+            aContext->mThreadNetif.GetInterfaceId(),
             NULL,
             true
         );

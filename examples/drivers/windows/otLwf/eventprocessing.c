@@ -637,7 +637,7 @@ otLwfEventWorkerThread(
                                             error = otSendIp6Datagram(pFilter->otCtx, message);
                                             if (error != kThreadError_None)
                                             {
-                                                LogError(DRIVER_DATA_PATH, "otSendIp6Datagram failed with 0x%x", (ULONG)error);
+                                                LogError(DRIVER_DATA_PATH, "otSendIp6Datagram failed with %!otError!", error);
                                             }
                                             else
                                             {
