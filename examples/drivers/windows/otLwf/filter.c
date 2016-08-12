@@ -619,8 +619,6 @@ N.B.: When the filter is in Pausing state, it can still process OID requests,
     //
     otBecomeDetached(pFilter->otCtx); // TODO - This should block or we wait for it to complete
     otDisable(pFilter->otCtx);
-    otFreeContext(pFilter->otCtx);
-    pFilter->otCtx = NULL;
     
     otLwfNotifyInterfaceAvailableChange(pFilter, OTLWF_NOTIF_INTERFACE_REMOVAL);
     LogInfo(DRIVER_DEFAULT, "Interface %!GUID! removal.", &pFilter->InterfaceGuid);
@@ -634,6 +632,12 @@ N.B.: When the filter is in Pausing state, it can still process OID requests,
     // Stop event processing thread
     //
     otLwfEventProcessingStop(pFilter);
+    
+    //
+    // Free OpenThread context memory
+    //
+    otFreeContext(pFilter->otCtx);
+    pFilter->otCtx = NULL;
 
     // Set the state back to Paused now that we are done
     pFilter->State = FilterPaused;
