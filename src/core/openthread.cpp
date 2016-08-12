@@ -84,7 +84,7 @@ extern "C" {
 otContext *otInit(void *aContextBuffer, uint64_t *aContextBufferSize)
 {
     otContext *aContext = NULL;
-    
+
     otLogFuncEntry();
     otLogInfoApi("otInit\n");
 
@@ -97,7 +97,7 @@ otContext *otInit(void *aContextBuffer, uint64_t *aContextBufferSize)
     aContext = new(aContextBuffer)otContext();
 
 exit:
-    
+
     otLogFuncExit();
     return aContext;
 }
