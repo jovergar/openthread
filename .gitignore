@@ -9,6 +9,7 @@
 *.pyc
 *.suo
 *.trs
+*.user
 *~
 .bin
 .deps

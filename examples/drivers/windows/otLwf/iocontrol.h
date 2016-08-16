@@ -30,7 +30,7 @@
 #define _IOCONTROL_H
 
 //
-// Function prototype for all Io Control functions
+// Function prototype for general Io Control functions
 //
 typedef 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -45,28 +45,40 @@ OTLWF_IOCTL_FUNC(
     );
 
 //
-// Io Control Functions
+// General Io Control Functions
 //
 
 // Handles queries for the current list of Thread interfaces
 OTLWF_IOCTL_FUNC otLwfIoCtlEnumerateInterfaces;
 
-// Handles requests to start a new Thread network
-OTLWF_IOCTL_FUNC otLwfIoCtlCreateNetwork;
+// Handles queries for the details of a specific Thread interface
+OTLWF_IOCTL_FUNC otLwfIoCtlQueryInterface;
 
-// Handles requests to join an existing Thread network
-OTLWF_IOCTL_FUNC otLwfIoCtlJoinNetwork;
+// Handles IOTCLs for OpenThread control
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtlOpenThreadControl(
+    _In_ PIRP Irp
+    );
 
-// Handles requests to force a router ID request to the Thread network
-OTLWF_IOCTL_FUNC otLwfIoCtlSendRouterIDRequest;
+//
+// Function prototype for OpenThread Io Control functions
+//
+typedef 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+OTLWF_OT_IOCTL_FUNC(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PVOID           InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    );
 
-// Handles requests to disconnect an existing Thread network
-OTLWF_IOCTL_FUNC otLwfIoCtlDisconnectNetwork;
-
-// Handles requests to query the network addresses of an Interface
-OTLWF_IOCTL_FUNC otLwfIoCtlQueryNetworkAddresses;
-
-// Handles requests to query the mesh state of an Interface
-OTLWF_IOCTL_FUNC otLwfIoCtlQueryMeshState;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otEnabled;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otInterface;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otThread;
 
 #endif // _IOCONTROL_H

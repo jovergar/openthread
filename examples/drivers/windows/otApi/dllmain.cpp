@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Nest Labs, Inc.
+ *  Copyright (c) 2016, Microsoft Corporation.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,43 +26,33 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * @file
- * @brief
- *  This file defines the types and structures used in the OpenThread library API.
- */
+#include "precomp.h"
+#include "dllmain.tmh"
 
-#ifndef OPENTHREAD_STD_TYPES_H_
-#define OPENTHREAD_STD_TYPES_H_
+BOOL 
+__stdcall 
+DllMain(
+	HINSTANCE hinstDll, 
+	DWORD dwReason, 
+    LPVOID /* lpvReserved */
+    )
+{
+    switch (dwReason)
+    {
+    case DLL_PROCESS_ATTACH:
+        DisableThreadLibraryCalls(hinstDll);
+        WPP_INIT_TRACING(L"otApi");
+        break;
 
-#if !defined(WINDOWS_KERNEL) && !defined(OTDLL)
+    case DLL_PROCESS_DETACH:
+        WPP_CLEANUP();
+        break;
 
-#include <stdint.h>
-#include <stdbool.h>
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+        break;
+    }
 
-#else
+    return TRUE;
+}
 
-// Copied from stdint.h
-typedef signed char        int8_t;
-typedef short              int16_t;
-typedef int                int32_t;
-typedef long long          int64_t;
-typedef unsigned char      uint8_t;
-typedef unsigned short     uint16_t;
-typedef unsigned int       uint32_t;
-typedef unsigned long long uint64_t;
-
-#ifndef __cplusplus
-
-typedef int bool;
-#define false 0
-#define true 1
-
-#endif // __cplusplus
-
-// Windows Kernel only has sprintf_s
-#define snprintf sprintf_s
-
-#endif // WINDOWS_KERNEL
-
-#endif  // OPENTHREAD_STD_TYPES_H_

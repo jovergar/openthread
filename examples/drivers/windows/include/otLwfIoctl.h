@@ -35,7 +35,9 @@
 #ifndef __OTLWFIOCTL_H__
 #define __OTLWFIOCTL_H__
 
-#include <in6addr.h>
+#include <openthread-types.h>
+
+__inline LONG ThreadErrorToNtstatus(ThreadError error) { return (LONG)-((int)error); }
 
 // User-mode IOCTL path for CreateFile
 #define OTLWF_IOCLT_PATH      TEXT("\\\\.\\\\otlwf")
@@ -47,43 +49,16 @@
 #define OTLWF_CTL_CODE(request, method, access) \
     CTL_CODE(FILE_DEVICE_NETWORK, request, method, access)
 
-#pragma pack(push)
-#pragma pack(1)
-
 // Different possible notification types
 typedef enum _OTLWF_NOTIF_TYPE
 {
     OTLWF_NOTIF_UNSPECIFIED,
-    OTLWF_NOTIF_INTERFACE_ARRIVAL,
-    OTLWF_NOTIF_INTERFACE_REMOVAL,
-    OTLWF_NOTIF_INTERFACE_STATE,
-    OTLWF_NOTIF_ROLE_STATE,
-    OTLWF_NOTIF_CHILDREN_STATE,
-    OTLWF_NOTIF_NEIGHBOR_STATE
+    OTLWF_NOTIF_DEVICE_AVAILABILITY,
+    OTLWF_NOTIF_STATE_CHANGE,
+    OTLWF_NOTIF_DISCOVER,
+    OTLWF_NOTIF_ACTIVE_SCAN
 
 } OTLWF_NOTIF_TYPE;
-
-// Different possible states for the interface
-typedef enum _OTLWF_INTERFACE_STATE
-{
-    OTLWF_INTERFACE_STATE_UNSPECIFIED,
-    OTLWF_INTERFACE_STATE_DISCONNECTED,
-    OTLWF_INTERFACE_STATE_DISCONNECTING,
-    OTLWF_INTERFACE_STATE_CREATING_NEW_NETWORK,
-    OTLWF_INTERFACE_STATE_REQUESTING_PARENT,
-    OTLWF_INTERFACE_STATE_REQUESTING_CHILD_ID,
-    OTLWF_INTERFACE_STATE_JOINED
-
-} OTLWF_INTERFACE_STATE;
-
-// Different possible role states for the interface
-typedef enum _OTLWF_ROLE_STATE
-{
-    OTLWF_ROLE_STATE_UNSPECIFIED,
-    OTLWF_ROLE_STATE_CHILD,
-    OTLWF_ROLE_STATE_ROUTER
-
-} OTLWF_ROLE_STATE;
 
 //
 // Queries (async) the next notification in the queue
@@ -92,162 +67,331 @@ typedef enum _OTLWF_ROLE_STATE
     OTLWF_CTL_CODE(0, METHOD_BUFFERED, FILE_READ_DATA)
     typedef struct _OTLWF_NOTIFICATION {
         GUID                InterfaceGuid;
-        OTLWF_NOTIF_TYPE   NotifType;
+        OTLWF_NOTIF_TYPE    NotifType;
         union
         {
-            // Payload for OTLWF_NOTIF_INTERFACE_STATE
+            // Payload for OTLWF_NOTIF_DEVICE_AVAILABILITY
             struct
             {
-                OTLWF_INTERFACE_STATE  NewState;
-            } InterfaceStatePayload;
+                BOOLEAN                 Available;
+            } DeviceAvailabilityPayload;
 
-            // Payload for OTLWF_NOTIF_ROLE_STATE
+            // Payload for OTLWF_NOTIF_STATE_CHANGE
             struct
             {
-                OTLWF_ROLE_STATE       NewState;
-            } RoleStatePayload;
+                uint32_t                Flags;
+            } StateChangePayload;
 
-            // Payload for OTLWF_NOTIF_CHILDREN_STATE
+            // Payload for OTLWF_NOTIF_DISCOVER
             struct
             {
-                ULONG                   CountOfChildren;
-            } ChildrenStatePayload;
+                otActiveScanResult      Results;
+                otNetworkName           NetworkName;
+                otExtendedPanId         ExtendedPanId;
+            } DiscoverPayload;
 
-            // Payload for OTLWF_NOTIF_NEIGHBOR_STATE
+            // Payload for OTLWF_NOTIF_ACTIVE_SCAN
             struct
             {
-                ULONG                   CountOfNeighbors;
-            } NeighborStatePayload;
+                otActiveScanResult      Results;
+                otNetworkName           NetworkName;
+                otExtendedPanId         ExtendedPanId;
+            } ActiveScanPayload;
         };
     } OTLWF_NOTIFICATION, *POTLWF_NOTIFICATION;
 
 //
-// Enumerates all the Thread interfaces
+// Enumerates all the Thread interfaces guids
 //
-#define IOCTL_OTLWF_ENUMERATE_INTERFACES \
+#define IOCTL_OTLWF_ENUMERATE_DEVICES \
     OTLWF_CTL_CODE(1, METHOD_BUFFERED, FILE_READ_DATA)
-    typedef struct _OTLWF_INTERFACE {
-        GUID  InterfaceGuid;
-        WCHAR MiniportFriendlyName[128];
-        OTLWF_INTERFACE_STATE InterfaceState;
-        ULONG CompartmentID;
-    } OTLWF_INTERFACE, *POTLWF_INTERFACE;
     typedef struct _OTLWF_INTERFACE_LIST
     {
-        USHORT cInterfaces;
-        OTLWF_INTERFACE pInterfaces[1];
+        uint16_t cInterfaceGuids;
+        GUID     InterfaceGuids[1];
     } OTLWF_INTERFACE_LIST, *POTLWF_INTERFACE_LIST;
 
-// Flags indicating which optional parameters in OTLWF_NETWORK_PARAMS are set
-#define OTLWF_NETWORK_PARAM_EXTENDED_MAC_ADDRESS   0x0001
-#define OTLWF_NETWORK_PARAM_MESH_LOCAL_IID         0x0002
-#define OTLWF_NETWORK_PARAM_MAX_CHILDREN           0x0004
+//
+// Queries the detials of a given device Thread interfaces
+//
+#define IOCTL_OTLWF_QUERY_DEVICE \
+    OTLWF_CTL_CODE(2, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid (in)
+    typedef struct _OTLWF_DEVICE {
+        ULONG           CompartmentID;
+    } OTLWF_DEVICE, *POTLWF_DEVICE;
 
 //
-// Starts a new Thread network
+// Proxies to ot* APIs in otLwf.sys
 //
-#define IOCTL_OTLWF_CREATE_NETWORK \
-    OTLWF_CTL_CODE(2, METHOD_BUFFERED, FILE_WRITE_DATA)
-    typedef struct _OTLWF_NETWORK_PARAMS {
-        USHORT  Channel;
-        USHORT  PANID;
-        UCHAR   ExtendedPANID[8];
-        CHAR    NetworkName[16];
-        UCHAR   MasterKey[16];
-        BOOLEAN RouterEligibleEndDevice;
 
-        // Optional parameters
-        ULONG   OptionalFlags;
-        UCHAR   ExtendedMACAddress[8];
-        UCHAR   MeshLocalIID[8];
-        UCHAR   MaxChildren;
-    } OTLWF_NETWORK_PARAMS, *POTLWF_NETWORK_PARAMS;
+#define IOCTL_OTLWF_OT_ENABLED \
+    OTLWF_CTL_CODE(100, METHOD_BUFFERED, FILE_WRITE_DATA)
     // GUID - InterfaceGuid
-    // OTLWF_NETWORK_PARAMS
-
-//
-// Joins an existing Thread network
-//
-#define IOCTL_OTLWF_JOIN_NETWORK \
-    OTLWF_CTL_CODE(3, METHOD_BUFFERED, FILE_WRITE_DATA)
-    // GUID - InterfaceGuid
-    // OTLWF_NETWORK_PARAMS
-
-//
-// Request to be a router in the Thread network
-//
-#define IOCTL_OTLWF_SEND_ROUTER_ID_REQUEST \
-    OTLWF_CTL_CODE(4, METHOD_BUFFERED, FILE_WRITE_DATA)
-// GUID - InterfaceGuid
-
-//
-// Disconnects from the Thread network
-//
-#define IOCTL_OTLWF_DISCONNECT_NETWORK \
-    OTLWF_CTL_CODE(5, METHOD_BUFFERED, FILE_WRITE_DATA)
-    // GUID - InterfaceGuid
-
-// Helper class for decoding an RLOC16, also known as a Short Address
-typedef struct _OTLWF_RLOC16
-{
-    USHORT RouterID : 5; // In network byte order
-    USHORT Reserved : 1;
-    USHORT ChildID  : 9; // In network byte order
-
-#ifdef __cplusplus
-    bool IsRouter() const { return ChildID == 0; }
-#endif
-
-} OTLWF_RLOC16, *POTLWF_RLOC16;
-
-const size_t ThreadRLCO16Size = sizeof(OTLWF_RLOC16);
-
-//
-// Queries the Network (L2 & L3) Addresses of an Interface
-//
-#define IOCTL_OTLWF_QUERY_NETWORK_ADDRESSES \
-    OTLWF_CTL_CODE(6, METHOD_BUFFERED, FILE_READ_DATA)
-    typedef struct _OTLWF_NETWORK_ADDRESSES {
-        UCHAR    ExtendedMACAddress[8];
-        IN6_ADDR LL_EID;
-        IN6_ADDR RLOC;
-        IN6_ADDR ML_EID;
-#ifdef __cplusplus
-        POTLWF_RLOC16 RLOC16() const { return (POTLWF_RLOC16)(RLOC.u.Byte + 14); }
-#endif
-    } OTLWF_NETWORK_ADDRESSES, *POTLWF_NETWORK_ADDRESSES;
-    // GUID - InterfaceGuid
-    // OTLWF_NETWORK_STATE
-
-//
-// Queries the Mesh state of an Interface
-//
-#define IOCTL_OTLWF_QUERY_MESH_STATE \
-    OTLWF_CTL_CODE(7, METHOD_BUFFERED, FILE_READ_DATA)
-    typedef struct _OTLWF_CHILD_LINK {
-        USHORT  ChildID;
-        UCHAR   ExtendedMacAddress[8];
-    } OTLWF_CHILD_LINK, *POTLWF_CHILD_LINK;
-    typedef struct _OTLWF_NEIGBHOR_LINK {
-        UCHAR   RouterID;
-        UCHAR   ExtendedMacAddress[8];
-        UCHAR   IncomingLinkQuality;
-        UCHAR   OutgoingLinkQuality;
-    } OTLWF_NEIGBHOR_LINK, *POTLWF_NEIGBHOR_LINK;
-    typedef struct _OTLWF_MESH_STATE {
-        UCHAR                   cChildren;
-        UCHAR                   cNeighbors;
-        POTLWF_CHILD_LINK      Children;
-        POTLWF_NEIGBHOR_LINK   Neighbors;
-    } OTLWF_MESH_STATE, *POTLWF_MESH_STATE;
-    // GUID - InterfaceGuid
-    // OTLWF_MESH_STATE
+    // BOOLEAN - aEnabled
     
-    #define OTLWF_MESH_STATE_SIZE(cChildren, cNeighbors) \
-        sizeof(OTLWF_MESH_STATE) \
-        + (cChildren * sizeof(OTLWF_CHILD_LINK)) \
-        + (cNeighbors * sizeof(OTLWF_NEIGBHOR_LINK))
-
-#pragma pack(pop)
+#define IOCTL_OTLWF_OT_INTERFACE \
+    OTLWF_CTL_CODE(101, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // BOOLEAN - aUp
+    
+#define IOCTL_OTLWF_OT_THREAD \
+    OTLWF_CTL_CODE(102, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // BOOLEAN - aStarted
+    
+#define IOCTL_OTLWF_OT_ACTIVE_SCAN \
+    OTLWF_CTL_CODE(103, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aScanChannels
+    // uint16_t - aScanDuration
+    
+#define IOCTL_OTLWF_OT_DISCOVER \
+    OTLWF_CTL_CODE(104, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aScanChannels
+    // uint16_t - aScanDuration
+    // uint16_t - aPanid
+    
+#define IOCTL_OTLWF_OT_CHANNEL \
+    OTLWF_CTL_CODE(105, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aChannel
+    
+#define IOCTL_OTLWF_OT_CHILD_TIMEOUT \
+    OTLWF_CTL_CODE(106, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aTimeout
+    
+#define IOCTL_OTLWF_OT_EXTENDED_ADDRESS \
+    OTLWF_CTL_CODE(107, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otExtAddress - aExtendedAddress
+    
+#define IOCTL_OTLWF_OT_EXTENDED_PANID \
+    OTLWF_CTL_CODE(108, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otExtendedPanId - aExtendedPanId
+    
+#define IOCTL_OTLWF_OT_LEADER_RLOC \
+    OTLWF_CTL_CODE(109, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // otIp6Address - aLeaderRloc
+    
+#define IOCTL_OTLWF_OT_LINK_MODE \
+    OTLWF_CTL_CODE(110, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otLinkModeConfig - aConfig
+    
+#define IOCTL_OTLWF_OT_MASTER_KEY \
+    OTLWF_CTL_CODE(111, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otMasterKey - aKey
+    // uint8_t - aKeyLength
+    
+#define IOCTL_OTLWF_OT_MESH_LOCAL_EID \
+    OTLWF_CTL_CODE(112, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // otIp6Address - aMeshLocalEid
+    
+#define IOCTL_OTLWF_OT_MESH_LOCAL_PREFIX \
+    OTLWF_CTL_CODE(113, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otMeshLocalPrefix - aPrefix
+    
+#define IOCTL_OTLWF_OT_NETWORK_DATA_LEADER \
+    OTLWF_CTL_CODE(114, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t[] - aData
+    
+#define IOCTL_OTLWF_OT_NETWORK_DATA_LOCAL \
+    OTLWF_CTL_CODE(115, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t[] - aData
+    
+#define IOCTL_OTLWF_OT_NETWORK_NAME \
+    OTLWF_CTL_CODE(116, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otNetworkName - aNetworkName
+    
+#define IOCTL_OTLWF_OT_PAN_ID \
+    OTLWF_CTL_CODE(117, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otPanId - aPanId
+    
+#define IOCTL_OTLWF_OT_ROUTER_ROLL_ENABLED \
+    OTLWF_CTL_CODE(118, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // BOOLEAN - aEnabled
+    
+#define IOCTL_OTLWF_OT_SHORT_ADDRESS \
+    OTLWF_CTL_CODE(119, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // otShortAddress - aShortAddress
+    
+#define IOCTL_OTLWF_OT_UNICAST_ADDRESSES \
+    OTLWF_CTL_CODE(120, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // otNetifAddress[] - aAddresses
+    
+#define IOCTL_OTLWF_OT_ACTIVE_DATASET \
+    OTLWF_CTL_CODE(121, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otOperationalDataset - aDataset
+    
+#define IOCTL_OTLWF_OT_PENDING_DATASET \
+    OTLWF_CTL_CODE(122, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otOperationalDataset - aDataset
+    
+#define IOCTL_OTLWF_OT_LOCAL_LEADER_WEIGHT \
+    OTLWF_CTL_CODE(123, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aWeight
+    
+#define IOCTL_OTLWF_OT_ADD_BORDER_ROUTER \
+    OTLWF_CTL_CODE(124, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otBorderRouterConfig - aConfig
+    
+#define IOCTL_OTLWF_OT_REMOVE_BORDER_ROUTER \
+    OTLWF_CTL_CODE(125, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otIp6Prefix - aPrefix
+    
+#define IOCTL_OTLWF_OT_ADD_EXTERNAL_ROUTE \
+    OTLWF_CTL_CODE(126, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otExternalRouteConfig - aConfig
+    
+#define IOCTL_OTLWF_OT_REMOVE_EXTERNAL_ROUTE \
+    OTLWF_CTL_CODE(127, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otIp6Prefix - aPrefix
+    
+#define IOCTL_OTLWF_OT_SEND_SERVER_DATA \
+    OTLWF_CTL_CODE(128, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    
+#define IOCTL_OTLWF_OT_CONTEXT_ID_REUSE_DELAY \
+    OTLWF_CTL_CODE(129, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aDelay
+    
+#define IOCTL_OTLWF_OT_KEY_SEQUENCE_COUNTER \
+    OTLWF_CTL_CODE(130, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aKeySequenceCounter
+    
+#define IOCTL_OTLWF_OT_NETWORK_ID_TIMEOUT \
+    OTLWF_CTL_CODE(131, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aTimeout
+    
+#define IOCTL_OTLWF_OT_ROUTER_UPGRADE_THRESHOLD \
+    OTLWF_CTL_CODE(132, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aThreshold
+    
+#define IOCTL_OTLWF_OT_RELEASE_ROUTER_ID \
+    OTLWF_CTL_CODE(133, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aRouterId
+    
+#define IOCTL_OTLWF_OT_MAC_WHITELIST_ENABLED \
+    OTLWF_CTL_CODE(134, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // BOOLEAN - aEnabled
+    
+#define IOCTL_OTLWF_OT_ADD_MAC_WHITELIST \
+    OTLWF_CTL_CODE(135, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otExtAddress - aExtAddr
+    // int8_t - aRssi (optional)
+    
+#define IOCTL_OTLWF_OT_REMOVE_MAC_WHITELIST \
+    OTLWF_CTL_CODE(136, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otExtAddress - aExtAddr
+    
+#define IOCTL_OTLWF_OT_MAC_WHITELIST_ENTRY \
+    OTLWF_CTL_CODE(137, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aIndex (input)
+    // otMacWhitelistEntry - aEntry (output)
+    
+#define IOCTL_OTLWF_OT_CLEAR_MAC_WHITELIST \
+    OTLWF_CTL_CODE(138, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    
+#define IOCTL_OTLWF_OT_DEVICE_ROLE \
+    OTLWF_CTL_CODE(139, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otDeviceRole - aRole
+    // otMleAttachFilter - aFilter (only for kDeviceRoleChild)
+    
+#define IOCTL_OTLWF_OT_CHILD_INFO_BY_ID \
+    OTLWF_CTL_CODE(140, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint16_t - aChildId (input)
+    // otChildInfo - aChildInfo (output)
+    
+#define IOCTL_OTLWF_OT_CHILD_INFO_BY_INDEX \
+    OTLWF_CTL_CODE(141, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aChildIndex (input)
+    // otChildInfo - aChildInfo (output)
+    
+#define IOCTL_OTLWF_OT_EID_CACHE_ENTRY \
+    OTLWF_CTL_CODE(142, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aIndex (input)
+    // otEidCacheEntry - aEntry (output)
+    
+#define IOCTL_OTLWF_OT_LEADER_DATA \
+    OTLWF_CTL_CODE(143, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // otLeaderData - aLeaderData
+    
+#define IOCTL_OTLWF_OT_LEADER_ROUTER_ID \
+    OTLWF_CTL_CODE(144, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aRouterID
+    
+#define IOCTL_OTLWF_OT_LEADER_WEIGHT \
+    OTLWF_CTL_CODE(145, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aWeight
+    
+#define IOCTL_OTLWF_OT_NETWORK_DATA_VERSION \
+    OTLWF_CTL_CODE(146, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aVersion
+    
+#define IOCTL_OTLWF_OT_PARTITION_ID \
+    OTLWF_CTL_CODE(147, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aPartition
+    
+#define IOCTL_OTLWF_OT_RLOC16 \
+    OTLWF_CTL_CODE(148, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint16_t - aRloc16
+    
+#define IOCTL_OTLWF_OT_ROUTER_ID_SEQUENCE \
+    OTLWF_CTL_CODE(149, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aIdSequence
+    
+#define IOCTL_OTLWF_OT_ROUTER_INFO \
+    OTLWF_CTL_CODE(150, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint16_t - aRouterId (input)
+    // otRouterInfo - aRouterInfo (output)
+    
+#define IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION \
+    OTLWF_CTL_CODE(151, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aVersion
 
 #endif //__OTLWFIOCTL_H__

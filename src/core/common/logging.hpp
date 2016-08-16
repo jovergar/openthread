@@ -585,7 +585,7 @@ extern "C" {
 #define otLogDebgMem(aFormat, ...)
 #endif
 
-#endif
+#endif // WINDOWS_LOGGING
 
 /**
  * @def otDumpCrit

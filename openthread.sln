@@ -57,6 +57,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ot-ncp-spi", "examples\apps
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ot-ncp-uart", "examples\apps\ncp\ot-ncp-uart.vcxproj", "{9EEF9DCD-EA8F-4154-BD02-AB2B31CEC324}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "otApi", "examples\drivers\windows\otApi\otApi.vcxproj", "{ED0EA262-C222-42C7-98D3-E70C72978ED2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -241,6 +243,14 @@ Global
 		{9EEF9DCD-EA8F-4154-BD02-AB2B31CEC324}.Release|x64.Build.0 = Release|x64
 		{9EEF9DCD-EA8F-4154-BD02-AB2B31CEC324}.Release|x86.ActiveCfg = Release|Win32
 		{9EEF9DCD-EA8F-4154-BD02-AB2B31CEC324}.Release|x86.Build.0 = Release|Win32
+		{ED0EA262-C222-42C7-98D3-E70C72978ED2}.Debug|x64.ActiveCfg = Debug|x64
+		{ED0EA262-C222-42C7-98D3-E70C72978ED2}.Debug|x64.Build.0 = Debug|x64
+		{ED0EA262-C222-42C7-98D3-E70C72978ED2}.Debug|x86.ActiveCfg = Debug|Win32
+		{ED0EA262-C222-42C7-98D3-E70C72978ED2}.Debug|x86.Build.0 = Debug|Win32
+		{ED0EA262-C222-42C7-98D3-E70C72978ED2}.Release|x64.ActiveCfg = Release|x64
+		{ED0EA262-C222-42C7-98D3-E70C72978ED2}.Release|x64.Build.0 = Release|x64
+		{ED0EA262-C222-42C7-98D3-E70C72978ED2}.Release|x86.ActiveCfg = Release|Win32
+		{ED0EA262-C222-42C7-98D3-E70C72978ED2}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -268,5 +278,6 @@ Global
 		{86EDE05A-8713-4B06-AB34-F8E461BF1E8A} = {8FB678E3-C4E2-4F16-AF00-B9389942632C}
 		{B4C744EC-B662-46C6-A076-FB58FA8FDF1B} = {76EA541E-CAB1-4DB5-A39F-E3DB2A78CDDD}
 		{9EEF9DCD-EA8F-4154-BD02-AB2B31CEC324} = {76EA541E-CAB1-4DB5-A39F-E3DB2A78CDDD}
+		{ED0EA262-C222-42C7-98D3-E70C72978ED2} = {3223EA88-5499-47EF-97B4-B6515BC3D8C8}
 	EndGlobalSection
 EndGlobal

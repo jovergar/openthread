@@ -1375,6 +1375,7 @@ ThreadError NcpBase::GetPropertyHandler_NET_STATE(uint8_t header, spinel_prop_ke
     {
         switch (otGetDeviceRole(mContext))
         {
+        case kDeviceRoleOffline:
         case kDeviceRoleDisabled:
         case kDeviceRoleDetached:
             state = SPINEL_NET_STATE_DETACHED;
@@ -1403,6 +1404,7 @@ ThreadError NcpBase::GetPropertyHandler_NET_ROLE(uint8_t header, spinel_prop_key
 
     switch (otGetDeviceRole(mContext))
     {
+    case kDeviceRoleOffline:
     case kDeviceRoleDisabled:
     case kDeviceRoleDetached:
         role = SPINEL_NET_ROLE_NONE;

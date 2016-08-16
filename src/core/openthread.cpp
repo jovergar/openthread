@@ -50,6 +50,19 @@
 #include "openthread.tmh"
 #endif
 
+#ifndef C_ASSERT
+#define C_ASSERT(e) typedef char __C_ASSERT__[(e)?1:-1]
+#endif
+
+// Number of aligned bytes required for the context structure
+const size_t cAlignedContextSize = otALIGNED_VAR_SIZE(sizeof(otContext), uint64_t) * sizeof(uint64_t);
+
+// Number of bytes indicated in the public header file for the context structure
+const size_t cPublicContextSize = OT_CONTEXT_SIZE;
+
+// Ensure we are initializing the public definition of the size of the context structure correctly
+C_ASSERT(cPublicContextSize >= cAlignedContextSize);
+
 otContext::otContext(void) :
     mReceiveIp6DatagramCallback(NULL),
     mEphemeralPort(Thread::Ip6::Udp::kDynamicPortMin),

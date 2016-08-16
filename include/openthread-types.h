@@ -47,8 +47,28 @@ extern "C" {
  */
 typedef struct otContext otContext;
 
+#ifdef OTDLL
+
+/**
+ * This type represents the handle to the OpenThread API.
+ */
+typedef struct otApiContext otApiContext;
+
+/**
+ * This type represents a list of device GUIDs.
+ */
+typedef struct otDeviceList
+{
+    uint16_t aDevicesLength;
+    GUID     aDevices[1];
+} otDeviceList;
+
+#else
+
 // Size of the OpenThread context structure (bytes)
 #define OT_CONTEXT_SIZE   (9800 + OPENTHREAD_CONFIG_NUM_MESSAGE_BUFFERS * OPENTHREAD_CONFIG_MESSAGE_BUFFER_SIZE)
+
+#endif
 
 /**
  * This enumeration represents error codes used throughout OpenThread.
@@ -532,6 +552,7 @@ typedef struct otMacWhitelistEntry
  */
 typedef enum
 {
+    kDeviceRoleOffline,   ///< The Thread device is offline and unavailable.
     kDeviceRoleDisabled,  ///< The Thread stack is disabled.
     kDeviceRoleDetached,  ///< Not currently participating in a Thread network/partition.
     kDeviceRoleChild,     ///< The Thread Child role.

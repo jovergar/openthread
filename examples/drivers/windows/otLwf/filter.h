@@ -133,6 +133,8 @@ typedef struct _MS_FILTER
     KEVENT                          EventWorkerThreadProcessTasklets;
     PEX_TIMER                       EventHighPrecisionTimer;
     UCHAR                           EventTimerState;
+    LIST_ENTRY                      EventIrpListHead;
+    KEVENT                          EventWorkerThreadProcessIrp;
 
     //
     // Data Path Synchronization
@@ -269,6 +271,13 @@ otLwfEventProcessingTimer(
     _In_opt_ PVOID Context
     );
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfEventProcessingQueueIrp(
+    _In_ PMS_FILTER pFilter,
+    _In_ PIRP       Irp
+    );
+
 //
 // Data Path functions
 //
@@ -291,16 +300,6 @@ otLwfDisableDataPath(
 
 void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext);
 void otLwfReceiveIp6DatagramCallback(_In_ otMessage aMessage, _In_ void *aContext);
-
-//
-// Notify Functions
-//
-
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-otLwfNotifyRoleStateChange(
-    _In_ PMS_FILTER             pFilter
-    );
 
 //
 // Address Functions

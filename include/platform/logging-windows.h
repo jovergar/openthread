@@ -32,8 +32,8 @@
  *  This file defines the WPP Tracing Definitions.
  */
 
-#ifndef _TRACE_H
-#define _TRACE_H
+#ifndef _LOGGING_WINDOWS_H
+#define _LOGGING_WINDOWS_H
 
 //
 // Tracing Definitions: {1AA98926-2E40-43D1-9D83-34C6BE816365}
@@ -153,6 +153,7 @@
 
 // begin_wpp config
 // CUSTOM_TYPE(otError, ItemEnum(ThreadError));
+// CUSTOM_TYPE(otDeviceRole, ItemEnum(otDeviceRole));
 // end_wpp
 
 //
@@ -407,4 +408,4 @@
 // USESUFFIX(otLogFuncExitErr, " %!otError!", EXP);
 // end_wpp
 
-#endif // _TRACE_H
+#endif // _LOGGING_WINDOWS_H

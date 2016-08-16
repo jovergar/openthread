@@ -65,9 +65,6 @@
     <ClCompile Include="precomp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="logging.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="alarm.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -81,9 +78,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="iocontrol.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="notify.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="eventprocessing.c">

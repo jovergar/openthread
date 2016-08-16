@@ -1327,6 +1327,10 @@ void Interpreter::ProcessState(int argc, char *argv[])
     {
         switch (otGetDeviceRole(mContext))
         {
+        case kDeviceRoleOffline:
+            sServer->OutputFormat("offline\r\n");
+            break;
+
         case kDeviceRoleDisabled:
             sServer->OutputFormat("disabled\r\n");
             break;
