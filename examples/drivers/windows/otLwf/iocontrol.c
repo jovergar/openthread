@@ -41,8 +41,9 @@ otLwfIoCtlEnumerateInterfaces(
     _Inout_ PULONG          OutBufferLength
     )
 {
-    NTSTATUS        status = STATUS_SUCCESS;
-    ULONG           NewOutBufferLength = 0;
+    NTSTATUS status = STATUS_SUCCESS;
+    ULONG NewOutBufferLength = 0;
+    POTLWF_INTERFACE_LIST pInterfaceList = (POTLWF_INTERFACE_LIST)OutBuffer;
     
     UNREFERENCED_PARAMETER(InBuffer);
     UNREFERENCED_PARAMETER(InBufferLength);
@@ -61,16 +62,14 @@ otLwfIoCtlEnumerateInterfaces(
         goto error;
     }
 
-    POTLWF_INTERFACE_LIST pInterfaceList = (POTLWF_INTERFACE_LIST)OutBuffer;
-    pInterfaceList->cInterfaceGuids = 0;
-
+	// Iterate through each interface and build up the list of running interfaces
     for (PLIST_ENTRY Link = FilterModuleList.Flink; Link != &FilterModuleList; Link = Link->Flink)
     {
-        PGUID pInterfaceGuid = &pInterfaceList->InterfaceGuids[pInterfaceList->cInterfaceGuids];
-        pInterfaceList->cInterfaceGuids++;
-
         PMS_FILTER pFilter = CONTAINING_RECORD(Link, MS_FILTER, FilterModuleLink);
         if (pFilter->State != FilterRunning) continue;
+
+        PGUID pInterfaceGuid = &pInterfaceList->InterfaceGuids[pInterfaceList->cInterfaceGuids];
+        pInterfaceList->cInterfaceGuids++;
 
         NewOutBufferLength =
             FIELD_OFFSET(OTLWF_INTERFACE_LIST, InterfaceGuids) +
@@ -110,13 +109,10 @@ otLwfIoCtlQueryInterface(
     _Inout_ PULONG          OutBufferLength
     )
 {
-    NTSTATUS        status = STATUS_SUCCESS;
-    ULONG           NewOutBufferLength = 0;
+    NTSTATUS status = STATUS_SUCCESS;
+    ULONG    NewOutBufferLength = 0;
 
     LogFuncEntry(DRIVER_IOCTL);
-
-    // Make sure to zero out the output first
-    RtlZeroMemory(OutBuffer, *OutBufferLength);
 
     // Make sure there is enough space for the first USHORT
     if (InBufferLength < sizeof(GUID) || *OutBufferLength < sizeof(OTLWF_DEVICE))
@@ -128,6 +124,7 @@ otLwfIoCtlQueryInterface(
     PGUID pInterfaceGuid = (PGUID)InBuffer;
     POTLWF_DEVICE pDevice = (POTLWF_DEVICE)OutBuffer;
 
+	// Look up the interface
     PMS_FILTER pFilter = otLwfFindAndRefInterface(pInterfaceGuid);
     if (pFilter == NULL)
     {
@@ -137,6 +134,9 @@ otLwfIoCtlQueryInterface(
 
     NewOutBufferLength = sizeof(OTLWF_DEVICE);
     pDevice->CompartmentID = pFilter->InterfaceCompartmentID;
+
+	// Release the ref on the interface
+	otLwfReleaseInterface(pFilter);
 
 error:
 
@@ -218,7 +218,7 @@ otLwfIoCtl_otEnabled(
     *OutBufferLength = 0;
     UNREFERENCED_PARAMETER(OutBuffer);
 
-    if (InBufferLength == sizeof(BOOLEAN))
+    if (InBufferLength >= sizeof(BOOLEAN))
     {
         BOOLEAN IsEnabled = *(BOOLEAN*)InBuffer;
         if (IsEnabled)
@@ -248,7 +248,7 @@ otLwfIoCtl_otInterface(
 {
     NTSTATUS status = STATUS_INVALID_PARAMETER;
 
-    if (InBufferLength == sizeof(BOOLEAN))
+    if (InBufferLength >= sizeof(BOOLEAN))
     {
         BOOLEAN IsEnabled = *(BOOLEAN*)InBuffer;
         if (IsEnabled)
@@ -262,7 +262,7 @@ otLwfIoCtl_otInterface(
         
         *OutBufferLength = 0;
     }
-    else if (*OutBufferLength == sizeof(BOOLEAN))
+    else if (*OutBufferLength >= sizeof(BOOLEAN))
     {
         *(BOOLEAN*)OutBuffer = otIsInterfaceUp(pFilter->otCtx) ? TRUE : FALSE;
         status = STATUS_SUCCESS;
@@ -292,7 +292,7 @@ otLwfIoCtl_otThread(
     *OutBufferLength = 0;
     UNREFERENCED_PARAMETER(OutBuffer);
 
-    if (InBufferLength == sizeof(BOOLEAN))
+    if (InBufferLength >= sizeof(BOOLEAN))
     {
         BOOLEAN IsEnabled = *(BOOLEAN*)InBuffer;
         if (IsEnabled)
@@ -303,6 +303,142 @@ otLwfIoCtl_otThread(
         {
             status = ThreadErrorToNtstatus(otThreadStop(pFilter->otCtx));
         }
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otLinkMode(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PVOID           InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+	
+	/*
+		For some reason (sizeof(otLinkModeConfig) == 4) in C, but not C++,
+		so this code needs to do a bit of manual labor to get the one byte
+		into the otLinkModeConfig struct.
+	*/
+	static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
+	if (InBufferLength >= sizeof(uint8_t))
+	{
+		otLinkModeConfig Config = {0};
+		memcpy(&Config, InBuffer, sizeof(uint8_t));
+		status = ThreadErrorToNtstatus(
+					otSetLinkMode(pFilter->otCtx, Config)
+					);
+		*OutBufferLength = 0;
+	}
+	else if (*OutBufferLength >= sizeof(uint8_t))
+	{
+		otLinkModeConfig Config = otGetLinkMode(pFilter->otCtx);
+		memcpy(OutBuffer, &Config, sizeof(uint8_t));
+		status = STATUS_SUCCESS;
+	}
+	else
+	{
+		*OutBufferLength = 0;
+	}
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otMeshLocalEid(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PVOID           InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+	
+    UNREFERENCED_PARAMETER(InBuffer);
+    UNREFERENCED_PARAMETER(InBufferLength);
+
+    if (*OutBufferLength >= sizeof(otIp6Address))
+    {
+		memcpy(OutBuffer,  otGetMeshLocalEid(pFilter->otCtx), sizeof(otIp6Address));
+        status = STATUS_SUCCESS;
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otDeviceRole(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PVOID           InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+	
+    if (InBufferLength >= sizeof(uint8_t))
+    {
+		otDeviceRole role = *(uint8_t*)InBuffer;
+
+		InBufferLength -= sizeof(uint8_t);
+		InBuffer = (PUCHAR)InBuffer + sizeof(uint8_t);
+
+		if (role == kDeviceRoleLeader)
+		{
+			status = ThreadErrorToNtstatus(
+						otBecomeLeader(pFilter->otCtx)
+						);
+		}
+		else if (role == kDeviceRoleRouter)
+		{
+			status = ThreadErrorToNtstatus(
+						otBecomeRouter(pFilter->otCtx)
+						);
+		}
+		else if (role == kDeviceRoleChild)
+		{
+			if (InBufferLength >= sizeof(uint8_t))
+			{
+				status = ThreadErrorToNtstatus(
+							otBecomeChild(pFilter->otCtx, *(uint8_t*)InBuffer)
+							);
+			}
+		}
+		else if (role == kDeviceRoleDetached)
+		{
+			status = ThreadErrorToNtstatus(
+						otBecomeDetached(pFilter->otCtx)
+						);
+		}
+        *OutBufferLength = 0;
+    }
+    else if (*OutBufferLength >= sizeof(uint8_t))
+    {
+        *(uint8_t*)OutBuffer = otGetDeviceRole(pFilter->otCtx);
+        status = STATUS_SUCCESS;
+    }
+    else
+    {
+        *OutBufferLength = 0;
     }
 
     return status;

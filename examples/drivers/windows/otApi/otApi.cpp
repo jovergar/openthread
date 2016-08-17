@@ -64,12 +64,13 @@ typedef struct otApiContext
     otApiContext() : 
         DeviceHandle(INVALID_HANDLE_VALUE),
         Overlapped({0}),
-        ThreadpoolWait(NULL),
+        ThreadpoolWait(nullptr),
         CallbackRefCount(0),
-        CallbackCompleteEvent(NULL),
-        DeviceAvailabilityCallbacks((otDeviceAvailabilityChangedCallback)NULL, (PVOID)NULL)
+        CallbackCompleteEvent(nullptr),
+        DeviceAvailabilityCallbacks((otDeviceAvailabilityChangedCallback)nullptr, (PVOID)nullptr)
     { 
         InitializeCriticalSection(&CallbackLock);
+		RtlInitializeReferenceCount(&CallbackRefCount);
     }
 
     ~otApiContext()
@@ -86,7 +87,7 @@ typedef struct otApiContext
 
         EnterCriticalSection(&CallbackLock);
 
-        if (get<1>(Callback) == NULL)
+        if (get<1>(Callback) == nullptr)
         {
             for (size_t i = 0; i < Callbacks.size(); i++)
             {
@@ -155,21 +156,39 @@ otApiInit(
     )
 {
     DWORD dwError = ERROR_SUCCESS;
-    otApiContext *aApiContext = NULL;
+    otApiContext *aApiContext = nullptr;
     
     otLogFuncEntry();
 
     aApiContext = new(std::nothrow)otApiContext();
-    if (aApiContext == NULL)
+    if (aApiContext == nullptr)
     {
         dwError = GetLastError();
         otLogWarnApi("Failed to allocate otApiContext");
         goto error;
     }
 
+    // Open the pipe to the OpenThread driver
+    aApiContext->DeviceHandle = 
+        CreateFile(
+            OTLWF_IOCLT_PATH,
+            GENERIC_READ | GENERIC_WRITE,
+            0,
+            nullptr,                   // no SECURITY_ATTRIBUTES structure
+            OPEN_EXISTING,          // No special create flags
+            FILE_FLAG_OVERLAPPED,   // Allow asynchronous requests
+            nullptr
+            );
+    if (aApiContext->DeviceHandle == INVALID_HANDLE_VALUE)
+    {
+        dwError = GetLastError();
+        otLogCritApi("CreateFile failed, %!WINERROR!", dwError);
+        goto error;
+    }
+
     // Create event for completion of callback cleanup
-    aApiContext->CallbackCompleteEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (aApiContext->CallbackCompleteEvent == NULL)
+    aApiContext->CallbackCompleteEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (aApiContext->CallbackCompleteEvent == nullptr)
     {
         dwError = GetLastError();
         otLogCritApi("CreateEvent (CallbackCompleteEvent) failed, %!WINERROR!", dwError);
@@ -177,8 +196,8 @@ otApiInit(
     }
 
     // Create event for completion of async IO
-    aApiContext->Overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (aApiContext->Overlapped.hEvent == NULL)
+    aApiContext->Overlapped.hEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (aApiContext->Overlapped.hEvent == nullptr)
     {
         dwError = GetLastError();
         otLogCritApi("CreateEvent (Overlapped.hEvent) failed, %!WINERROR!", dwError);
@@ -190,9 +209,9 @@ otApiInit(
         CreateThreadpoolWait(
             otIoComplete,
             aApiContext,
-            NULL
+            nullptr
             );
-    if (aApiContext->ThreadpoolWait == NULL)
+    if (aApiContext->ThreadpoolWait == nullptr)
     {
         dwError = GetLastError();
         otLogCritApi("CreateThreadpoolWait failed, %!WINERROR!", dwError);
@@ -200,37 +219,15 @@ otApiInit(
     }
 
     // Start the otpool waiting on the overlapped event
-    SetThreadpoolWait(aApiContext->ThreadpoolWait, aApiContext->Overlapped.hEvent, NULL);
-
-    // Open the pipe to the OpenThread driver
-    aApiContext->DeviceHandle = 
-        CreateFile(
-            OTLWF_IOCLT_PATH,
-            GENERIC_READ | GENERIC_WRITE,
-            0,
-            NULL,                   // no SECURITY_ATTRIBUTES structure
-            OPEN_EXISTING,          // No special create flags
-            FILE_FLAG_OVERLAPPED,   // Allow asynchronous requests
-            NULL
-            );
-    if (aApiContext->DeviceHandle == INVALID_HANDLE_VALUE)
-    {
-        dwError = GetLastError();
-        otLogCritApi("CreateFile failed, %!WINERROR!", dwError);
-        goto error;
-    }
-    
-    // Reset the completion variables for notification cleanup
-    RtlInitializeReferenceCount(&aApiContext->CallbackRefCount);
-    ResetEvent(aApiContext->CallbackCompleteEvent);
+    SetThreadpoolWait(aApiContext->ThreadpoolWait, aApiContext->Overlapped.hEvent, nullptr);
 
     // Request first notification asynchronously
     if (!DeviceIoControl(
             aApiContext->DeviceHandle,
             IOCTL_OTLWF_QUERY_NOTIFICATION,
-            NULL, 0,
+            nullptr, 0,
             &aApiContext->NotificationBuffer, sizeof(OTLWF_NOTIFICATION),
-            NULL, 
+            nullptr, 
             &aApiContext->Overlapped))
     {
         dwError = GetLastError();
@@ -247,7 +244,7 @@ error:
     if (dwError != ERROR_SUCCESS)
     {
         otApiUninit(aApiContext);
-        aApiContext = NULL;
+        aApiContext = nullptr;
     }
     
     otLogFuncExit();
@@ -261,9 +258,12 @@ otApiUninit(
     _In_ otApiContext *aApiContext
 )
 {
-    if (aApiContext == NULL) return;
+    if (aApiContext == nullptr) return;
     
     otLogFuncEntry();
+
+	// If we never got the handle, nothing left to clean up
+	if (aApiContext->DeviceHandle != INVALID_HANDLE_VALUE) goto exit;
 
     //
     // Make sure we unregister callbacks
@@ -272,6 +272,11 @@ otApiUninit(
     EnterCriticalSection(&aApiContext->CallbackLock);
 
     // Clear all callbacks
+    if (get<0>(aApiContext->DeviceAvailabilityCallbacks))
+    {
+        aApiContext->DeviceAvailabilityCallbacks = make_tuple((otDeviceAvailabilityChangedCallback)nullptr, (PVOID)nullptr);
+        RtlDecrementReferenceCount(&aApiContext->CallbackRefCount);
+    }
     for (size_t i = 0; i < aApiContext->ActiveScanCallbacks.size(); i++)
     {
         RtlDecrementReferenceCount(&aApiContext->CallbackRefCount);
@@ -301,12 +306,8 @@ otApiUninit(
     {
         WaitForThreadpoolWaitCallbacks(aApiContext->ThreadpoolWait, TRUE);
 
-        // If we have a device handle, cancel any async IO and close the handle
-        if (aApiContext->DeviceHandle != INVALID_HANDLE_VALUE)
-        {
-            CancelIoEx(aApiContext->DeviceHandle, &aApiContext->Overlapped);
-            CloseHandle(aApiContext->DeviceHandle);
-        }
+        // Cancel any async IO
+        CancelIoEx(aApiContext->DeviceHandle, &aApiContext->Overlapped);
 
         CloseThreadpoolWait(aApiContext->ThreadpoolWait);
     }
@@ -322,6 +323,11 @@ otApiUninit(
     {
         CloseHandle(aApiContext->CallbackCompleteEvent);
     }
+	
+	// Close the device handle
+    CloseHandle(aApiContext->DeviceHandle);
+
+exit:
 
     delete aApiContext;
     
@@ -346,12 +352,12 @@ ProcessNotification(
 {
     if (Notif->NotifType == OTLWF_NOTIF_DEVICE_AVAILABILITY)
     {
-        otDeviceAvailabilityChangedCallback Callback = NULL;
-        PVOID                               CallbackContext = NULL;
+        otDeviceAvailabilityChangedCallback Callback = nullptr;
+        PVOID                               CallbackContext = nullptr;
         
         EnterCriticalSection(&aApiContext->CallbackLock);
 
-        if (get<0>(aApiContext->DeviceAvailabilityCallbacks) != NULL)
+        if (get<0>(aApiContext->DeviceAvailabilityCallbacks) != nullptr)
         {
             // Add Ref
             RtlIncrementReferenceCount(&aApiContext->CallbackRefCount);
@@ -378,8 +384,8 @@ ProcessNotification(
     }
     else if (Notif->NotifType == OTLWF_NOTIF_STATE_CHANGE)
     {
-        otStateChangedCallback  Callback = NULL;
-        PVOID                   CallbackContext = NULL;
+        otStateChangedCallback  Callback = nullptr;
+        PVOID                   CallbackContext = nullptr;
 
         EnterCriticalSection(&aApiContext->CallbackLock);
 
@@ -418,7 +424,7 @@ ProcessNotification(
         Notif->DiscoverPayload.Results.mExtPanId = (uint8_t*)&Notif->DiscoverPayload.ExtendedPanId;
         Notif->DiscoverPayload.Results.mNetworkName = (char*)&Notif->DiscoverPayload.NetworkName;
 
-        otHandleActiveScanResult Callback = NULL;
+        otHandleActiveScanResult Callback = nullptr;
 
         EnterCriticalSection(&aApiContext->CallbackLock);
 
@@ -456,7 +462,7 @@ ProcessNotification(
         Notif->ActiveScanPayload.Results.mExtPanId = (uint8_t*)&Notif->ActiveScanPayload.ExtendedPanId;
         Notif->ActiveScanPayload.Results.mNetworkName = (char*)&Notif->ActiveScanPayload.NetworkName;
 
-        otHandleActiveScanResult Callback = NULL;
+        otHandleActiveScanResult Callback = nullptr;
 
         EnterCriticalSection(&aApiContext->CallbackLock);
 
@@ -505,7 +511,7 @@ otIoComplete(
     )
 {
     otApiContext *aApiContext = (otApiContext*)Context;
-    if (aApiContext == NULL) return;
+    if (aApiContext == nullptr) return;
 
     // Get the result of the IO operation
     DWORD dwBytesTransferred = 0;
@@ -527,15 +533,15 @@ otIoComplete(
         ProcessNotification(aApiContext, &aApiContext->NotificationBuffer);
 
         // Start waiting for next notification
-        SetThreadpoolWait(aApiContext->ThreadpoolWait, aApiContext->Overlapped.hEvent, NULL);
+        SetThreadpoolWait(aApiContext->ThreadpoolWait, aApiContext->Overlapped.hEvent, nullptr);
 
         // Request next notification
         if (!DeviceIoControl(
             aApiContext->DeviceHandle,
                 IOCTL_OTLWF_QUERY_NOTIFICATION,
-                NULL, 0,
+                nullptr, 0,
                 &aApiContext->NotificationBuffer, sizeof(OTLWF_NOTIFICATION),
-                NULL, 
+                nullptr, 
                 &aApiContext->Overlapped))
         {
             DWORD dwError = GetLastError();
@@ -561,8 +567,8 @@ SendIOCTL(
     OVERLAPPED Overlapped = { 0 };
     DWORD dwBytesReturned = 0;
     
-    Overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (Overlapped.hEvent == NULL)
+    Overlapped.hEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (Overlapped.hEvent == nullptr)
     {
         dwError = GetLastError();
         otLogCritApi("CreateEvent (Overlapped.hEvent) failed, %!WINERROR!", dwError);
@@ -575,7 +581,7 @@ SendIOCTL(
             dwIoControlCode,
             lpInBuffer, nInBufferSize,
             lpOutBuffer, nOutBufferSize,
-            NULL, 
+            nullptr, 
             &Overlapped))
     {
         dwError = GetLastError();
@@ -605,6 +611,14 @@ SendIOCTL(
         otLogCritApi("GetOverlappedResult failed, %!WINERROR!", dwError);
         goto error;
     }
+
+	if (dwBytesReturned != nOutBufferSize)
+	{
+		dwError = ERROR_INVALID_DATA;
+        otLogCritApi("GetOverlappedResult returned invalid output size, expected=%u actual=%u", 
+			         nOutBufferSize, dwBytesReturned);
+		goto error;
+	}
 
 error:
 
@@ -653,7 +667,7 @@ SetIOCTL(
     BYTE Buffer[sizeof(GUID) + sizeof(in)];
     memcpy(Buffer, &aContext->InterfaceGuid, sizeof(GUID));
     memcpy(Buffer + sizeof(GUID), &input, sizeof(in));
-    return SendIOCTL(aContext->ApiHandle, dwIoControlCode, Buffer, sizeof(Buffer), NULL, 0);
+    return SendIOCTL(aContext->ApiHandle, dwIoControlCode, Buffer, sizeof(Buffer), nullptr, 0);
 }
 
 DWORD
@@ -662,7 +676,7 @@ SetIOCTL(
     _In_ DWORD dwIoControlCode
     )
 {
-    return SendIOCTL(aContext->ApiHandle, dwIoControlCode, &aContext->InterfaceGuid, sizeof(GUID), NULL, 0);
+    return SendIOCTL(aContext->ApiHandle, dwIoControlCode, &aContext->InterfaceGuid, sizeof(GUID), nullptr, 0);
 }
 
 ThreadError
@@ -692,9 +706,9 @@ otSetDeviceAvailabilityChangedCallback(
 
     EnterCriticalSection(&aApiContext->CallbackLock);
 
-    if (aCallback == NULL)
+    if (aCallback == nullptr)
     {
-        if (get<0>(aApiContext->DeviceAvailabilityCallbacks) != NULL)
+        if (get<0>(aApiContext->DeviceAvailabilityCallbacks) != nullptr)
         {
             releaseRef = true;
             aApiContext->DeviceAvailabilityCallbacks = make_tuple(aCallback, aCallbackContext);
@@ -702,7 +716,7 @@ otSetDeviceAvailabilityChangedCallback(
     }
     else
     {
-        if (get<0>(aApiContext->DeviceAvailabilityCallbacks) == NULL)
+        if (get<0>(aApiContext->DeviceAvailabilityCallbacks) == nullptr)
         {
             RtlIncrementReferenceCount(&aApiContext->CallbackRefCount);
             aApiContext->DeviceAvailabilityCallbacks = make_tuple(aCallback, aCallbackContext);
@@ -730,11 +744,13 @@ otEnumerateDevices(
     DWORD dwError = ERROR_SUCCESS;
     OVERLAPPED Overlapped = { 0 };
     DWORD dwBytesReturned = 0;
-    otDeviceList* pDeviceList = NULL;
+    otDeviceList* pDeviceList = nullptr;
     DWORD cbDeviceList = sizeof(otDeviceList);
+	
+    otLogFuncEntry();
 
-    Overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (Overlapped.hEvent == NULL)
+    Overlapped.hEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (Overlapped.hEvent == nullptr)
     {
         dwError = GetLastError();
         otLogCritApi("CreateEvent (Overlapped.hEvent) failed, %!WINERROR!", dwError);
@@ -742,12 +758,13 @@ otEnumerateDevices(
     }
     
     pDeviceList = (otDeviceList*)malloc(cbDeviceList);
-    if (pDeviceList == NULL)
+    if (pDeviceList == nullptr)
     {
         otLogWarnApi("Failed to allocate otDeviceList of %u bytes.", cbDeviceList);
         dwError = ERROR_NOT_ENOUGH_MEMORY;
         goto error;
     }
+	RtlZeroMemory(pDeviceList, cbDeviceList);
     
     // Query in a loop to account for it changing between calls
     while (true)
@@ -756,9 +773,9 @@ otEnumerateDevices(
         if (!DeviceIoControl(
                 aApiContext->DeviceHandle,
                 IOCTL_OTLWF_ENUMERATE_DEVICES,
-                NULL, 0,
+                nullptr, 0,
                 pDeviceList, cbDeviceList,
-                NULL, 
+                nullptr, 
                 &Overlapped))
         {
             dwError = GetLastError();
@@ -794,18 +811,19 @@ otEnumerateDevices(
             pDeviceList->aDevicesLength * sizeof(otDeviceList::aDevices);
         
         // Make sure they returned a complete buffer
-        if (dwBytesReturned != sizeof(USHORT)) break;
+        if (dwBytesReturned != sizeof(otDeviceList::aDevicesLength)) break;
         
         // If we get here that means we didn't have a big enough buffer
         // Reallocate a new buffer
         free(pDeviceList);
         pDeviceList = (otDeviceList*)malloc(cbDeviceList);
-        if (pDeviceList == NULL)
+        if (pDeviceList == nullptr)
         {
             otLogCritApi("Failed to allocate otDeviceList of %u bytes.", cbDeviceList);
             dwError = ERROR_NOT_ENOUGH_MEMORY;
             goto error;
         }
+		RtlZeroMemory(pDeviceList, cbDeviceList);
     }
 
 error:
@@ -813,13 +831,15 @@ error:
     if (dwError != ERROR_SUCCESS)
     {
         free(pDeviceList);
-        pDeviceList = NULL;
+        pDeviceList = nullptr;
     }
 
     if (Overlapped.hEvent)
     {
         CloseHandle(Overlapped.hEvent);
     }
+	
+    otLogFuncExitMsg("%d devices", pDeviceList == nullptr ? -1 : (int)pDeviceList->aDevicesLength);
 
     return pDeviceList;
 }
@@ -831,7 +851,7 @@ otInit(
     _In_ const GUID *aDeviceGuid
     )
 {
-    otContext *aContext = NULL;
+    otContext *aContext = nullptr;
 
     OTLWF_DEVICE Result = {0};
     if (SendIOCTL(
@@ -949,7 +969,7 @@ otActiveScan(
 {
     aContext->ApiHandle->SetCallback(
         aContext->ApiHandle->ActiveScanCallbacks,
-        make_tuple(aContext->InterfaceGuid, aCallback, (PVOID)NULL)
+        make_tuple(aContext->InterfaceGuid, aCallback, (PVOID)nullptr)
         );
 
     BYTE Buffer[sizeof(GUID) + sizeof(uint32_t) + sizeof(uint16_t)];
@@ -957,7 +977,7 @@ otActiveScan(
     memcpy(Buffer + sizeof(GUID), &aScanChannels, sizeof(aScanChannels));
     memcpy(Buffer + sizeof(GUID) + sizeof(uint32_t), &aScanDuration, sizeof(aScanDuration));
     
-    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_ACTIVE_SCAN, Buffer, sizeof(Buffer), NULL, 0));
+    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_ACTIVE_SCAN, Buffer, sizeof(Buffer), nullptr, 0));
 }
 
 OTAPI 
@@ -983,7 +1003,7 @@ otDiscover(
 {
     aContext->ApiHandle->SetCallback(
         aContext->ApiHandle->DiscoverCallbacks,
-        make_tuple(aContext->InterfaceGuid, aCallback, (PVOID)NULL)
+        make_tuple(aContext->InterfaceGuid, aCallback, (PVOID)nullptr)
         );
 
     BYTE Buffer[sizeof(GUID) + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint16_t)];
@@ -992,7 +1012,7 @@ otDiscover(
     memcpy(Buffer + sizeof(GUID) + sizeof(uint32_t), &aScanDuration, sizeof(aScanDuration));
     memcpy(Buffer + sizeof(GUID) + sizeof(uint32_t) + sizeof(uint16_t), &aPanid, sizeof(aPanid));
     
-    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_DISCOVER, Buffer, sizeof(Buffer), NULL, 0));
+    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_DISCOVER, Buffer, sizeof(Buffer), nullptr, 0));
 }
 
 OTAPI 
@@ -1059,7 +1079,7 @@ otGetExtendedAddress(
     if (Result && QueryIOCTL(aContext, IOCTL_OTLWF_OT_EXTENDED_ADDRESS, Result) != ERROR_SUCCESS)
     {
         free(Result);
-        Result = NULL;
+        Result = nullptr;
     }
     return (uint8_t*)Result;
 }
@@ -1084,7 +1104,7 @@ otGetExtendedPanId(
     if (Result && QueryIOCTL(aContext, IOCTL_OTLWF_OT_EXTENDED_PANID, Result) != ERROR_SUCCESS)
     {
         free(Result);
-        Result = NULL;
+        Result = nullptr;
     }
     return (uint8_t*)Result;
 }
@@ -1116,6 +1136,7 @@ otGetLinkMode(
     )
 {
     otLinkModeConfig Result = {0};
+	static_assert(sizeof(Result) == 1, "otLinkModeConfig must be 1 byte");
     (void)QueryIOCTL(aContext, IOCTL_OTLWF_OT_LINK_MODE, &Result);
     return Result;
 }
@@ -1127,6 +1148,7 @@ otSetLinkMode(
     otLinkModeConfig aConfig
     )
 {
+	static_assert(sizeof(aConfig) == 1, "otLinkModeConfig must be 1 byte");
     return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_LINK_MODE, aConfig));
 }
 
@@ -1138,11 +1160,11 @@ otGetMasterKey(
     )
 {
     otMasterKey *Result = (otMasterKey*)malloc(sizeof(otMasterKey) + sizeof(uint8_t));
-    if (Result == NULL) return NULL;
+    if (Result == nullptr) return nullptr;
     if (QueryIOCTL(aContext, IOCTL_OTLWF_OT_MASTER_KEY, Result) != ERROR_SUCCESS)
     {
         free(Result);
-        return NULL;
+        return nullptr;
     }
     else
     {
@@ -1164,7 +1186,7 @@ otSetMasterKey(
     memcpy(Buffer + sizeof(GUID), aKey, aKeyLength);
     memcpy(Buffer + sizeof(GUID) + sizeof(otMasterKey), &aKeyLength, sizeof(aKeyLength));
     
-    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_MASTER_KEY, Buffer, sizeof(Buffer), NULL, 0));
+    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_MASTER_KEY, Buffer, sizeof(Buffer), nullptr, 0));
 }
 
 OTAPI
@@ -1177,7 +1199,7 @@ otGetMeshLocalEid(
     if (Result && QueryIOCTL(aContext, IOCTL_OTLWF_OT_MESH_LOCAL_EID, Result) != ERROR_SUCCESS)
     {
         free(Result);
-        Result = NULL;
+        Result = nullptr;
     }
     return Result;
 }
@@ -1192,7 +1214,7 @@ otGetMeshLocalPrefix(
     if (Result && QueryIOCTL(aContext, IOCTL_OTLWF_OT_MESH_LOCAL_PREFIX, Result) != ERROR_SUCCESS)
     {
         free(Result);
-        Result = NULL;
+        Result = nullptr;
     }
     return (uint8_t*)Result;
 }
@@ -1249,7 +1271,7 @@ otGetNetworkName(
     if (Result && QueryIOCTL(aContext, IOCTL_OTLWF_OT_NETWORK_NAME, Result) != ERROR_SUCCESS)
     {
         free(Result);
-        Result = NULL;
+        Result = nullptr;
     }
     return (char*)Result;
 }
@@ -1326,7 +1348,7 @@ otGetUnicastAddresses(
 {
     // TODO
     UNREFERENCED_PARAMETER(aContext);
-    return NULL;
+    return nullptr;
 }
 
 OTAPI
@@ -1593,7 +1615,7 @@ otAddMacWhitelistRssi(
     memcpy(Buffer + sizeof(GUID), aExtAddr, sizeof(otExtAddress));
     memcpy(Buffer + sizeof(GUID) + sizeof(otExtAddress), &aRssi, sizeof(aRssi));
     
-    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_ADD_MAC_WHITELIST, Buffer, sizeof(Buffer), NULL, 0));
+    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_ADD_MAC_WHITELIST, Buffer, sizeof(Buffer), nullptr, 0));
 }
 
 OTAPI
@@ -1661,7 +1683,7 @@ otBecomeDetached(
     _In_ otContext *aContext
     )
 {
-    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_DEVICE_ROLE, kDeviceRoleDetached));
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_DEVICE_ROLE, (uint8_t)kDeviceRoleDetached));
 }
 
 OTAPI
@@ -1671,14 +1693,15 @@ otBecomeChild(
     otMleAttachFilter aFilter
     )
 {
-    otDeviceRole Role = kDeviceRoleDetached;
+    uint8_t Role = kDeviceRoleDetached;
+	uint8_t Filter = (uint8_t)aFilter;
 
-    BYTE Buffer[sizeof(GUID) + sizeof(otDeviceRole) + sizeof(otMleAttachFilter)];
+    BYTE Buffer[sizeof(GUID) + sizeof(Role) + sizeof(Filter)];
     memcpy(Buffer, &aContext->InterfaceGuid, sizeof(GUID));
     memcpy(Buffer + sizeof(GUID), &Role, sizeof(Role));
-    memcpy(Buffer + sizeof(GUID) + sizeof(otDeviceRole), &aFilter, sizeof(aFilter));
+    memcpy(Buffer + sizeof(GUID) + sizeof(Role), &Filter, sizeof(Filter));
     
-    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_DEVICE_ROLE, Buffer, sizeof(Buffer), NULL, 0));
+    return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_DEVICE_ROLE, Buffer, sizeof(Buffer), nullptr, 0));
 }
 
 OTAPI
@@ -1687,7 +1710,7 @@ otBecomeRouter(
     _In_ otContext *aContext
     )
 {
-    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_DEVICE_ROLE, kDeviceRoleRouter));
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_DEVICE_ROLE, (uint8_t)kDeviceRoleRouter));
 }
 
 OTAPI
@@ -1696,7 +1719,7 @@ otBecomeLeader(
     _In_ otContext *aContext
     )
 {
-    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_DEVICE_ROLE, kDeviceRoleLeader));
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_DEVICE_ROLE, (uint8_t)kDeviceRoleLeader));
 }
 
 OTAPI
@@ -1727,9 +1750,9 @@ otGetDeviceRole(
     _In_ otContext *aContext
     )
 {
-    otDeviceRole Result = kDeviceRoleOffline;
+    uint8_t Result = kDeviceRoleOffline;
     (void)QueryIOCTL(aContext, IOCTL_OTLWF_OT_DEVICE_ROLE, &Result);
-    return Result;
+    return (otDeviceRole)Result;
 }
 
 OTAPI

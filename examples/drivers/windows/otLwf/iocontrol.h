@@ -81,4 +81,10 @@ OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otEnabled;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otInterface;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otThread;
 
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otLinkMode;
+
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMeshLocalEid;
+
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otDeviceRole;
+
 #endif // _IOCONTROL_H

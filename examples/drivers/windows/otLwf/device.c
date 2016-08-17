@@ -312,6 +312,8 @@ otLwfDeviceIoControl(
     ULONG               OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
     ULONG               IoControlCode = IrpSp->Parameters.DeviceIoControl.IoControlCode;
 
+	ULONG               FuncCode = (IoControlCode >> 2) & 0xFFF;
+
 #if DBG
     ASSERT(((POTLWF_DEVICE_EXTENSION)DeviceObject->DeviceExtension)->Signature == 'FTDR');
 #else
@@ -328,8 +330,7 @@ otLwfDeviceIoControl(
         goto error;
     }
 
-    if (IoControlCode >= IOCTL_OTLWF_OT_ENABLED &&
-        IoControlCode <= IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION)
+    if (FuncCode >= 100 && FuncCode <= 151)
     {
         CompleteIRP = FALSE;
         status = otLwfIoCtlOpenThreadControl(Irp);
