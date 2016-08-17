@@ -624,10 +624,11 @@ otLwfEventProcessingNextIrp(
             RtlZeroMemory((PUCHAR)OutBuffer + OutBufferLength, OrigOutBufferLength - OutBufferLength);
         }
 
-		LogVerbose(DRIVER_IOCTL, "Completing Irp=%p, with %!STATUS! for %s", 
-			       Irp, status, IoCtlString(IoControlCode));
+		LogVerbose(DRIVER_IOCTL, "Completing Irp=%p, with %!STATUS! for %s (Out:%u)", 
+			       Irp, status, IoCtlString(IoControlCode), OutBufferLength);
 
         // Complete the IRP
+		Irp->IoStatus.Information = OutBufferLength;
         Irp->IoStatus.Status = status;
         IoCompleteRequest(Irp, IO_NO_INCREMENT);
     }

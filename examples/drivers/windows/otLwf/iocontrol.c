@@ -253,6 +253,10 @@ otLwfIoCtl_otInterface(
         BOOLEAN IsEnabled = *(BOOLEAN*)InBuffer;
         if (IsEnabled)
         {
+			// Make sure our addresses are in sync
+			(void)otLwfInitializeAddresses(pFilter);
+			otLwfAddressesUpdated(pFilter);
+
             status = ThreadErrorToNtstatus(otInterfaceUp(pFilter->otCtx));
         }
         else
@@ -265,6 +269,7 @@ otLwfIoCtl_otInterface(
     else if (*OutBufferLength >= sizeof(BOOLEAN))
     {
         *(BOOLEAN*)OutBuffer = otIsInterfaceUp(pFilter->otCtx) ? TRUE : FALSE;
+        *OutBufferLength = sizeof(BOOLEAN);
         status = STATUS_SUCCESS;
     }
     else
@@ -341,6 +346,7 @@ otLwfIoCtl_otLinkMode(
 	{
 		otLinkModeConfig Config = otGetLinkMode(pFilter->otCtx);
 		memcpy(OutBuffer, &Config, sizeof(uint8_t));
+        *OutBufferLength = sizeof(uint8_t);
 		status = STATUS_SUCCESS;
 	}
 	else
@@ -433,7 +439,8 @@ otLwfIoCtl_otDeviceRole(
     }
     else if (*OutBufferLength >= sizeof(uint8_t))
     {
-        *(uint8_t*)OutBuffer = otGetDeviceRole(pFilter->otCtx);
+        *(uint8_t*)OutBuffer = (uint8_t)otGetDeviceRole(pFilter->otCtx);
+        *OutBufferLength = sizeof(uint8_t);
         status = STATUS_SUCCESS;
     }
     else

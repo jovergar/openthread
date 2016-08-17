@@ -552,6 +552,11 @@ otLwfReceiveIp6DatagramCallback(
 
 #ifdef FORCE_SYNCHRONOUS_RECEIVE
     irql = KfRaiseIrql(DISPATCH_LEVEL);
+
+    if (messageLength == 248) // Magic length used for TAEF test packets
+    {
+        DbgBreakPoint();
+    }
 #endif
 
     // Indicate the NBL up
