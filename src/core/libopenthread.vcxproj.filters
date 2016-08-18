@@ -150,6 +150,9 @@
     <ClCompile Include="thread\meshcop_tlvs.cpp">
       <Filter>Source Files\thread</Filter>
     </ClCompile>
+    <ClCompile Include="mac\mac_blacklist.cpp">
+      <Filter>Source Files\mac</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="openthreadcontext.h">
@@ -286,6 +289,9 @@
     </ClInclude>
     <ClInclude Include="thread\meshcop_tlvs.hpp">
       <Filter>Header Files\thread</Filter>
+    </ClInclude>
+    <ClInclude Include="mac\mac_blacklist.hpp">
+      <Filter>Header Files\mac</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

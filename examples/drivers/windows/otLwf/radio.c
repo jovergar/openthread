@@ -35,6 +35,24 @@
 #include "precomp.h"
 #include "radio.tmh"
 
+void 
+otPlatReset(
+    _In_ otContext *aContext
+    )
+{
+    // This function does nothing currently.
+    UNREFERENCED_PARAMETER(aContext);
+}
+
+otPlatResetReason 
+otPlatGetResetReason(
+    _In_ otContext *aContext
+    )
+{
+    UNREFERENCED_PARAMETER(aContext);
+    return kPlatResetReason_PowerOn;
+}
+
 VOID 
 otLwfRadioSendPacket(
     _In_ PMS_FILTER     pFilter,
@@ -277,7 +295,7 @@ RadioPacket *otPlatRadioGetTransmitBuffer(_In_ otContext *otCtx)
     return &pFilter->otTransmitFrame;
 }
 
-int8_t otPlatRadioGetNoiseFloor(_In_ otContext *otCtx)
+int8_t otPlatRadioGetRssi(_In_ otContext *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     UNREFERENCED_PARAMETER(pFilter);
