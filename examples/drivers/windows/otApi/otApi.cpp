@@ -1123,7 +1123,7 @@ OTAPI
 ThreadError 
 otGetLeaderRloc(
     _In_ otContext *aContext, 
-    otIp6Address *aLeaderRloc
+    _Out_ otIp6Address *aLeaderRloc
     )
 {
     return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_LEADER_RLOC, aLeaderRloc));
@@ -1156,7 +1156,7 @@ OTAPI
 const uint8_t *
 otGetMasterKey(
     _In_ otContext *aContext, 
-    uint8_t *aKeyLength
+    _Out_ uint8_t *aKeyLength
     )
 {
     otMasterKey *Result = (otMasterKey*)malloc(sizeof(otMasterKey) + sizeof(uint8_t));
@@ -1187,6 +1187,27 @@ otSetMasterKey(
     memcpy(Buffer + sizeof(GUID) + sizeof(otMasterKey), &aKeyLength, sizeof(aKeyLength));
     
     return DwordToThreadError(SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_MASTER_KEY, Buffer, sizeof(Buffer), nullptr, 0));
+}
+
+OTAPI 
+int8_t 
+otGetMaxTransmitPower(
+    _In_ otContext *aContext
+    )
+{
+    int8_t Result = 0;
+    (void)QueryIOCTL(aContext, IOCTL_OTLWF_OT_MAX_TRANSMIT_POWER, &Result);
+    return Result;
+}
+
+OTAPI 
+void 
+otSetMaxTransmitPower(
+    _In_ otContext *aContext, 
+    int8_t aPower
+    )
+{
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_MAX_TRANSMIT_POWER, aPower);
 }
 
 OTAPI
@@ -1234,8 +1255,8 @@ ThreadError
 otGetNetworkDataLeader(
     _In_ otContext *aContext, 
     bool aStable, 
-    uint8_t *aData, 
-    uint8_t *aDataLength
+    _Out_ uint8_t *aData, 
+    _Out_ uint8_t *aDataLength
     )
 {
     UNREFERENCED_PARAMETER(aContext);
@@ -1250,8 +1271,8 @@ ThreadError
 otGetNetworkDataLocal(
     _In_ otContext *aContext, 
     bool aStable, 
-    uint8_t *aData, 
-    uint8_t *aDataLength
+    _Out_ uint8_t *aData, 
+    _Out_ uint8_t *aDataLength
     )
 {
     UNREFERENCED_PARAMETER(aContext);
@@ -1280,12 +1301,46 @@ OTAPI
 ThreadError
 otSetNetworkName(
     _In_ otContext *aContext, 
-    const char *aNetworkName
+    _In_ const char *aNetworkName
     )
 {
     otNetworkName Buffer = {0};
     strcpy_s(Buffer.m8, sizeof(Buffer), aNetworkName);
     return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_NETWORK_NAME, &Buffer));
+}
+
+OTAPI 
+ThreadError 
+otGetNextOnMeshPrefix(
+    _In_ otContext *aContext, 
+    bool _aLocal, 
+    _Inout_ otNetworkDataIterator *aIterator,
+    _Out_ otBorderRouterConfig *aConfig
+    )
+{
+    BYTE InBuffer[sizeof(GUID) + sizeof(BOOLEAN) + sizeof(uint8_t)];
+    BYTE OutBuffer[sizeof(uint8_t) + sizeof(otBorderRouterConfig)];
+
+    BOOLEAN aLocal = _aLocal ? TRUE : FALSE;
+    memcpy(InBuffer, &aContext->InterfaceGuid, sizeof(GUID));
+    memcpy(InBuffer + sizeof(GUID), &aLocal, sizeof(aLocal));
+    memcpy(InBuffer + sizeof(GUID) + sizeof(BOOLEAN), aIterator, sizeof(uint8_t));
+
+    ThreadError aError = 
+        DwordToThreadError(
+            SendIOCTL(
+                aContext->ApiHandle, 
+                IOCTL_OTLWF_OT_NEXT_ON_MESH_PREFIX, 
+                InBuffer, sizeof(InBuffer), 
+                OutBuffer, sizeof(OutBuffer)));
+
+    if (aError == kThreadError_None)
+    {
+        memcpy(aIterator, OutBuffer, sizeof(uint8_t));
+        memcpy(aConfig, OutBuffer + sizeof(uint8_t), sizeof(otBorderRouterConfig));
+    }
+
+    return aError;
 }
 
 OTAPI
@@ -1355,7 +1410,7 @@ OTAPI
 ThreadError
 otAddUnicastAddress(
     _In_ otContext *aContext, 
-    otNetifAddress *aAddress
+    _In_ otNetifAddress *aAddress
     )
 {
     // TODO
@@ -1368,7 +1423,7 @@ OTAPI
 ThreadError
 otRemoveUnicastAddress(
     _In_ otContext *aContext, 
-    otNetifAddress *aAddress
+    _In_ otNetifAddress *aAddress
     )
 {
     // TODO
@@ -1381,7 +1436,7 @@ OTAPI
 void otSetStateChangedCallback(
     _In_ otContext *aContext, 
     otStateChangedCallback aCallback, 
-    void *aCallbackContext
+    _In_ void *aCallbackContext
     )
 {
     aContext->ApiHandle->SetCallback(
@@ -1394,7 +1449,7 @@ OTAPI
 ThreadError
 otGetActiveDataset(
     _In_ otContext *aContext, 
-    otOperationalDataset *aDataset
+    _Out_ otOperationalDataset *aDataset
     )
 {
     return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_ACTIVE_DATASET, aDataset));
@@ -1404,7 +1459,7 @@ OTAPI
 ThreadError
 otSetActiveDataset(
     _In_ otContext *aContext, 
-    otOperationalDataset *aDataset
+    _Out_ otOperationalDataset *aDataset
     )
 {
     return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_ACTIVE_DATASET, aDataset));
@@ -1414,7 +1469,7 @@ OTAPI
 ThreadError
 otGetPendingDataset(
     _In_ otContext *aContext, 
-    otOperationalDataset *aDataset
+    _Out_ otOperationalDataset *aDataset
     )
 {
     return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_PENDING_DATASET, aDataset));
@@ -1424,10 +1479,31 @@ OTAPI
 ThreadError
 otSetPendingDataset(
     _In_ otContext *aContext, 
-    otOperationalDataset *aDataset
+    _Out_ otOperationalDataset *aDataset
     )
 {
     return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_PENDING_DATASET, aDataset));
+}
+
+OTAPI 
+uint32_t 
+otGetPollPeriod(
+    _In_ otContext *aContext
+    )
+{
+    uint32_t Result = 0;
+    (void)QueryIOCTL(aContext, IOCTL_OTLWF_OT_POLL_PERIOD, &Result);
+    return Result;
+}
+
+OTAPI 
+void 
+otSetPollPeriod(
+    _In_ otContext *aContext, 
+    uint32_t aPollPeriod
+    )
+{
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_POLL_PERIOD, aPollPeriod);
 }
 
 OTAPI
@@ -1448,6 +1524,27 @@ void otSetLocalLeaderWeight(
     )
 {
     (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_LOCAL_LEADER_WEIGHT, aWeight);
+}
+
+OTAPI 
+uint32_t 
+otGetLocalLeaderPartitionId(
+    _In_ otContext *aContext
+    )
+{
+    uint32_t Result = 0;
+    (void)QueryIOCTL(aContext, IOCTL_OTLWF_OT_LOCAL_LEADER_PARTITION_ID, &Result);
+    return Result;
+}
+
+OTAPI 
+void 
+otSetLocalLeaderPartitionId(
+    _In_ otContext *aContext, 
+    uint32_t aPartitionId
+    )
+{
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_LOCAL_LEADER_PARTITION_ID, aPartitionId);
 }
 
 OTAPI
@@ -1633,7 +1730,7 @@ ThreadError
 otGetMacWhitelistEntry(
     _In_ otContext *aContext, 
     uint8_t aIndex, 
-    otMacWhitelistEntry *aEntry
+    _Out_ otMacWhitelistEntry *aEntry
     )
 {
     return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_MAC_WHITELIST_ENTRY, &aIndex, aEntry));
@@ -1724,10 +1821,114 @@ otBecomeLeader(
 
 OTAPI
 ThreadError
+otAddMacBlacklist(
+    _In_ otContext *aContext, 
+    const uint8_t *aExtAddr
+    )
+{
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_ADD_MAC_BLACKLIST, (otExtAddress*)aExtAddr));
+}
+
+OTAPI
+void 
+otRemoveMacBlacklist(
+    _In_ otContext *aContext, 
+    const uint8_t *aExtAddr
+    )
+{
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_REMOVE_MAC_BLACKLIST, (otExtAddress*)aExtAddr);
+}
+
+OTAPI
+ThreadError
+otGetMacBlacklistEntry(
+    _In_ otContext *aContext, 
+    uint8_t aIndex, 
+    _Out_ otMacBlacklistEntry *aEntry
+    )
+{
+    return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENTRY, &aIndex, aEntry));
+}
+
+OTAPI
+void 
+otClearMacBlacklist(
+    _In_ otContext *aContext
+    )
+{
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_CLEAR_MAC_BLACKLIST);
+}
+
+OTAPI
+void 
+otDisableMacBlacklist(
+    _In_ otContext *aContext
+    )
+{
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED, (BOOLEAN)FALSE);
+}
+
+OTAPI
+void 
+otEnableMacBlacklist(
+    _In_ otContext *aContext
+    )
+{
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED, (BOOLEAN)TRUE);
+}
+
+OTAPI
+bool 
+otIsMacBlacklistEnabled(
+    _In_ otContext *aContext
+    )
+{
+    BOOLEAN Result = 0;
+    (void)QueryIOCTL(aContext, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED, &Result);
+    return Result != FALSE;
+}
+
+OTAPI 
+ThreadError 
+otGetAssignLinkQuality(
+    _In_ otContext *aContext, 
+    const uint8_t *aExtAddr, 
+    _Out_ uint8_t *aLinkQuality
+    )
+{
+    return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY, (otExtAddress*)aExtAddr, aLinkQuality));
+}
+
+OTAPI 
+void 
+otSetAssignLinkQuality(
+    _In_ otContext *aContext,
+    const uint8_t *aExtAddr, 
+    uint8_t aLinkQuality
+    )
+{
+    BYTE Buffer[sizeof(GUID) + sizeof(otExtAddress) + sizeof(uint8_t)];
+    memcpy(Buffer, &aContext->InterfaceGuid, sizeof(GUID));
+    memcpy(Buffer + sizeof(GUID), aExtAddr, sizeof(otExtAddress));
+    memcpy(Buffer + sizeof(GUID) + sizeof(otExtAddress), &aLinkQuality, sizeof(aLinkQuality));
+    (void)SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY, Buffer, sizeof(Buffer), NULL, 0);
+}
+
+OTAPI 
+void 
+otPlatformReset(
+    _In_ otContext *aContext
+    )
+{
+    SetIOCTL(aContext, IOCTL_OTLWF_OT_PLATFORM_RESET);
+}
+
+OTAPI
+ThreadError
 otGetChildInfoById(
     _In_ otContext *aContext, 
     uint16_t aChildId, 
-    otChildInfo *aChildInfo
+    _Out_ otChildInfo *aChildInfo
     )
 {
     return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_CHILD_INFO_BY_ID, &aChildId, aChildInfo));
@@ -1738,7 +1939,7 @@ ThreadError
 otGetChildInfoByIndex(
     _In_ otContext *aContext, 
     uint8_t aChildIndex, 
-    otChildInfo *aChildInfo
+    _Out_ otChildInfo *aChildInfo
     )
 {
     return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_CHILD_INFO_BY_INDEX, &aChildIndex, aChildInfo));
@@ -1760,7 +1961,7 @@ ThreadError
 otGetEidCacheEntry(
     _In_ otContext *aContext, 
     uint8_t aIndex, 
-    otEidCacheEntry *aEntry
+    _Out_ otEidCacheEntry *aEntry
     )
 {
     return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_EID_CACHE_ENTRY, &aIndex, aEntry));
@@ -1770,7 +1971,7 @@ OTAPI
 ThreadError
 otGetLeaderData(
     _In_ otContext *aContext, 
-    otLeaderData *aLeaderData
+    _Out_ otLeaderData *aLeaderData
     )
 {
     return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_LEADER_DATA, aLeaderData));
@@ -1847,10 +2048,20 @@ ThreadError
 otGetRouterInfo(
     _In_ otContext *aContext, 
     uint16_t aRouterId, 
-    otRouterInfo *aRouterInfo
+    _Out_ otRouterInfo *aRouterInfo
     )
 {
     return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_ROUTER_INFO, &aRouterId, aRouterInfo));
+}
+
+OTAPI 
+ThreadError 
+otGetParentInfo(
+    _In_ otContext *aContext, 
+    _Out_ otRouterInfo *aParentInfo
+    )
+{
+    return DwordToThreadError(QueryIOCTL(aContext, IOCTL_OTLWF_OT_PARENT_INFO, aParentInfo));
 }
 
 OTAPI

@@ -254,7 +254,19 @@ const char* IoCtlStrings[] =
     "IOCTL_OTLWF_OT_RLOC16",
     "IOCTL_OTLWF_OT_ROUTER_ID_SEQUENCE",
     "IOCTL_OTLWF_OT_ROUTER_INFO",
-    "IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION"
+    "IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION",
+    "IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED",
+    "IOCTL_OTLWF_OT_ADD_MAC_BLACKLIST",
+    "IOCTL_OTLWF_OT_REMOVE_MAC_BLACKLIST",
+    "IOCTL_OTLWF_OT_MAC_BLACKLIST_ENTRY",
+    "IOCTL_OTLWF_OT_CLEAR_MAC_BLACKLIST",
+    "IOCTL_OTLWF_OT_MAX_TRANSMIT_POWER",
+    "IOCTL_OTLWF_OT_NEXT_ON_MESH_PREFIX",
+    "IOCTL_OTLWF_OT_POLL_PERIOD",
+    "IOCTL_OTLWF_OT_LOCAL_LEADER_PARTITION_ID",
+    "IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY",
+    "IOCTL_OTLWF_OT_PLATFORM_RESET",
+    "IOCTL_OTLWF_OT_PARENT_INFO",
 };
 
 const char*
@@ -447,6 +459,42 @@ otLwfCompleteOpenThreadIrp(
         break;		
     case IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION:
         status = otLwfIoCtl_otStableNetworkDataVersion(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED:
+        status = otLwfIoCtl_otMacBlacklistEnabled(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_ADD_MAC_BLACKLIST:
+        status = otLwfIoCtl_otAddMacBlacklist(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_REMOVE_MAC_BLACKLIST:
+        status = otLwfIoCtl_otRemoveMacBlacklist(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_MAC_BLACKLIST_ENTRY:
+        status = otLwfIoCtl_otMacBlacklistEntry(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_CLEAR_MAC_BLACKLIST:
+        status = otLwfIoCtl_otClearMacBlacklist(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_MAX_TRANSMIT_POWER:
+        status = otLwfIoCtl_otMaxTransmitPower(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_NEXT_ON_MESH_PREFIX:
+        status = otLwfIoCtl_otNextOnMeshPrefix(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_POLL_PERIOD:
+        status = otLwfIoCtl_otPollPeriod(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_LOCAL_LEADER_PARTITION_ID:
+        status = otLwfIoCtl_otLocalLeaderPartitionId(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY:
+        status = otLwfIoCtl_otAssignLinkQuality(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_PLATFORM_RESET:
+        status = otLwfIoCtl_otPlatformReset(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_PARENT_INFO:
+        status = otLwfIoCtl_otParentInfo(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
         break;
     default:
         status = STATUS_NOT_IMPLEMENTED;
@@ -1616,7 +1664,6 @@ otLwfIoCtl_otMacWhitelistEntry(
                 (otMacWhitelistEntry*)OutBuffer)
             );
         *OutBufferLength = sizeof(otMacWhitelistEntry);
-        status = STATUS_SUCCESS;
     }
     else
     {
@@ -1738,7 +1785,6 @@ otLwfIoCtl_otChildInfoById(
                 (otChildInfo*)OutBuffer)
             );
         *OutBufferLength = sizeof(otChildInfo);
-        status = STATUS_SUCCESS;
     }
     else
     {
@@ -1772,7 +1818,6 @@ otLwfIoCtl_otChildInfoByIndex(
                 (otChildInfo*)OutBuffer)
             );
         *OutBufferLength = sizeof(otChildInfo);
-        status = STATUS_SUCCESS;
     }
     else
     {
@@ -1806,7 +1851,6 @@ otLwfIoCtl_otEidCacheEntry(
                 (otEidCacheEntry*)OutBuffer)
             );
         *OutBufferLength = sizeof(otEidCacheEntry);
-        status = STATUS_SUCCESS;
     }
     else
     {
@@ -2056,7 +2100,6 @@ otLwfIoCtl_otRouterInfo(
                 (otRouterInfo*)OutBuffer)
             );
         *OutBufferLength = sizeof(otRouterInfo);
-        status = STATUS_SUCCESS;
     }
     else
     {
@@ -2096,3 +2139,393 @@ otLwfIoCtl_otStableNetworkDataVersion(
 
     return status;
 }
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otMacBlacklistEnabled(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+
+    if (InBufferLength >= sizeof(BOOLEAN))
+    {
+        BOOLEAN aEnabled = *(BOOLEAN*)InBuffer;
+        if (aEnabled)
+        {
+            otEnableMacBlacklist(pFilter->otCtx);
+        }
+        else
+        {
+            otDisableMacBlacklist(pFilter->otCtx);
+        }
+        status = STATUS_SUCCESS;
+        *OutBufferLength = 0;
+    }
+    else if (*OutBufferLength >= sizeof(BOOLEAN))
+    {
+        *(BOOLEAN*)OutBuffer = otIsMacBlacklistEnabled(pFilter->otCtx) ? TRUE : FALSE;
+        status = STATUS_SUCCESS;
+        *OutBufferLength = sizeof(BOOLEAN);
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otAddMacBlacklist(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+
+    UNREFERENCED_PARAMETER(OutBuffer);
+    *OutBufferLength = 0;
+    
+    if (InBufferLength >= sizeof(otExtAddress))
+    {
+        status = ThreadErrorToNtstatus(otAddMacBlacklist(pFilter->otCtx, (uint8_t*)InBuffer));
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otRemoveMacBlacklist(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+
+    UNREFERENCED_PARAMETER(OutBuffer);
+    *OutBufferLength = 0;
+    
+    if (InBufferLength >= sizeof(otExtAddress))
+    {
+        otRemoveMacBlacklist(pFilter->otCtx, (uint8_t*)InBuffer);
+        status = STATUS_SUCCESS;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otMacBlacklistEntry(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+    
+    if (InBufferLength >= sizeof(uint8_t) && 
+        *OutBufferLength >= sizeof(otMacBlacklistEntry))
+    {
+        status = ThreadErrorToNtstatus(
+            otGetMacBlacklistEntry(
+                pFilter->otCtx, 
+                *(uint8_t*)InBuffer, 
+                (otMacBlacklistEntry*)OutBuffer)
+            );
+        *OutBufferLength = sizeof(otMacBlacklistEntry);
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otClearMacBlacklist(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    UNREFERENCED_PARAMETER(InBuffer);
+    UNREFERENCED_PARAMETER(InBufferLength);
+    UNREFERENCED_PARAMETER(OutBuffer);
+    *OutBufferLength = 0;
+    
+    otClearMacBlacklist(pFilter->otCtx);
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otMaxTransmitPower(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+
+    if (InBufferLength >= sizeof(int8_t))
+    {
+        otSetMaxTransmitPower(pFilter->otCtx, *(int8_t*)InBuffer);
+        status = STATUS_SUCCESS;
+        *OutBufferLength = 0;
+    }
+    else if (*OutBufferLength >= sizeof(int8_t))
+    {
+        *(int8_t*)OutBuffer = otGetMaxTransmitPower(pFilter->otCtx);
+        *OutBufferLength = sizeof(int8_t);
+        status = STATUS_SUCCESS;
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otNextOnMeshPrefix(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+    
+    if (InBufferLength >= sizeof(BOOLEAN) + sizeof(uint8_t) && 
+        *OutBufferLength >= sizeof(uint8_t) + sizeof(otBorderRouterConfig))
+    {
+        BOOLEAN aLocal = *(BOOLEAN*)InBuffer;
+        uint8_t aIterator = *(uint8_t*)(InBuffer + sizeof(BOOLEAN));
+        otBorderRouterConfig* aConfig = (otBorderRouterConfig*)((PUCHAR)OutBuffer + sizeof(uint8_t));
+        status = ThreadErrorToNtstatus(
+            otGetNextOnMeshPrefix(
+                pFilter->otCtx, 
+                aLocal, 
+                &aIterator,
+                aConfig)
+            );
+        *OutBufferLength = sizeof(uint8_t) + sizeof(otBorderRouterConfig);
+        if (status == STATUS_SUCCESS)
+        {
+            *(uint8_t*)OutBuffer = aIterator;
+        }
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otPollPeriod(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+
+    if (InBufferLength >= sizeof(uint32_t))
+    {
+        otSetPollPeriod(pFilter->otCtx, *(uint32_t*)InBuffer);
+        status = STATUS_SUCCESS;
+        *OutBufferLength = 0;
+    }
+    else if (*OutBufferLength >= sizeof(uint32_t))
+    {
+        *(uint32_t*)OutBuffer = otGetPollPeriod(pFilter->otCtx);
+        *OutBufferLength = sizeof(uint32_t);
+        status = STATUS_SUCCESS;
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otLocalLeaderPartitionId(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+
+    if (InBufferLength >= sizeof(uint32_t))
+    {
+        otSetLocalLeaderPartitionId(pFilter->otCtx, *(uint32_t*)InBuffer);
+        status = STATUS_SUCCESS;
+        *OutBufferLength = 0;
+    }
+    else if (*OutBufferLength >= sizeof(uint32_t))
+    {
+        *(uint32_t*)OutBuffer = otGetLocalLeaderPartitionId(pFilter->otCtx);
+        *OutBufferLength = sizeof(uint32_t);
+        status = STATUS_SUCCESS;
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otAssignLinkQuality(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+
+    if (InBufferLength >= sizeof(otExtAddress) + sizeof(uint8_t))
+    {
+        otSetAssignLinkQuality(
+            pFilter->otCtx, 
+            (uint8_t*)InBuffer, 
+            *(uint8_t*)(InBuffer + sizeof(otExtAddress)));
+        status = STATUS_SUCCESS;
+        *OutBufferLength = 0;
+    }
+    else if (InBufferLength >= sizeof(otExtAddress) &&
+            *OutBufferLength >= sizeof(uint8_t))
+    {
+        status = ThreadErrorToNtstatus(
+            otGetAssignLinkQuality(
+                pFilter->otCtx, 
+                (uint8_t*)InBuffer, 
+                (uint8_t*)OutBuffer)
+            );
+        *OutBufferLength = sizeof(uint32_t);
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otPlatformReset(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    UNREFERENCED_PARAMETER(InBuffer);
+    UNREFERENCED_PARAMETER(InBufferLength);
+    UNREFERENCED_PARAMETER(OutBuffer);
+    *OutBufferLength = 0;
+    
+    otPlatformReset(pFilter->otCtx);
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otParentInfo(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+	
+    UNREFERENCED_PARAMETER(InBuffer);
+    UNREFERENCED_PARAMETER(InBufferLength);
+
+    if (*OutBufferLength >= sizeof(otRouterInfo))
+    {
+        status = ThreadErrorToNtstatus(otGetParentInfo(pFilter->otCtx, (otRouterInfo*)OutBuffer));
+        *OutBufferLength = sizeof(otRouterInfo);
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+    

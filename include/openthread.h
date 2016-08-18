@@ -627,7 +627,7 @@ OTAPI ThreadError otSetMasterKey(otContext *aContext, const uint8_t *aKey, uint8
  * @returns  The maximum transmit power setting.
  *
  */
-int8_t otGetMaxTransmitPower(otContext *aContext);
+OTAPI int8_t otGetMaxTransmitPower(otContext *aContext);
 
 /**
  * This function sets the maximum transmit power in dBm.
@@ -636,7 +636,7 @@ int8_t otGetMaxTransmitPower(otContext *aContext);
  * @param[in]  aPower    The maximum transmit power in dBm.
  *
  */
-void otSetMaxTransmitPower(otContext *aContext, int8_t aPower);
+OTAPI void otSetMaxTransmitPower(otContext *aContext, int8_t aPower);
 
 /**
  * This function returns a pointer to the Mesh Local EID.
@@ -726,8 +726,8 @@ OTAPI ThreadError otSetNetworkName(otContext *aContext, const char *aNetworkName
  * @retval kThreadError_NotFound  No subsequent On Mesh prefix exists in the Thread Network Data.
  *
  */
-ThreadError otGetNextOnMeshPrefix(otContext *aContext, bool aLocal, otNetworkDataIterator *aIterator,
-                                  otBorderRouterConfig *aConfig);
+OTAPI ThreadError otGetNextOnMeshPrefix(otContext *aContext, bool aLocal, otNetworkDataIterator *aIterator,
+                                        otBorderRouterConfig *aConfig);
 
 /**
  * Get the IEEE 802.15.4 PAN ID.
@@ -895,7 +895,7 @@ OTAPI ThreadError otSetPendingDataset(otContext *aContext, otOperationalDataset 
  *
  * @sa otSetPollPeriod
  */
-uint32_t otGetPollPeriod(otContext *aContext);
+OTAPI uint32_t otGetPollPeriod(otContext *aContext);
 
 /**
  * Set the data poll period for sleepy end deivce.
@@ -905,7 +905,7 @@ uint32_t otGetPollPeriod(otContext *aContext);
  *
  * @sa otGetPollPeriod
  */
-void otSetPollPeriod(otContext *aContext, uint32_t aPollPeriod);
+OTAPI void otSetPollPeriod(otContext *aContext, uint32_t aPollPeriod);
 
 /**
  * @}
@@ -950,7 +950,7 @@ OTAPI void otSetLocalLeaderWeight(otContext *aContext, uint8_t aWeight);
  * @returns The Thread Leader Partition Id value.
  *
  */
-uint32_t otGetLocalLeaderPartitionId(otContext *aContext);
+OTAPI uint32_t otGetLocalLeaderPartitionId(otContext *aContext);
 
 /**
  * Set the Thread Leader Partition Id used when operating in the Leader role.
@@ -959,7 +959,7 @@ uint32_t otGetLocalLeaderPartitionId(otContext *aContext);
  * @param[in]  aPartitionId  The Thread Leader Partition Id value.
  *
  */
-void otSetLocalLeaderPartitionId(otContext *aContext, uint32_t aPartitionId);
+OTAPI void otSetLocalLeaderPartitionId(otContext *aContext, uint32_t aPartitionId);
 
 /**
  * @}
@@ -1371,7 +1371,7 @@ OTAPI ThreadError otBecomeLeader(otContext *aContext);
  * @sa otDisableMacBlacklist
  * @sa otEnableMacBlacklist
  */
-ThreadError otAddMacBlacklist(otContext *aContext, const uint8_t *aExtAddr);
+OTAPI ThreadError otAddMacBlacklist(otContext *aContext, const uint8_t *aExtAddr);
 
 /**
  * Remove an IEEE 802.15.4 Extended Address from the MAC blacklist.
@@ -1385,7 +1385,7 @@ ThreadError otAddMacBlacklist(otContext *aContext, const uint8_t *aExtAddr);
  * @sa otDisableMacBlacklist
  * @sa otEnableMacBlacklist
  */
-void otRemoveMacBlacklist(otContext *aContext, const uint8_t *aExtAddr);
+OTAPI void otRemoveMacBlacklist(otContext *aContext, const uint8_t *aExtAddr);
 
 /**
  * This function gets a MAC Blacklist entry.
@@ -1398,7 +1398,7 @@ void otRemoveMacBlacklist(otContext *aContext, const uint8_t *aExtAddr);
  * @retval kThreadError_InvalidArgs  @p aIndex is out of bounds or @p aEntry is NULL.
  *
  */
-ThreadError otGetMacBlacklistEntry(otContext *aContext, uint8_t aIndex, otMacBlacklistEntry *aEntry);
+OTAPI ThreadError otGetMacBlacklistEntry(otContext *aContext, uint8_t aIndex, otMacBlacklistEntry *aEntry);
 
 /**
  *  Remove all entries from the MAC Blacklist.
@@ -1411,7 +1411,7 @@ ThreadError otGetMacBlacklistEntry(otContext *aContext, uint8_t aIndex, otMacBla
  * @sa otDisableMacBlacklist
  * @sa otEnableMacBlacklist
  */
-void otClearMacBlacklist(otContext *aContext);
+OTAPI void otClearMacBlacklist(otContext *aContext);
 
 /**
  * Disable MAC blacklist filtering.
@@ -1425,7 +1425,7 @@ void otClearMacBlacklist(otContext *aContext);
  * @sa otGetMacBlacklistEntry
  * @sa otEnableMacBlacklist
  */
-void otDisableMacBlacklist(otContext *aContext);
+OTAPI void otDisableMacBlacklist(otContext *aContext);
 
 /**
  * Enable MAC Blacklist filtering.
@@ -1438,7 +1438,7 @@ void otDisableMacBlacklist(otContext *aContext);
  * @sa otGetMacBlacklistEntry
  * @sa otDisableMacBlacklist
  */
-void otEnableMacBlacklist(otContext *aContext);
+OTAPI void otEnableMacBlacklist(otContext *aContext);
 
 /**
  * This function indicates whether or not the MAC Blacklist is enabled.
@@ -1455,7 +1455,7 @@ void otEnableMacBlacklist(otContext *aContext);
  * @sa otEnableMacBlacklist
  *
  */
-bool otIsMacBlacklistEnabled(otContext *aContext);
+OTAPI bool otIsMacBlacklistEnabled(otContext *aContext);
 
 /**
  * Get the assigned link quality which is on the link to a given extended address.
@@ -1469,7 +1469,7 @@ bool otIsMacBlacklistEnabled(otContext *aContext);
  *
  * @sa otSetAssignLinkQuality
  */
-ThreadError otGetAssignLinkQuality(otContext *aContext, const uint8_t *aExtAddr, uint8_t *aLinkQuality);
+OTAPI ThreadError otGetAssignLinkQuality(otContext *aContext, const uint8_t *aExtAddr, uint8_t *aLinkQuality);
 
 /**
  * Set the link quality which is on the link to a given extended address.
@@ -1480,14 +1480,14 @@ ThreadError otGetAssignLinkQuality(otContext *aContext, const uint8_t *aExtAddr,
  *
  * @sa otGetAssignLinkQuality
  */
-void otSetAssignLinkQuality(otContext *aContext, const uint8_t *aExtAddr, uint8_t aLinkQuality);
+OTAPI void otSetAssignLinkQuality(otContext *aContext, const uint8_t *aExtAddr, uint8_t aLinkQuality);
 
 /**
  * This method triggers platform reset.
  *
  * @param[in]  aContext  The OpenThread context structure.
  */
-void otPlatformReset(otContext *aContext);
+OTAPI void otPlatformReset(otContext *aContext);
 
 /**
  * @}
@@ -1639,7 +1639,7 @@ OTAPI ThreadError otGetRouterInfo(otContext *aContext, uint16_t aRouterId, otRou
  * @param[out]  aParentInfo  A pointer to where the parent router information is placed.
  *
  */
-ThreadError otGetParentInfo(otContext *aContext, otRouterInfo *aParentInfo);
+OTAPI ThreadError otGetParentInfo(otContext *aContext, otRouterInfo *aParentInfo);
 
 /**
  * Get the Stable Network Data Version.

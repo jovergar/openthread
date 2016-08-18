@@ -393,5 +393,72 @@ typedef enum _OTLWF_NOTIF_TYPE
     OTLWF_CTL_CODE(151, METHOD_BUFFERED, FILE_READ_DATA)
     // GUID - InterfaceGuid
     // uint8_t - aVersion
+    
+#define IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED \
+    OTLWF_CTL_CODE(152, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // BOOLEAN - aEnabled
+    
+#define IOCTL_OTLWF_OT_ADD_MAC_BLACKLIST \
+    OTLWF_CTL_CODE(153, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otExtAddress - aExtAddr
+    
+#define IOCTL_OTLWF_OT_REMOVE_MAC_BLACKLIST \
+    OTLWF_CTL_CODE(154, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otExtAddress - aExtAddr
+    
+#define IOCTL_OTLWF_OT_MAC_BLACKLIST_ENTRY \
+    OTLWF_CTL_CODE(155, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aIndex (input)
+    // otMacBlacklistEntry - aEntry (output)
+    
+#define IOCTL_OTLWF_OT_CLEAR_MAC_BLACKLIST \
+    OTLWF_CTL_CODE(156, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    
+#define IOCTL_OTLWF_OT_MAX_TRANSMIT_POWER \
+    OTLWF_CTL_CODE(157, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // int8_t - aPower
+    
+#define IOCTL_OTLWF_OT_NEXT_ON_MESH_PREFIX \
+    OTLWF_CTL_CODE(158, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // BOOLEAN - aLocal (input)
+    // uint8_t - aIterator (input)
+    // uint8_t - aNewIterator (output)
+    // otBorderRouterConfig - aConfig (output)
+    
+#define IOCTL_OTLWF_OT_POLL_PERIOD \
+    OTLWF_CTL_CODE(159, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aPollPeriod
+    
+#define IOCTL_OTLWF_OT_LOCAL_LEADER_PARTITION_ID \
+    OTLWF_CTL_CODE(160, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aPartitionId
+    
+#define IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY \
+    OTLWF_CTL_CODE(161, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otExtAddress - aExtAddr (input)
+    // uint8_t - aLinkQuality (input or output)
+    
+#define IOCTL_OTLWF_OT_PLATFORM_RESET \
+    OTLWF_CTL_CODE(162, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    
+#define IOCTL_OTLWF_OT_PARENT_INFO \
+    OTLWF_CTL_CODE(163, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // otRouterInfo - aParentInfo
+
+// OpenThread function IOCTL codes
+#define MIN_OTLWF_IOCTL_FUNC_CODE 100
+#define MAX_OTLWF_IOCTL_FUNC_CODE 163
 
 #endif //__OTLWFIOCTL_H__

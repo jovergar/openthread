@@ -330,7 +330,7 @@ otLwfDeviceIoControl(
         goto error;
     }
 
-    if (FuncCode >= 100 && FuncCode <= 151)
+    if (FuncCode >= MIN_OTLWF_IOCTL_FUNC_CODE && FuncCode <= MAX_OTLWF_IOCTL_FUNC_CODE)
     {
         CompleteIRP = FALSE;
         status = otLwfIoCtlOpenThreadControl(Irp);
