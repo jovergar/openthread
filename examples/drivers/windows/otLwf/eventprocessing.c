@@ -481,74 +481,9 @@ otLwfEventProcessingQueueIrp(
     LogFuncExit(DRIVER_IOCTL);
 }
 
-const char* IoCtlStrings[] = 
-{
-    "IOCTL_OTLWF_OT_ENABLED",
-    "IOCTL_OTLWF_OT_INTERFACE",
-    "IOCTL_OTLWF_OT_THREAD",
-    "IOCTL_OTLWF_OT_ACTIVE_SCAN",
-    "IOCTL_OTLWF_OT_DISCOVER",
-    "IOCTL_OTLWF_OT_CHANNEL",
-    "IOCTL_OTLWF_OT_CHILD_TIMEOUT",
-    "IOCTL_OTLWF_OT_EXTENDED_ADDRESS",
-    "IOCTL_OTLWF_OT_EXTENDED_PANID",
-    "IOCTL_OTLWF_OT_LEADER_RLOC",
-    "IOCTL_OTLWF_OT_LINK_MODE",
-    "IOCTL_OTLWF_OT_MASTER_KEY",
-    "IOCTL_OTLWF_OT_MESH_LOCAL_EID",
-    "IOCTL_OTLWF_OT_MESH_LOCAL_PREFIX",
-    "IOCTL_OTLWF_OT_NETWORK_DATA_LEADER",
-    "IOCTL_OTLWF_OT_NETWORK_DATA_LOCAL",
-    "IOCTL_OTLWF_OT_NETWORK_NAME",
-    "IOCTL_OTLWF_OT_PAN_ID",
-    "IOCTL_OTLWF_OT_ROUTER_ROLL_ENABLED",
-    "IOCTL_OTLWF_OT_SHORT_ADDRESS",
-    "IOCTL_OTLWF_OT_UNICAST_ADDRESSES",
-    "IOCTL_OTLWF_OT_ACTIVE_DATASET",
-    "IOCTL_OTLWF_OT_PENDING_DATASET",
-    "IOCTL_OTLWF_OT_LOCAL_LEADER_WEIGHT",
-    "IOCTL_OTLWF_OT_ADD_BORDER_ROUTER",
-    "IOCTL_OTLWF_OT_REMOVE_BORDER_ROUTER",
-    "IOCTL_OTLWF_OT_ADD_EXTERNAL_ROUTE",
-    "IOCTL_OTLWF_OT_REMOVE_EXTERNAL_ROUTE",
-    "IOCTL_OTLWF_OT_SEND_SERVER_DATA",
-    "IOCTL_OTLWF_OT_CONTEXT_ID_REUSE_DELAY",
-    "IOCTL_OTLWF_OT_KEY_SEQUENCE_COUNTER",
-    "IOCTL_OTLWF_OT_NETWORK_ID_TIMEOUT",
-    "IOCTL_OTLWF_OT_ROUTER_UPGRADE_THRESHOLD",
-    "IOCTL_OTLWF_OT_RELEASE_ROUTER_ID",
-    "IOCTL_OTLWF_OT_MAC_WHITELIST_ENABLED",
-    "IOCTL_OTLWF_OT_ADD_MAC_WHITELIST",
-    "IOCTL_OTLWF_OT_REMOVE_MAC_WHITELIST",
-    "IOCTL_OTLWF_OT_MAC_WHITELIST_ENTRY",
-    "IOCTL_OTLWF_OT_CLEAR_MAC_WHITELIST",
-    "IOCTL_OTLWF_OT_DEVICE_ROLE",
-    "IOCTL_OTLWF_OT_CHILD_INFO_BY_ID",
-    "IOCTL_OTLWF_OT_CHILD_INFO_BY_INDEX",
-    "IOCTL_OTLWF_OT_EID_CACHE_ENTRY",
-    "IOCTL_OTLWF_OT_LEADER_DATA",
-    "IOCTL_OTLWF_OT_LEADER_ROUTER_ID",
-    "IOCTL_OTLWF_OT_LEADER_WEIGHT",
-    "IOCTL_OTLWF_OT_NETWORK_DATA_VERSION",
-    "IOCTL_OTLWF_OT_PARTITION_ID",
-    "IOCTL_OTLWF_OT_RLOC16",
-    "IOCTL_OTLWF_OT_ROUTER_ID_SEQUENCE",
-    "IOCTL_OTLWF_OT_ROUTER_INFO",
-    "IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION"
-};
-
-const char*
-IoCtlString(
-	ULONG IoControlCode
-)
-{
-	ULONG FuncCode = ((IoControlCode >> 2) & 0xFFF) - 100;
-	return FuncCode < ARRAYSIZE(IoCtlStrings) ? IoCtlStrings[FuncCode] : "UNKNOWN IOCTL";
-}
-
 // Processes the next OpenThread IoCtl Irp
 _IRQL_requires_max_(PASSIVE_LEVEL)
-BOOLEAN
+VOID
 otLwfEventProcessingNextIrp(
     _In_ PMS_FILTER pFilter
     )
@@ -557,85 +492,34 @@ otLwfEventProcessingNextIrp(
 
     LogFuncEntry(DRIVER_IOCTL);
 
-    // Get the next Irp in the queue
-    FILTER_ACQUIRE_LOCK(&pFilter->EventsLock, FALSE);
-    if (!IsListEmpty(&pFilter->EventIrpListHead))
+    do
     {
-        PLIST_ENTRY Link = RemoveHeadList(&pFilter->EventIrpListHead);
-        Irp = CONTAINING_RECORD(Link, IRP, Tail.Overlay.ListEntry);
+        // Reset pointer
+        Irp = NULL;
 
-        // Clear the cancel routine since we are processing this now
-        KIRQL irql;
-        IoAcquireCancelSpinLock(&irql);
-        IoSetCancelRoutine(Irp, NULL);
-        IoReleaseCancelSpinLock(irql);
-    }
-    FILTER_RELEASE_LOCK(&pFilter->EventsLock, FALSE);
-
-    if (Irp)
-    {    
-        PIO_STACK_LOCATION  IrpSp = IoGetCurrentIrpStackLocation(Irp);
-
-        PVOID InBuffer = (PUCHAR)Irp->AssociatedIrp.SystemBuffer + sizeof(GUID);
-        PVOID OutBuffer = Irp->AssociatedIrp.SystemBuffer;
-
-        ULONG InBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength - sizeof(GUID);
-        ULONG OutBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
-        ULONG IoControlCode = IrpSp->Parameters.DeviceIoControl.IoControlCode;
-
-        ULONG OrigOutBufferLength = OutBufferLength;
-        
-        NTSTATUS status = STATUS_SUCCESS;
-		
-		LogVerbose(DRIVER_IOCTL, "Processing Irp=%p, for %s (In:%u,Out:%u)", 
-			       Irp, IoCtlString(IoControlCode), InBufferLength, OutBufferLength);
-
-        switch (IoControlCode)
+        // Get the next Irp in the queue
+        FILTER_ACQUIRE_LOCK(&pFilter->EventsLock, FALSE);
+        if (!IsListEmpty(&pFilter->EventIrpListHead))
         {
-        case IOCTL_OTLWF_OT_ENABLED:
-            status = otLwfIoCtl_otEnabled(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
-            break;
-        case IOCTL_OTLWF_OT_INTERFACE:
-            status = otLwfIoCtl_otInterface(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
-            break;
-        case IOCTL_OTLWF_OT_THREAD:
-            status = otLwfIoCtl_otThread(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
-            break;
-			
-        case IOCTL_OTLWF_OT_LINK_MODE:
-            status = otLwfIoCtl_otLinkMode(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
-            break;
-			
-        case IOCTL_OTLWF_OT_MESH_LOCAL_EID:
-            status = otLwfIoCtl_otMeshLocalEid(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
-            break;
-			
-        case IOCTL_OTLWF_OT_DEVICE_ROLE:
-            status = otLwfIoCtl_otDeviceRole(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
-            break;
-        default:
-            status = STATUS_NOT_IMPLEMENTED;
-            OutBufferLength = 0;
+            PLIST_ENTRY Link = RemoveHeadList(&pFilter->EventIrpListHead);
+            Irp = CONTAINING_RECORD(Link, IRP, Tail.Overlay.ListEntry);
+
+            // Clear the cancel routine since we are processing this now
+            KIRQL irql;
+            IoAcquireCancelSpinLock(&irql);
+            IoSetCancelRoutine(Irp, NULL);
+            IoReleaseCancelSpinLock(irql);
+        }
+        FILTER_RELEASE_LOCK(&pFilter->EventsLock, FALSE);
+
+        if (Irp)
+        {    
+            otLwfCompleteOpenThreadIrp(pFilter, Irp);
         }
 
-        // Clear any leftover output buffer
-        if (OutBufferLength < OrigOutBufferLength)
-        {
-            RtlZeroMemory((PUCHAR)OutBuffer + OutBufferLength, OrigOutBufferLength - OutBufferLength);
-        }
-
-		LogVerbose(DRIVER_IOCTL, "Completing Irp=%p, with %!STATUS! for %s (Out:%u)", 
-			       Irp, status, IoCtlString(IoControlCode), OutBufferLength);
-
-        // Complete the IRP
-		Irp->IoStatus.Information = OutBufferLength;
-        Irp->IoStatus.Status = status;
-        IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    }
+    } while (Irp);
 
     LogFuncExit(DRIVER_IOCTL);
-
-    return Irp != NULL;
 }
 
 // Helper function to copy data out of a NET_BUFFER
@@ -963,7 +847,7 @@ otLwfEventWorkerThread(
         else if (status == STATUS_WAIT_0 + 5) // EventWorkerThreadProcessIrp fired
         {
             // Process any IRPs that were pended
-            while (otLwfEventProcessingNextIrp(pFilter)) { }
+            otLwfEventProcessingNextIrp(pFilter);
         }
         else
         {

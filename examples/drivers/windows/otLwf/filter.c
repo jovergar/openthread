@@ -875,3 +875,17 @@ void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
         otLwfIndicateNotification(NotifEntry);
     }
 }
+
+void otLwfActiveScanCallback(otActiveScanResult *aResult)
+{
+    LogFuncEntry(DRIVER_DEFAULT);
+    UNREFERENCED_PARAMETER(aResult);
+    LogFuncExit(DRIVER_DEFAULT);
+}
+
+void otLwfDiscoverCallback(otActiveScanResult *aResult)
+{
+    LogFuncEntry(DRIVER_DEFAULT);
+    UNREFERENCED_PARAMETER(aResult);
+    LogFuncExit(DRIVER_DEFAULT);
+}
