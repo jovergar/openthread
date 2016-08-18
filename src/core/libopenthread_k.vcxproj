@@ -43,6 +43,7 @@
     <ClCompile Include="common\timer.cpp" />
     <ClCompile Include="crypto\aes_ccm.cpp" />
     <ClCompile Include="mac\mac.cpp" />
+    <ClCompile Include="mac\mac_blacklist.cpp" />
     <ClCompile Include="mac\mac_frame.cpp" />
     <ClCompile Include="mac\mac_whitelist.cpp" />
     <ClCompile Include="net\icmp6.cpp" />
@@ -84,6 +85,7 @@
     <ClInclude Include="common\timer.hpp" />
     <ClInclude Include="crypto\aes_ccm.hpp" />
     <ClInclude Include="mac\mac.hpp" />
+    <ClInclude Include="mac\mac_blacklist.hpp" />
     <ClInclude Include="mac\mac_frame.hpp" />
     <ClInclude Include="mac\mac_whitelist.hpp" />
     <ClInclude Include="net\icmp6.hpp" />

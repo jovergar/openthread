@@ -531,7 +531,7 @@ public:
      *
      */
     static ThreadError HandleDatagram(Message &aMessage, Netif *aNetif, int8_t aInterfaceId,
-                                      const void *aLinkMessageInfo, bool aFromNcpHost, bool *aIsDropped = NULL);
+                                      const void *aLinkMessageInfo, bool aFromNcpHost);
 
     /**
      * This static method updates a checksum.
@@ -592,6 +592,14 @@ public:
      */
     static void SetReceiveDatagramCallback(otContext *aContext, otReceiveIp6DatagramCallback aCallback,
                                            void *aCallbackContext);
+
+    /**
+     * This static method enables/disables IPv6 forwarding.
+     *
+     * @param[in]  aEnable  TRUE to enable IPv6 forwarding, FALSE otherwise.
+     *
+     */
+    static void SetForwardingEnabled(otContext *aContext, bool aEnable);
 
 private:
     static void ProcessReceiveCallback(Message &aMessage);

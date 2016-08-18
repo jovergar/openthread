@@ -409,7 +409,7 @@ RadioPacket *otPlatRadioGetTransmitBuffer(otContext *)
     return &sTransmitFrame;
 }
 
-int8_t otPlatRadioGetNoiseFloor(otContext *)
+int8_t otPlatRadioGetRssi(otContext *)
 {
     return 0;
 }

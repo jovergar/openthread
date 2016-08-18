@@ -825,11 +825,6 @@ void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
         otLwfAddressesUpdated(pFilter);
     }
 
-    if ((aFlags & OT_NET_STATE) != 0)
-    {
-        LogVerbose(DRIVER_DEFAULT, "Filter %p received OT_NET_STATE", pFilter);
-    }
-
     if ((aFlags & OT_NET_ROLE) != 0)
     {
         LogVerbose(DRIVER_DEFAULT, "Filter %p received OT_NET_ROLE", pFilter);

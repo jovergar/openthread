@@ -61,6 +61,7 @@ RtlCopyBufferToMdl(
 #include <platform/logging.h>
 #include <platform/logging-windows.h>
 #include <platform/radio.h>
+#include <platform/misc.h>
 #include <platform/alarm.h>
 
 #include <otLwfIoctl.h>

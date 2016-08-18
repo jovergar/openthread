@@ -90,7 +90,8 @@ Mac::Mac(ThreadNetif &aThreadNetif):
     mKeyManager(aThreadNetif.GetKeyManager()),
     mMle(aThreadNetif.GetMle()),
     mNetif(aThreadNetif),
-    mWhitelist()
+    mWhitelist(),
+    mBlacklist()
 {
     aThreadNetif.GetOpenThreadContext()->mMac = this;
 
@@ -100,7 +101,6 @@ Mac::Mac(ThreadNetif &aThreadNetif):
     mCsmaAttempts = 0;
     mTransmitAttempts = 0;
     mTransmitBeacon = false;
-    mBeacon.Init();
 
     mActiveScanRequest = false;
     mScanChannel = kPhyMinChannel;
@@ -114,6 +114,7 @@ Mac::Mac(ThreadNetif &aThreadNetif):
     mReceiveHead = NULL;
     mReceiveTail = NULL;
     mChannel = OPENTHREAD_CONFIG_DEFAULT_CHANNEL;
+    mMaxTransmitPower = OPENTHREAD_CONFIG_DEFAULT_MAX_TRANSMIT_POWER;
     mPanId = kPanIdBroadcast;
     mShortAddress = kShortAddrInvalid;
 
@@ -254,15 +255,36 @@ ThreadError Mac::SetChannel(uint8_t aChannel)
     return kThreadError_None;
 }
 
+int8_t Mac::GetMaxTransmitPower(void) const
+{
+    return mMaxTransmitPower;
+}
+
+void Mac::SetMaxTransmitPower(int8_t aPower)
+{
+    mMaxTransmitPower = aPower;
+}
+
 const char *Mac::GetNetworkName(void) const
 {
-    return mBeacon.GetNetworkName();
+    return mNetworkName.m8;
 }
 
 ThreadError Mac::SetNetworkName(const char *aNetworkName)
 {
-    mBeacon.SetNetworkName(aNetworkName);
-    return kThreadError_None;
+    ThreadError error = kThreadError_None;
+
+    VerifyOrExit(strlen(aNetworkName) <= OT_NETWORK_NAME_MAX_SIZE, error = kThreadError_InvalidArgs);
+
+    memset(&mNetworkName, 0, sizeof(mNetworkName));
+#ifdef _WIN32
+    strncpy_s(mNetworkName.m8, sizeof(mNetworkName.m8), aNetworkName, sizeof(mNetworkName));
+#else
+    strncpy(mNetworkName.m8, aNetworkName, sizeof(mNetworkName));
+#endif
+
+exit:
+    return error;
 }
 
 PanId Mac::GetPanId(void) const
@@ -278,12 +300,12 @@ ThreadError Mac::SetPanId(PanId aPanId)
 
 const uint8_t *Mac::GetExtendedPanId(void) const
 {
-    return mBeacon.GetExtendedPanId();
+    return mExtendedPanId.m8;
 }
 
 ThreadError Mac::SetExtendedPanId(const uint8_t *aExtPanId)
 {
-    mBeacon.SetExtendedPanId(aExtPanId);
+    memcpy(mExtendedPanId.m8, aExtPanId, sizeof(mExtendedPanId));
     return kThreadError_None;
 }
 
@@ -396,6 +418,8 @@ void Mac::SendBeaconRequest(Frame &aFrame)
 
 void Mac::SendBeacon(Frame &aFrame)
 {
+    uint8_t numUnsecurePorts;
+    Beacon *beacon;
     uint16_t fcf;
 
     // initialize MAC header
@@ -405,8 +429,25 @@ void Mac::SendBeacon(Frame &aFrame)
     aFrame.SetSrcAddr(mExtAddress);
 
     // write payload
-    memcpy(aFrame.GetPayload(), &mBeacon, sizeof(mBeacon));
-    aFrame.SetPayloadLength(sizeof(mBeacon));
+    beacon = reinterpret_cast<Beacon *>(aFrame.GetPayload());
+    beacon->Init();
+
+    // set the Joining Permitted flag
+    mNetif.GetIp6Filter().GetUnsecurePorts(numUnsecurePorts);
+
+    if (numUnsecurePorts)
+    {
+        beacon->SetJoiningPermitted();
+    }
+    else
+    {
+        beacon->ClearJoiningPermitted();
+    }
+
+    beacon->SetNetworkName(mNetworkName.m8);
+    beacon->SetExtendedPanId(mExtendedPanId.m8);
+
+    aFrame.SetPayloadLength(sizeof(*beacon));
 
     otLogInfoMac("Sent Beacon\n");
 }
@@ -462,6 +503,8 @@ void Mac::HandleBeginTransmit(void)
         ExitNow();
     }
 
+    sendFrame.SetPower(mMaxTransmitPower);
+
     switch (mState)
     {
     case kStateActiveScan:
@@ -489,6 +532,11 @@ void Mac::HandleBeginTransmit(void)
 
     // Security Processing
     ProcessTransmitSecurity(sendFrame);
+
+    if (sendFrame.GetPower() > mMaxTransmitPower)
+    {
+        sendFrame.SetPower(mMaxTransmitPower);
+    }
 
     SuccessOrExit(error = otPlatRadioTransmit(mNetif.GetOpenThreadContext()));
 
@@ -818,7 +866,8 @@ void Mac::ReceiveDoneTask(Frame *aFrame, ThreadError aError)
     Address dstaddr;
     PanId panid;
     Neighbor *neighbor;
-    otMacWhitelistEntry *entry;
+    otMacWhitelistEntry *whitelistEntry;
+    otMacBlacklistEntry *blacklistEntry;
     int8_t rssi;
     ThreadError error = aError;
 
@@ -863,12 +912,18 @@ void Mac::ReceiveDoneTask(Frame *aFrame, ThreadError aError)
     // Source Whitelist Processing
     if (srcaddr.mLength != 0 && mWhitelist.IsEnabled())
     {
-        VerifyOrExit((entry = mWhitelist.Find(srcaddr.mExtAddress)) != NULL, error = kThreadError_WhitelistFiltered);
+        VerifyOrExit((whitelistEntry = mWhitelist.Find(srcaddr.mExtAddress)) != NULL, error = kThreadError_WhitelistFiltered);
 
-        if (mWhitelist.GetFixedRssi(*entry, rssi) == kThreadError_None)
+        if (mWhitelist.GetFixedRssi(*whitelistEntry, rssi) == kThreadError_None)
         {
             aFrame->mPower = rssi;
         }
+    }
+
+    // Source Blacklist Processing
+    if (srcaddr.mLength != 0 && mBlacklist.IsEnabled())
+    {
+        VerifyOrExit((blacklistEntry = mBlacklist.Find(srcaddr.mExtAddress)) == NULL, error = kThreadError_BlacklistFiltered);
     }
 
     // Destination Address Filtering
@@ -1058,6 +1113,11 @@ exit:
 Whitelist &Mac::GetWhitelist(void)
 {
     return mWhitelist;
+}
+
+Blacklist &Mac::GetBlacklist(void)
+{
+    return mBlacklist;
 }
 
 otMacCounters &Mac::GetCounters(void)

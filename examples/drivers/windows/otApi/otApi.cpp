@@ -421,8 +421,8 @@ ProcessNotification(
     }
     else if (Notif->NotifType == OTLWF_NOTIF_DISCOVER)
     {
-        Notif->DiscoverPayload.Results.mExtPanId = (uint8_t*)&Notif->DiscoverPayload.ExtendedPanId;
-        Notif->DiscoverPayload.Results.mNetworkName = (char*)&Notif->DiscoverPayload.NetworkName;
+        Notif->DiscoverPayload.Results.mExtendedPanId = Notif->DiscoverPayload.ExtendedPanId;
+        Notif->DiscoverPayload.Results.mNetworkName = Notif->DiscoverPayload.NetworkName;
 
         otHandleActiveScanResult Callback = nullptr;
 
@@ -459,8 +459,8 @@ ProcessNotification(
     }
     else if (Notif->NotifType == OTLWF_NOTIF_ACTIVE_SCAN)
     {
-        Notif->ActiveScanPayload.Results.mExtPanId = (uint8_t*)&Notif->ActiveScanPayload.ExtendedPanId;
-        Notif->ActiveScanPayload.Results.mNetworkName = (char*)&Notif->ActiveScanPayload.NetworkName;
+        Notif->ActiveScanPayload.Results.mExtendedPanId = Notif->ActiveScanPayload.ExtendedPanId;
+        Notif->ActiveScanPayload.Results.mNetworkName = Notif->ActiveScanPayload.NetworkName;
 
         otHandleActiveScanResult Callback = nullptr;
 
