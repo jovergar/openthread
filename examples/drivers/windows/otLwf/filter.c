@@ -508,7 +508,7 @@ Return Value:
     // Initialize the OpenThread library
     //
     pFilter->otCachedRole = kDeviceRoleDisabled;
-    pFilter->otCtx = otInit(pFilter->otCtxBuffer, &otCtxSize);
+    pFilter->otCtx = otContextInit(pFilter->otCtxBuffer, &otCtxSize);
     NT_ASSERT(pFilter->otCtx);
     if (pFilter->otCtx == NULL)
     {
@@ -556,7 +556,7 @@ error:
         if (pFilter->otCtx != NULL)
         {
             otDisable(pFilter->otCtx);
-            otFreeContext(pFilter->otCtx);
+            otContextFinalize(pFilter->otCtx);
             pFilter->otCtx = NULL;
         }
     }
@@ -636,7 +636,7 @@ N.B.: When the filter is in Pausing state, it can still process OID requests,
     //
     // Free OpenThread context memory
     //
-    otFreeContext(pFilter->otCtx);
+    otContextFinalize(pFilter->otCtx);
     pFilter->otCtx = NULL;
 
     // Set the state back to Paused now that we are done
