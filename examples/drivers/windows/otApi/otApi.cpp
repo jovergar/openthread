@@ -29,6 +29,8 @@
 #include "precomp.h"
 #include "otApi.tmh"
 
+//#define DEBUG_ASYNC_IO
+
 using namespace std;
 
 // The maximum time we will wait for an overlapped result. Essentially, the maximum
@@ -221,6 +223,10 @@ otApiInit(
     // Start the otpool waiting on the overlapped event
     SetThreadpoolWait(aApiContext->ThreadpoolWait, aApiContext->Overlapped.hEvent, nullptr);
 
+#ifdef DEBUG_ASYNC_IO
+    otLogDebgApi("Querying for 1st notification");
+#endif
+
     // Request first notification asynchronously
     if (!DeviceIoControl(
             aApiContext->DeviceHandle,
@@ -263,7 +269,7 @@ otApiUninit(
     otLogFuncEntry();
 
 	// If we never got the handle, nothing left to clean up
-	if (aApiContext->DeviceHandle != INVALID_HANDLE_VALUE) goto exit;
+	if (aApiContext->DeviceHandle == INVALID_HANDLE_VALUE) goto exit;
 
     //
     // Make sure we unregister callbacks
@@ -293,6 +299,14 @@ otApiUninit(
     aApiContext->DiscoverCallbacks.clear();
     aApiContext->StateChangedCallbacks.clear();
 
+#ifdef DEBUG_ASYNC_IO
+    otLogDebgApi("Clearing Threadpool Wait");
+#endif
+
+    // Clear the threadpool wait to prevent further waits from being scheduled
+    PTP_WAIT tpWait = aApiContext->ThreadpoolWait;
+    aApiContext->ThreadpoolWait = nullptr;
+
     LeaveCriticalSection(&aApiContext->CallbackLock);
     
     // Release last ref and wait for any pending callback to complete, if necessary
@@ -301,15 +315,25 @@ otApiUninit(
         WaitForSingleObject(aApiContext->CallbackCompleteEvent, INFINITE);
     }
         
-    // Clean up otpool wait
-    if (aApiContext->ThreadpoolWait)
+    // Clean up threadpool wait
+    if (tpWait)
     {
-        WaitForThreadpoolWaitCallbacks(aApiContext->ThreadpoolWait, TRUE);
+#ifdef DEBUG_ASYNC_IO
+        otLogDebgApi("Waiting for outstanding threadpool callbacks to compelte");
+#endif
+
+        // Cancel any queued waits and wait for any outstanding calls to compelte
+        WaitForThreadpoolWaitCallbacks(tpWait, TRUE);
+        
+#ifdef DEBUG_ASYNC_IO
+        otLogDebgApi("Cancelling any pending IO");
+#endif
 
         // Cancel any async IO
         CancelIoEx(aApiContext->DeviceHandle, &aApiContext->Overlapped);
 
-        CloseThreadpoolWait(aApiContext->ThreadpoolWait);
+        // Free the threadpool wait
+        CloseThreadpoolWait(tpWait);
     }
 
     // Clean up overlapped event
@@ -510,6 +534,10 @@ otIoComplete(
     _In_        TP_WAIT_RESULT        /* WaitResult */
     )
 {
+#ifdef DEBUG_ASYNC_IO
+    otLogFuncEntry();
+#endif
+
     otApiContext *aApiContext = (otApiContext*)Context;
     if (aApiContext == nullptr) return;
 
@@ -531,26 +559,42 @@ otIoComplete(
 
         // Invoke the callback if set
         ProcessNotification(aApiContext, &aApiContext->NotificationBuffer);
+            
+        // Try to get the threadpool wait to see if we are allowed to continue processing notifications
+        EnterCriticalSection(&aApiContext->CallbackLock);
+        PTP_WAIT tpWait = aApiContext->ThreadpoolWait;
+        LeaveCriticalSection(&aApiContext->CallbackLock);
 
-        // Start waiting for next notification
-        SetThreadpoolWait(aApiContext->ThreadpoolWait, aApiContext->Overlapped.hEvent, nullptr);
-
-        // Request next notification
-        if (!DeviceIoControl(
-            aApiContext->DeviceHandle,
-                IOCTL_OTLWF_QUERY_NOTIFICATION,
-                nullptr, 0,
-                &aApiContext->NotificationBuffer, sizeof(OTLWF_NOTIFICATION),
-                nullptr, 
-                &aApiContext->Overlapped))
+        if (tpWait)
         {
-            DWORD dwError = GetLastError();
-            if (dwError != ERROR_IO_PENDING)
+            // Start waiting for next notification
+            SetThreadpoolWait(tpWait, aApiContext->Overlapped.hEvent, nullptr);
+            
+#ifdef DEBUG_ASYNC_IO
+            otLogDebgApi("Querying for next notification");
+#endif
+
+            // Request next notification
+            if (!DeviceIoControl(
+                    aApiContext->DeviceHandle,
+                    IOCTL_OTLWF_QUERY_NOTIFICATION,
+                    nullptr, 0,
+                    &aApiContext->NotificationBuffer, sizeof(OTLWF_NOTIFICATION),
+                    nullptr, 
+                    &aApiContext->Overlapped))
             {
-                otLogCritApi("DeviceIoControl for new notification failed, %!WINERROR!", dwError);
+                DWORD dwError = GetLastError();
+                if (dwError != ERROR_IO_PENDING)
+                {
+                    otLogCritApi("DeviceIoControl for new notification failed, %!WINERROR!", dwError);
+                }
             }
         }
     }
+    
+#ifdef DEBUG_ASYNC_IO
+    otLogFuncExit();
+#endif
 }
 
 DWORD
@@ -654,6 +698,20 @@ QueryIOCTL(
     )
 {
     return SendIOCTL(aContext->ApiHandle, dwIoControlCode, &aContext->InterfaceGuid, sizeof(GUID), output, sizeof(out));
+}
+
+template <class in>
+DWORD
+SetIOCTL(
+    _In_ otContext *aContext,
+    _In_ DWORD dwIoControlCode,
+    _In_ const in* input
+    )
+{
+    BYTE Buffer[sizeof(GUID) + sizeof(in)];
+    memcpy(Buffer, &aContext->InterfaceGuid, sizeof(GUID));
+    memcpy(Buffer + sizeof(GUID), input, sizeof(in));
+    return SendIOCTL(aContext->ApiHandle, dwIoControlCode, Buffer, sizeof(Buffer), nullptr, 0);
 }
 
 template <class in>
@@ -1116,7 +1174,7 @@ otSetExtendedPanId(
     const uint8_t *aExtendedPanId
     )
 {
-    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_EXTENDED_PANID, (otExtendedPanId*)aExtendedPanId);
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_EXTENDED_PANID, (const otExtendedPanId*)aExtendedPanId);
 }
 
 OTAPI 
@@ -1247,7 +1305,7 @@ otSetMeshLocalPrefix(
     const uint8_t *aMeshLocalPrefix
     )
 {
-    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_MESH_LOCAL_PREFIX, (otMeshLocalPrefix*)aMeshLocalPrefix));
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_MESH_LOCAL_PREFIX, (const otMeshLocalPrefix*)aMeshLocalPrefix));
 }
 
 OTAPI
@@ -1306,7 +1364,7 @@ otSetNetworkName(
 {
     otNetworkName Buffer = {0};
     strcpy_s(Buffer.m8, sizeof(Buffer), aNetworkName);
-    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_NETWORK_NAME, &Buffer));
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_NETWORK_NAME, (const otNetworkName*)&Buffer));
 }
 
 OTAPI 
@@ -1459,10 +1517,10 @@ OTAPI
 ThreadError
 otSetActiveDataset(
     _In_ otContext *aContext, 
-    _Out_ otOperationalDataset *aDataset
+    _In_ otOperationalDataset *aDataset
     )
 {
-    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_ACTIVE_DATASET, aDataset));
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_ACTIVE_DATASET, (const otOperationalDataset*)aDataset));
 }
 
 OTAPI
@@ -1479,10 +1537,10 @@ OTAPI
 ThreadError
 otSetPendingDataset(
     _In_ otContext *aContext, 
-    _Out_ otOperationalDataset *aDataset
+    _In_ otOperationalDataset *aDataset
     )
 {
-    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_PENDING_DATASET, aDataset));
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_PENDING_DATASET, (const otOperationalDataset*)aDataset));
 }
 
 OTAPI 
@@ -1696,7 +1754,7 @@ otAddMacWhitelist(
     const uint8_t *aExtAddr
     )
 {
-    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_ADD_MAC_WHITELIST, (otExtAddress*)aExtAddr));
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_ADD_MAC_WHITELIST, (const otExtAddress*)aExtAddr));
 }
 
 OTAPI
@@ -1722,7 +1780,7 @@ otRemoveMacWhitelist(
     const uint8_t *aExtAddr
     )
 {
-    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_REMOVE_MAC_WHITELIST, (otExtAddress*)aExtAddr);
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_REMOVE_MAC_WHITELIST, (const otExtAddress*)aExtAddr);
 }
 
 OTAPI
@@ -1826,7 +1884,7 @@ otAddMacBlacklist(
     const uint8_t *aExtAddr
     )
 {
-    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_ADD_MAC_BLACKLIST, (otExtAddress*)aExtAddr));
+    return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_ADD_MAC_BLACKLIST, (const otExtAddress*)aExtAddr));
 }
 
 OTAPI
@@ -1836,7 +1894,7 @@ otRemoveMacBlacklist(
     const uint8_t *aExtAddr
     )
 {
-    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_REMOVE_MAC_BLACKLIST, (otExtAddress*)aExtAddr);
+    (void)SetIOCTL(aContext, IOCTL_OTLWF_OT_REMOVE_MAC_BLACKLIST, (const otExtAddress*)aExtAddr);
 }
 
 OTAPI

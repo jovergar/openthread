@@ -183,6 +183,8 @@ exit:
 ThreadError Mle::Start(void)
 {
     ThreadError error = kThreadError_None;
+    
+    otLogFuncEntry();
 
     // cannot bring up the interface if IEEE 802.15.4 promiscuous mode is enabled
     VerifyOrExit(otPlatRadioGetPromiscuous(mNetif.GetOpenThreadContext()) == false, error = kThreadError_Busy);
@@ -207,15 +209,18 @@ ThreadError Mle::Start(void)
     }
 
 exit:
+    otLogFuncExitErr(error);
     return error;
 }
 
 ThreadError Mle::Stop(void)
 {
+    otLogFuncEntry();
     SetStateDetached();
     mNetif.RemoveUnicastAddress(mLinkLocal16);
     mNetif.RemoveUnicastAddress(mMeshLocal16);
     mDeviceState = kDeviceStateDisabled;
+    otLogFuncExit();
     return kThreadError_None;
 }
 
@@ -279,6 +284,8 @@ ThreadError Mle::BecomeDetached(void)
 {
     ThreadError error = kThreadError_None;
 
+    otLogFuncEntry();
+
     VerifyOrExit(mDeviceState != kDeviceStateDisabled, error = kThreadError_Busy);
 
     SetStateDetached();
@@ -286,12 +293,15 @@ ThreadError Mle::BecomeDetached(void)
     BecomeChild(kMleAttachAnyPartition);
 
 exit:
+    otLogFuncExitErr(error);
     return error;
 }
 
 ThreadError Mle::BecomeChild(otMleAttachFilter aFilter)
 {
     ThreadError error = kThreadError_None;
+
+    otLogFuncEntry();
 
     VerifyOrExit(mDeviceState != kDeviceStateDisabled &&
                  mParentRequestState == kParentIdle, error = kThreadError_Busy);
@@ -308,6 +318,7 @@ ThreadError Mle::BecomeChild(otMleAttachFilter aFilter)
     mParentRequestTimer.Start(kParentRequestRouterTimeout);
 
 exit:
+    otLogFuncExitErr(error);
     return error;
 }
 
