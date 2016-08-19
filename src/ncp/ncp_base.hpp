@@ -34,6 +34,7 @@
 #define NCP_BASE_HPP_
 
 #include <openthread-types.h>
+#include <openthread-config.h>
 #include <common/message.hpp>
 #include <thread/thread_netif.hpp>
 
@@ -107,7 +108,7 @@ protected:
      * @retval kThreadError_NoBufs  Insufficient buffer space available to add message.
      *
      */
-    virtual ThreadError OutboundFrameSend(void) = 0;
+    virtual ThreadError OutboundFrameEnd(void) = 0;
 
     /**
      * This method is called by the framer whenever a framing error
@@ -129,6 +130,8 @@ protected:
 
 private:
 
+    ThreadError OutboundFrameSend(void);
+
     /**
      * Trampoline for HandleDatagramFromStack().
      */
@@ -139,7 +142,7 @@ private:
     /**
      * Trampoline for HandleActiveScanResult().
      */
-    static void HandleActiveScanResult_Jump(otActiveScanResult *result);
+    static void HandleActiveScanResult_Jump(otActiveScanResult *result, void *aContext);
 
     void HandleActiveScanResult(otActiveScanResult *result);
 
@@ -298,7 +301,8 @@ private:
     ThreadError GetPropertyHandler_MAC_FILTER_MODE(uint8_t header, spinel_prop_key_t key);
     ThreadError GetPropertyHandler_THREAD_ASSISTING_PORTS(uint8_t header, spinel_prop_key_t key);
     ThreadError GetPropertyHandler_THREAD_ALLOW_LOCAL_NET_DATA_CHANGE(uint8_t header, spinel_prop_key_t key);
-    ThreadError GetPropertyHandler_CNTR(uint8_t header, spinel_prop_key_t key);
+    ThreadError GetPropertyHandler_MAC_CNTR(uint8_t header, spinel_prop_key_t key);
+    ThreadError GetPropertyHandler_NCP_CNTR(uint8_t header, spinel_prop_key_t key);
     ThreadError GetPropertyHandler_MAC_WHITELIST(uint8_t header, spinel_prop_key_t key);
     ThreadError GetPropertyHandler_MAC_WHITELIST_ENABLED(uint8_t header, spinel_prop_key_t key);
     ThreadError GetPropertyHandler_THREAD_MODE(uint8_t header, spinel_prop_key_t key);
@@ -365,6 +369,11 @@ private:
     ThreadError SetPropertyHandler_CNTR_RESET(uint8_t header, spinel_prop_key_t key, const uint8_t *value_ptr,
                                               uint16_t value_len);
 
+#if OPENTHREAD_ENABLE_DIAG
+    ThreadError SetPropertyHandler_NEST_STREAM_MFG(uint8_t header, spinel_prop_key_t key, const uint8_t *value_ptr,
+                                                   uint16_t value_len);
+#endif
+
     ThreadError InsertPropertyHandler_IPV6_ADDRESS_TABLE(uint8_t header, spinel_prop_key_t key, const uint8_t *value_ptr,
                                                          uint16_t value_len);
     ThreadError InsertPropertyHandler_THREAD_LOCAL_ROUTES(uint8_t header, spinel_prop_key_t key, const uint8_t *value_ptr,
@@ -416,7 +425,15 @@ private:
 
     bool mAllowLocalNetworkDataChange;
 
-    uint32_t mFramingErrorCounter;
+    uint32_t mFramingErrorCounter;             // Number of inproperly formed received spinel frames.
+    uint32_t mRxSpinelFrameCounter;            // Number of received (inbound) spinel frames.
+    uint32_t mTxSpinelFrameCounter;            // Number of sent (outbound) spinel frames.
+    uint32_t mInboundSecureIpFrameCounter;     // Number of secure inbound data/IP frames.
+    uint32_t mInboundInsecureIpFrameCounter;   // Number of insecure inbound data/IP frames.
+    uint32_t mOutboundSecureIpFrameCounter;    // Number of secure outbound data/IP frames.
+    uint32_t mOutboundInsecureIpFrameCounter;  // Number of insecure outbound data/IP frames.
+    uint32_t mDroppedOutboundIpFrameCounter;   // Number of dropped outbound data/IP frames.
+    uint32_t mDroppedInboundIpFrameCounter;    // Number of dropped inbound data/IP frames.
 };
 
 }  // namespace Thread

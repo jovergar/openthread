@@ -334,8 +334,7 @@ void Ip6::ProcessReceiveCallback(Message &aMessage)
     aMessage.CopyTo(0, 0, aMessage.GetLength(), *messageCopy);
 
     aMessage.GetOpenThreadContext()->mReceiveIp6DatagramCallback(
-        messageCopy,
-        aMessage.GetOpenThreadContext()->mReceiveIp6DatagramCallbackContext);
+        messageCopy, aMessage.GetOpenThreadContext()->mReceiveIp6DatagramCallbackContext);
 
 exit:
 
