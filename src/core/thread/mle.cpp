@@ -1041,11 +1041,7 @@ void Mle::HandleParentRequestTimer(void)
             switch (mParentRequestMode)
             {
             case kMleAttachAnyPartition:
-                if (mDeviceMode & ModeTlv::kModeFFD)
-                {
-                    mMleRouter.BecomeLeader();
-                }
-                else
+                if (mMleRouter.BecomeLeader() != kThreadError_None)
                 {
                     mParentRequestState = kParentIdle;
                     BecomeDetached();
