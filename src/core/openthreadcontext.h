@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Nest Labs, Inc.
+ *  Copyright (c) 2016, Microsoft Corporation.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -52,6 +52,12 @@ typedef struct otContext
     Thread::Ip6::NetifCallback mNetifCallback;
     otReceiveIp6DatagramCallback mReceiveIp6DatagramCallback;
     void *mReceiveIp6DatagramCallbackContext;
+
+    otHandleActiveScanResult mActiveScanCallback;
+    void *mActiveScanCallbackContext;
+
+    otHandleActiveScanResult mDiscoverCallback;
+    void *mDiscoverCallbackContext;
 
     //
     // Variables

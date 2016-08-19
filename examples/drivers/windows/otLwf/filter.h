@@ -300,8 +300,8 @@ otLwfDisableDataPath(
 
 void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext);
 void otLwfReceiveIp6DatagramCallback(_In_ otMessage aMessage, _In_ void *aContext);
-void otLwfActiveScanCallback(otActiveScanResult *aResult);
-void otLwfDiscoverCallback(otActiveScanResult *aResult);
+void otLwfActiveScanCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext);
+void otLwfDiscoverCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext);
 
 //
 // Address Functions

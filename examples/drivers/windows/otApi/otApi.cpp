@@ -249,7 +249,7 @@ error:
 
     if (dwError != ERROR_SUCCESS)
     {
-        otApiUninit(aApiContext);
+        otApiFinalize(aApiContext);
         aApiContext = nullptr;
     }
     
@@ -260,7 +260,7 @@ error:
 
 OTAPI 
 void 
-otApiUninit(
+otApiFinalize(
     _In_ otApiContext *aApiContext
 )
 {
@@ -449,6 +449,7 @@ ProcessNotification(
         Notif->DiscoverPayload.Results.mNetworkName = Notif->DiscoverPayload.NetworkName;
 
         otHandleActiveScanResult Callback = nullptr;
+        PVOID                    CallbackContext = nullptr;
 
         EnterCriticalSection(&aApiContext->CallbackLock);
 
@@ -462,6 +463,7 @@ ProcessNotification(
 
                 // Set callback
                 Callback = get<1>(aApiContext->DiscoverCallbacks[i]);
+                CallbackContext = get<2>(aApiContext->StateChangedCallbacks[i]);
                 break;
             }
         }
@@ -471,7 +473,7 @@ ProcessNotification(
         // Invoke the callback outside the lock
         if (Callback)
         {
-            Callback(&Notif->DiscoverPayload.Results);
+            Callback(&Notif->DiscoverPayload.Results, CallbackContext);
 
             // Release ref
             if (RtlDecrementReferenceCount(&aApiContext->CallbackRefCount))
@@ -487,6 +489,7 @@ ProcessNotification(
         Notif->ActiveScanPayload.Results.mNetworkName = Notif->ActiveScanPayload.NetworkName;
 
         otHandleActiveScanResult Callback = nullptr;
+        PVOID                    CallbackContext = nullptr;
 
         EnterCriticalSection(&aApiContext->CallbackLock);
 
@@ -500,6 +503,7 @@ ProcessNotification(
 
                 // Set callback
                 Callback = get<1>(aApiContext->ActiveScanCallbacks[i]);
+                CallbackContext = get<2>(aApiContext->StateChangedCallbacks[i]);
                 break;
             }
         }
@@ -509,7 +513,7 @@ ProcessNotification(
         // Invoke the callback outside the lock
         if (Callback)
         {
-            Callback(&Notif->ActiveScanPayload.Results);
+            Callback(&Notif->ActiveScanPayload.Results, CallbackContext);
 
             // Release ref
             if (RtlDecrementReferenceCount(&aApiContext->CallbackRefCount))
@@ -904,7 +908,7 @@ error:
     
 OTAPI 
 otContext *
-otInit(
+otContextInit(
     _In_ otApiContext *aApiContext, 
     _In_ const GUID *aDeviceGuid
     )
@@ -1022,12 +1026,13 @@ otActiveScan(
     _In_ otContext *aContext, 
     uint32_t aScanChannels, 
     uint16_t aScanDuration,
-    otHandleActiveScanResult aCallback
+    otHandleActiveScanResult aCallback,
+    void *aCallbackContext
     )
 {
     aContext->ApiHandle->SetCallback(
         aContext->ApiHandle->ActiveScanCallbacks,
-        make_tuple(aContext->InterfaceGuid, aCallback, (PVOID)nullptr)
+        make_tuple(aContext->InterfaceGuid, aCallback, aCallbackContext)
         );
 
     BYTE Buffer[sizeof(GUID) + sizeof(uint32_t) + sizeof(uint16_t)];
@@ -1040,7 +1045,7 @@ otActiveScan(
 
 OTAPI 
 bool 
-otActiveScanInProgress(
+otIsActiveScanInProgress(
     _In_ otContext *aContext
     )
 {
@@ -1056,12 +1061,13 @@ otDiscover(
     uint32_t aScanChannels, 
     uint16_t aScanDuration, 
     uint16_t aPanid,
-    otHandleActiveScanResult aCallback
+    otHandleActiveScanResult aCallback,
+    void *aCallbackContext
     )
 {
     aContext->ApiHandle->SetCallback(
         aContext->ApiHandle->DiscoverCallbacks,
-        make_tuple(aContext->InterfaceGuid, aCallback, (PVOID)nullptr)
+        make_tuple(aContext->InterfaceGuid, aCallback, aCallbackContext)
         );
 
     BYTE Buffer[sizeof(GUID) + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint16_t)];
@@ -1075,7 +1081,7 @@ otDiscover(
 
 OTAPI 
 bool 
-otDiscoverInProgress(
+otIsDiscoverInProgress(
     _In_ otContext *aContext
     )
 {

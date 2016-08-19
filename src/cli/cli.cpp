@@ -90,6 +90,7 @@ const struct Command Interpreter::sCommands[] =
     { "rloc16", &Interpreter::ProcessRloc16 },
     { "route", &Interpreter::ProcessRoute },
     { "router", &Interpreter::ProcessRouter },
+    { "routerrole", &Interpreter::ProcessRouterRole },
     { "routerupgradethreshold", &Interpreter::ProcessRouterUpgradeThreshold },
     { "scan", &Interpreter::ProcessScan },
     { "singleton", &Interpreter::ProcessSingleton },
@@ -466,7 +467,7 @@ void Interpreter::ProcessDiscover(int argc, char *argv[])
     }
 
     SuccessOrExit(error = otDiscover(mContext, scanChannels, 0, OT_PANID_BROADCAST,
-                                     &Interpreter::s_HandleActiveScanResult));
+                                     &Interpreter::s_HandleActiveScanResult, NULL));
     sServer->OutputFormat("| J | Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |\r\n");
     sServer->OutputFormat("+---+------------------+------------------+------+------------------+----+-----+-----+\r\n");
 
@@ -1479,6 +1480,38 @@ exit:
     AppendResult(error);
 }
 
+void Interpreter::ProcessRouterRole(int argc, char *argv[])
+{
+    ThreadError error = kThreadError_None;
+
+    if (argc == 0)
+    {
+        if (otIsRouterRoleEnabled(mContext))
+        {
+            sServer->OutputFormat("Enabled\r\n");
+        }
+        else
+        {
+            sServer->OutputFormat("Disabled\r\n");
+        }
+    }
+    else if (strcmp(argv[0], "enable") == 0)
+    {
+        otSetRouterRoleEnabled(mContext, true);
+    }
+    else if (strcmp(argv[0], "disable") == 0)
+    {
+        otSetRouterRoleEnabled(mContext, false);
+    }
+    else
+    {
+        ExitNow(error = kThreadError_Parse);
+    }
+
+exit:
+    AppendResult(error);
+}
+
 void Interpreter::ProcessRouterUpgradeThreshold(int argc, char *argv[])
 {
     ThreadError error = kThreadError_None;
@@ -1510,7 +1543,7 @@ void Interpreter::ProcessScan(int argc, char *argv[])
         scanChannels = 1 << value;
     }
 
-    SuccessOrExit(error = otActiveScan(mContext, scanChannels, 0, &Interpreter::s_HandleActiveScanResult));
+    SuccessOrExit(error = otActiveScan(mContext, scanChannels, 0, &Interpreter::s_HandleActiveScanResult, NULL));
     sServer->OutputFormat("| J | Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |\r\n");
     sServer->OutputFormat("+---+------------------+------------------+------+------------------+----+-----+-----+\r\n");
 
@@ -1520,9 +1553,9 @@ exit:
     AppendResult(error);
 }
 
-void Interpreter::s_HandleActiveScanResult(otActiveScanResult *aResult)
+void Interpreter::s_HandleActiveScanResult(otActiveScanResult *aResult, void *aContext)
 {
-    Uart::sUartServer->mInterpreter.HandleActiveScanResult(aResult); // BUGBUG - Callbacks must provide a context
+    reinterpret_cast<Interpreter *>(aContext)->HandleActiveScanResult(aResult);
 }
 
 void Interpreter::HandleActiveScanResult(otActiveScanResult *aResult)

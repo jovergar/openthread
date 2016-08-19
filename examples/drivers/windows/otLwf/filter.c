@@ -345,7 +345,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
 
         // Initialize the OpenThread library
         pFilter->otCachedRole = kDeviceRoleDisabled;
-        pFilter->otCtx = otInit(pFilter->otCtxBuffer, &otCtxSize);
+        pFilter->otCtx = otContextInit(pFilter->otCtxBuffer, &otCtxSize);
         NT_ASSERT(pFilter->otCtx);
         if (pFilter->otCtx == NULL)
         {
@@ -381,7 +381,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             if (pFilter->otCtx != NULL)
             {
                 otDisable(pFilter->otCtx);
-                otFreeContext(pFilter->otCtx);
+                otContextFinalize(pFilter->otCtx);
                 pFilter->otCtx = NULL;
             }
 
@@ -450,7 +450,7 @@ NOTE: Called at PASSIVE_LEVEL and the filter is in paused state
     otLwfEventProcessingStop(pFilter);
     
     // Free OpenThread context memory
-    otFreeContext(pFilter->otCtx);
+    otContextFinalize(pFilter->otCtx);
     pFilter->otCtx = NULL;
 
     // Free NBL & Pools
@@ -871,16 +871,18 @@ void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
     }
 }
 
-void otLwfActiveScanCallback(otActiveScanResult *aResult)
+void otLwfActiveScanCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext)
 {
     LogFuncEntry(DRIVER_DEFAULT);
     UNREFERENCED_PARAMETER(aResult);
+    UNREFERENCED_PARAMETER(aContext);
     LogFuncExit(DRIVER_DEFAULT);
 }
 
-void otLwfDiscoverCallback(otActiveScanResult *aResult)
+void otLwfDiscoverCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext)
 {
     LogFuncEntry(DRIVER_DEFAULT);
     UNREFERENCED_PARAMETER(aResult);
+    UNREFERENCED_PARAMETER(aContext);
     LogFuncExit(DRIVER_DEFAULT);
 }

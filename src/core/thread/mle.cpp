@@ -153,6 +153,8 @@ Mle::Mle(ThreadNetif &aThreadNetif) :
     mAssignLinkQuality = 0;
     mAssignLinkMargin = 0;
     memset(&mAddr64, 0, sizeof(mAddr64));
+
+    mIsDiscoverInProgress = false;
 }
 
 ThreadError Mle::Enable(void)
@@ -183,7 +185,7 @@ exit:
 ThreadError Mle::Start(void)
 {
     ThreadError error = kThreadError_None;
-    
+
     otLogFuncEntry();
 
     // cannot bring up the interface if IEEE 802.15.4 promiscuous mode is enabled
@@ -228,11 +230,13 @@ ThreadError Mle::Discover(uint32_t aScanChannels, uint16_t aScanDuration, uint16
                           DiscoverHandler aCallback, void *aContext)
 {
     ThreadError error = kThreadError_None;
-    Message *message;
+    Message *message = NULL;
     Ip6::Address destination;
     Tlv tlv;
     MeshCoP::DiscoveryRequestTlv discoveryRequest;
     uint16_t startOffset;
+
+    VerifyOrExit(!mIsDiscoverInProgress, error = kThreadError_Busy);
 
     mDiscoverHandler = aCallback;
     mDiscoverContext = aContext;
@@ -263,6 +267,8 @@ ThreadError Mle::Discover(uint32_t aScanChannels, uint16_t aScanDuration, uint16
     destination.mFields.m16[7] = HostSwap16(0x0002);
     SuccessOrExit(error = SendMessage(*message, destination));
 
+    mIsDiscoverInProgress = true;
+
     otLogInfoMle("Sent discovery request\n");
 
 exit:
@@ -275,8 +281,14 @@ exit:
     return error;
 }
 
+bool Mle::IsDiscoverInProgress(void)
+{
+    return mIsDiscoverInProgress;
+}
+
 void Mle::HandleDiscoverComplete(void)
 {
+    mIsDiscoverInProgress = false;
     mDiscoverHandler(NULL, mDiscoverContext);
 }
 
@@ -1040,11 +1052,7 @@ void Mle::HandleParentRequestTimer(void)
             switch (mParentRequestMode)
             {
             case kMleAttachAnyPartition:
-                if (mDeviceMode & ModeTlv::kModeFFD)
-                {
-                    mMleRouter.BecomeLeader();
-                }
-                else
+                if (mMleRouter.BecomeLeader() != kThreadError_None)
                 {
                     mParentRequestState = kParentIdle;
                     BecomeDetached();
@@ -2324,6 +2332,8 @@ ThreadError Mle::HandleDiscoveryResponse(const Message &aMessage, const Ip6::Mes
     uint16_t end;
 
     otLogInfoMle("Handle discovery response\n");
+
+    VerifyOrExit(mIsDiscoverInProgress, error = kThreadError_Drop);
 
     offset = aMessage.GetOffset();
     end = aMessage.GetLength();

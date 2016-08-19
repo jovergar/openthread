@@ -651,13 +651,14 @@ otLwfIoCtl_otActiveScan(
                 pFilter->otCtx, 
                 aScanChannels, 
                 aScanDuration, 
-                otLwfActiveScanCallback)
+                otLwfActiveScanCallback,
+                pFilter)
             );
         *OutBufferLength = 0;
     }
     else if (*OutBufferLength >= sizeof(BOOLEAN))
     {
-        *(BOOLEAN*)OutBuffer = otActiveScanInProgress(pFilter->otCtx) ? TRUE : FALSE;
+        *(BOOLEAN*)OutBuffer = otIsActiveScanInProgress(pFilter->otCtx) ? TRUE : FALSE;
         *OutBufferLength = sizeof(BOOLEAN);
         status = STATUS_SUCCESS;
     }
@@ -694,13 +695,13 @@ otLwfIoCtl_otDiscover(
                 aScanChannels, 
                 aScanDuration, 
                 aPanid,
-                otLwfDiscoverCallback)
+                otLwfDiscoverCallback,
+                pFilter)
             );
     }
     else if (*OutBufferLength >= sizeof(BOOLEAN))
     {
-        *(BOOLEAN*)OutBuffer = FALSE;
-        //*(BOOLEAN*)OutBuffer = otDiscoverInProgress(pFilter->otCtx) ? TRUE : FALSE;
+        *(BOOLEAN*)OutBuffer = otIsDiscoverInProgress(pFilter->otCtx) ? TRUE : FALSE;
         *OutBufferLength = sizeof(BOOLEAN);
         status = STATUS_SUCCESS;
     }

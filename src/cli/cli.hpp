@@ -169,6 +169,7 @@ private:
     void ProcessReset(int argc, char *argv[]);
     void ProcessRoute(int argc, char *argv[]);
     void ProcessRouter(int argc, char *argv[]);
+    void ProcessRouterRole(int argc, char *argv[]);
     ThreadError ProcessRouteAdd(int argc, char *argv[]);
     ThreadError ProcessRouteRemove(int argc, char *argv[]);
     void ProcessRouterUpgradeThreshold(int argc, char *argv[]);
@@ -186,7 +187,7 @@ private:
 
     static void s_HandleEchoResponse(void *aContext, Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     static void s_HandlePingTimer(void *aContext);
-    static void s_HandleActiveScanResult(otActiveScanResult *aResult);
+    static void s_HandleActiveScanResult(otActiveScanResult *aResult, void *aContext);
     static void s_HandleNetifStateChanged(uint32_t aFlags, void *aContext);
 
     void HandleEchoResponse(Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
