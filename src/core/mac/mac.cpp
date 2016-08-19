@@ -130,6 +130,7 @@ Mac::Mac(ThreadNetif &aThreadNetif):
     mDataSequence = static_cast<uint8_t>(otPlatRandomGet());
 
     mPcapCallback = NULL;
+    mPcapCallbackContext = NULL;
 
     otPlatRadioEnable(aThreadNetif.GetOpenThreadContext());
 }
@@ -868,7 +869,7 @@ void Mac::ReceiveDoneTask(Frame *aFrame, ThreadError aError)
 
     if (mPcapCallback)
     {
-        mPcapCallback(aFrame);
+        mPcapCallback(aFrame, mPcapCallbackContext);
     }
 
     aFrame->GetSrcAddr(srcaddr);
@@ -1077,9 +1078,10 @@ exit:
     return error;
 }
 
-void Mac::SetPcapCallback(otLinkPcapCallback aPcapCallback)
+void Mac::SetPcapCallback(otLinkPcapCallback aPcapCallback, void *aCallbackContext)
 {
     mPcapCallback = aPcapCallback;
+    mPcapCallbackContext = aCallbackContext;
 }
 
 bool Mac::IsPromiscuous(void)
