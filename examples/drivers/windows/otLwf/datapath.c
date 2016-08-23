@@ -152,6 +152,7 @@ Arguments:
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p, NBL: %p", FilterModuleContext, NetBufferLists);
 
     NT_ASSERT(NetBufferLists == pFilter->SendNetBufferList);
+    NT_ASSERT(kStateTransmit == pFilter->otPhyState);
     KeSetEvent(&pFilter->SendNetBufferListComplete, 0, FALSE);
     
     LogFuncExit(DRIVER_DATA_PATH);

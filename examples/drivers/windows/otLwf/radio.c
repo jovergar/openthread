@@ -206,7 +206,8 @@ void otPlatRadioSetPromiscuous(_In_ otContext *otCtx, int aEnable)
 ThreadError otPlatRadioEnable(_In_ otContext *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
-
+    
+    NT_ASSERT(pFilter->otPhyState <= kStateSleep);
     if (pFilter->otPhyState > kStateSleep) return kThreadError_Busy;
 
     pFilter->otPhyState = kStateSleep;
@@ -219,7 +220,8 @@ ThreadError otPlatRadioEnable(_In_ otContext *otCtx)
 ThreadError otPlatRadioDisable(_In_ otContext *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
-
+    
+    NT_ASSERT(pFilter->otPhyState <= kStateSleep);
     if (pFilter->otPhyState > kStateSleep) return kThreadError_Busy;
 
     pFilter->otPhyState = kStateDisabled;
@@ -232,7 +234,8 @@ ThreadError otPlatRadioDisable(_In_ otContext *otCtx)
 ThreadError otPlatRadioSleep(_In_ otContext *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
-
+    
+    NT_ASSERT(pFilter->otPhyState == kStateSleep || pFilter->otPhyState == kStateReceive);
     if (pFilter->otPhyState != kStateSleep && pFilter->otPhyState != kStateReceive) 
         return kThreadError_Busy;
 
@@ -246,12 +249,11 @@ ThreadError otPlatRadioSleep(_In_ otContext *otCtx)
 ThreadError otPlatRadioReceive(_In_ otContext *otCtx, uint8_t aChannel)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
-
+    
+    NT_ASSERT(pFilter->otPhyState != kStateDisabled);
     if (pFilter->otPhyState == kStateDisabled) return kThreadError_Busy;
     
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
-
-    pFilter->otPhyState = kStateReceive;
 
     // Update current channel if different
     if (pFilter->otCurrentListenChannel != aChannel)
@@ -278,11 +280,17 @@ ThreadError otPlatRadioReceive(_In_ otContext *otCtx, uint8_t aChannel)
             LogError(DRIVER_DEFAULT, "Set for OID_OT_CURRENT_CHANNEL failed, %!NDIS_STATUS!", status);
         }
     }
+
+    // Only transition to the receive state if we were sleeping; otherwise we 
+    // are already in receive or transmit state.
+    if (pFilter->otPhyState == kStateSleep)
+    {
+        pFilter->otPhyState = kStateReceive;
+        LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateReceive.", pFilter);
     
-    LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateReceive.", pFilter);
-    
-    // Set the event to indicate we can process NBLs
-    KeSetEvent(&pFilter->EventWorkerThreadProcessNBLs, 0, FALSE);
+        // Set the event to indicate we can process NBLs
+        KeSetEvent(&pFilter->EventWorkerThreadProcessNBLs, 0, FALSE);
+    }
     
     LogFuncExit(DRIVER_DATA_PATH);
 
@@ -344,7 +352,8 @@ ThreadError otPlatRadioTransmit(_In_ otContext *otCtx)
     
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
 
-    if (pFilter->otPhyState >= kStateReceive)
+    NT_ASSERT(pFilter->otPhyState == kStateReceive);
+    if (pFilter->otPhyState == kStateReceive)
     {
         error = kThreadError_None;
         pFilter->otPhyState = kStateTransmit;
@@ -420,6 +429,13 @@ otLwfRadioTransmitFrameDone(
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
 
     pFilter->SendPending = FALSE;
+    
+    NT_ASSERT(pFilter->otPhyState == kStateTransmit);
+
+    // Now that we are completing a send, fall back to receive state and set the event
+    pFilter->otPhyState = kStateReceive;
+    LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateReceive.", pFilter);
+    KeSetEvent(&pFilter->EventWorkerThreadProcessNBLs, 0, FALSE);
 
     if (STATUS_SUCCESS == pFilter->SendNetBufferList->Status)
     {
