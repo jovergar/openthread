@@ -557,7 +557,9 @@ exit:
 
 extern "C" void otPlatRadioTransmitDone(otContext *aContext, bool aRxPending, ThreadError aError)
 {
+    otLogFuncEntryMsg("%!otError!", aError);
     aContext->mMac->TransmitDoneTask(aRxPending, aError);
+    otLogFuncExit();
 }
 
 void Mac::TransmitDoneTask(bool aRxPending, ThreadError aError)
@@ -858,7 +860,9 @@ exit:
 
 extern "C" void otPlatRadioReceiveDone(otContext *aContext, RadioPacket *aFrame, ThreadError aError)
 {
+    otLogFuncEntryMsg("%!otError!", aError);
     aContext->mMac->ReceiveDoneTask(static_cast<Frame *>(aFrame), aError);
+    otLogFuncExit();
 }
 
 void Mac::ReceiveDoneTask(Frame *aFrame, ThreadError aError)

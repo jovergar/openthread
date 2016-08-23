@@ -327,9 +327,7 @@ otLwfRadioReceiveFrame(
 
     if (pFilter->otPhyState == kStateReceive)
     {
-        LogVerbose(DRIVER_DATA_PATH, "---> otPlatRadioReceiveDone");
         otPlatRadioReceiveDone(pFilter->otCtx, &pFilter->otReceiveFrame, kThreadError_None);
-        LogVerbose(DRIVER_DATA_PATH, "<--- otPlatRadioReceiveDone");
     }
     else
     {
@@ -429,6 +427,10 @@ otLwfRadioTransmitFrameDone(
         BOOLEAN FramePending = (SendNblContext->Flags & OT_NBL_FLAG_ACK_FRAME_PENDING) != 0 || pFilter->CountPendingRecvNBLs != 0;
 
         otPlatRadioTransmitDone(pFilter->otCtx, FramePending, kThreadError_None);
+    }
+    else if (STATUS_DEVICE_BUSY == pFilter->SendNetBufferList->Status)
+    {
+        otPlatRadioTransmitDone(pFilter->otCtx, false, kThreadError_ChannelAccessFailure);
     }
     else if (STATUS_TIMEOUT == pFilter->SendNetBufferList->Status)
     {
