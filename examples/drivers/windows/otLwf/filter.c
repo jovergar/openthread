@@ -554,7 +554,7 @@ Return Value:
     //
     pFilter->State = FilterRunning; // when successful
     otLwfNotifyDeviceAvailabilityChange(pFilter, TRUE);
-    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! arrival.", &pFilter->InterfaceGuid);
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! arrival, Filter=%p", &pFilter->InterfaceGuid, pFilter);
 
     //
     // Ensure the state is Paused if restart failed.

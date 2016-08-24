@@ -121,7 +121,7 @@
     {
         #define OT_EXTENDED_ADDRESS_REVISION_1 1
         NDIS_OBJECT_HEADER Header;
-        UCHAR              ExtendedAddress[8];
+        ULONGLONG          ExtendedAddress;
     } OT_EXTENDED_ADDRESS, * POT_EXTENDED_ADDRESS;
 
 #define SIZEOF_OT_EXTENDED_ADDRESS_REVISION_1 \

@@ -88,7 +88,7 @@ ThreadError otPlatRadioSetPanId(_In_ otContext *otCtx, uint16_t panid)
     NT_ASSERT(pFilter->otPhyState != kStateTransmit);
     if (pFilter->otPhyState == kStateTransmit) return kThreadError_Busy;
 
-    LogInfo(DRIVER_DEFAULT, "Filter %p set PanID: %X", pFilter, panid);
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! set PanID: %X", &pFilter->InterfaceGuid, panid);
 
     pFilter->otPanID = panid;
 
@@ -120,13 +120,10 @@ ThreadError otPlatRadioSetExtendedAddress(_In_ otContext *otCtx, uint8_t *addres
     NT_ASSERT(pFilter->otPhyState != kStateTransmit);
     if (pFilter->otPhyState == kStateTransmit) return kThreadError_Busy;
 
-    LogInfo(DRIVER_DEFAULT, "Filter %p set Ext Addr: %llX", pFilter, *(ULONGLONG*)address);
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! set Extended Mac Address: %llX", &pFilter->InterfaceGuid, *(ULONGLONG*)address);
 
-    for (size_t i = 0; i < sizeof(pFilter->otExtendedAddress); i++)
-    {
-        pFilter->otExtendedAddress[i] = address[sizeof(pFilter->otExtendedAddress) - 1 - i];
-        OidBuffer.ExtendedAddress[i] = address[sizeof(pFilter->otExtendedAddress) - 1 - i];
-    }
+    pFilter->otExtendedAddress = *(ULONGLONG*)address;
+    OidBuffer.ExtendedAddress = *(ULONGLONG*)address;
 
     // Indicate to the miniport
     status = 
@@ -156,7 +153,7 @@ ThreadError otPlatRadioSetShortAddress(_In_ otContext *otCtx, uint16_t address)
     NT_ASSERT(pFilter->otPhyState != kStateTransmit);
     if (pFilter->otPhyState == kStateTransmit) return kThreadError_Busy;
 
-    LogInfo(DRIVER_DEFAULT, "Filter %p set Short Addr: %X", pFilter, address);
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! set Short Mac Address: %X", &pFilter->InterfaceGuid, address);
 
     pFilter->otShortAddress = address;
 
@@ -333,6 +330,7 @@ otLwfRadioReceiveFrame(
 
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
 
+    NT_ASSERT(pFilter->otPhyState == kStateReceive);
     if (pFilter->otPhyState == kStateReceive)
     {
         otPlatRadioReceiveDone(pFilter->otCtx, &pFilter->otReceiveFrame, kThreadError_None);
