@@ -1071,6 +1071,26 @@ exit:
     return;
 }
 
+ThreadError otEnergyScan(otContext *aContext, uint32_t aScanChannels, uint16_t aScanDuration,
+                         otHandleEnergyScanResult aCallback, void *aCallbackContext)
+{
+    aContext->mEnergyScanCallback = aCallback;
+    aContext->mEnergyScanCallbackContext = aCallbackContext;
+
+    (void)aScanChannels;
+    (void)aScanDuration;
+
+    // TODO: Implement the energy scan at mac layer.
+
+    return kThreadError_NotImplemented;
+}
+
+bool otIsEnegyScanInProgress(otContext *aContext)
+{
+    (void)aContext;
+    return false;
+}
+
 ThreadError otDiscover(otContext *aContext, uint32_t aScanChannels, uint16_t aScanDuration, uint16_t aPanId,
                        otHandleActiveScanResult aCallback, void *aCallbackContext)
 {
@@ -1099,6 +1119,16 @@ void otSetReceiveIp6DatagramCallback(otContext *aContext, otReceiveIp6DatagramCa
 otMessage otNewIPv6Message(otContext *aContext, uint16_t aLength)
 {
     return Ip6::Ip6::NewPrepopulatedMessage(aContext, aLength);
+}
+
+bool otGetReceiveIp6DatagramFilterEnabled(otContext *aContext)
+{
+    return Ip6::Ip6::IsReceiveIp6FilterEnabled(aContext);
+}
+
+void otSetReceiveIp6DatagramFilterEnabled(otContext *aContext, bool aEnabled)
+{
+    Ip6::Ip6::SetReceiveIp6FilterEnabled(aContext, aEnabled);
 }
 
 ThreadError otSendIp6Datagram(otContext *aContext, otMessage aMessage)
