@@ -627,7 +627,7 @@ ThreadError MleRouter::HandleLinkRequest(const Message &aMessage, const Ip6::Mes
         if ((neighbor = GetNeighbor(macAddr)) != NULL && neighbor->mValid.mRloc16 != rloc16)
         {
             // remove stale neighbors
-            neighbor->mState = Neighbor::kStateInvalid;
+            RemoveNeighbor(*neighbor);
             neighbor = NULL;
         }
 
@@ -811,7 +811,7 @@ ThreadError MleRouter::HandleLinkAccept(const Message &aMessage, const Ip6::Mess
     if ((neighbor = GetNeighbor(macAddr)) != NULL &&
         neighbor->mValid.mRloc16 != sourceAddress.GetRloc16())
     {
-        neighbor->mState = Neighbor::kStateInvalid;
+        RemoveNeighbor(*neighbor);
         neighbor = NULL;
     }
 
@@ -1222,7 +1222,7 @@ ThreadError MleRouter::HandleAdvertisement(const Message &aMessage, const Ip6::M
     if ((neighbor = GetNeighbor(macAddr)) != NULL &&
         neighbor->mValid.mRloc16 != sourceAddress.GetRloc16())
     {
-        neighbor->mState = Neighbor::kStateInvalid;
+        RemoveNeighbor(*neighbor);
     }
 
     // Leader Data
@@ -1612,8 +1612,7 @@ void MleRouter::HandleStateUpdateTimer(void)
 
         if ((Timer::GetNow() - mChildren[i].mLastHeard) >= Timer::SecToMsec(mChildren[i].mTimeout))
         {
-            mChildren[i].mState = Neighbor::kStateInvalid;
-            mNetif.SetStateChangedFlags(OT_THREAD_CHILD_REMOVED);
+            RemoveNeighbor(mChildren[i]);
         }
     }
 
@@ -1832,7 +1831,7 @@ ThreadError MleRouter::HandleChildIdRequest(const Message &aMessage, const Ip6::
         if (mRouters[i].mState != Neighbor::kStateInvalid &&
             memcmp(&mRouters[i].mMacAddr, &macAddr, sizeof(mRouters[i].mMacAddr)) == 0)
         {
-            mRouters[i].mState = Neighbor::kStateInvalid;
+            RemoveNeighbor(mRouters[i]);
             break;
         }
     }
@@ -2284,6 +2283,49 @@ Child *MleRouter::GetChildren(uint8_t *numChildren)
     }
 
     return mChildren;
+}
+
+ThreadError MleRouter::RemoveNeighbor(const Mac::Address &aAddress)
+{
+    ThreadError error = kThreadError_None;
+    Neighbor *neighbor;
+
+    VerifyOrExit((neighbor = GetNeighbor(aAddress)) != NULL, error = kThreadError_NotFound);
+    SuccessOrExit(error = RemoveNeighbor(*neighbor));
+
+exit:
+    return error;
+}
+
+ThreadError MleRouter::RemoveNeighbor(Neighbor &aNeighbor)
+{
+    switch (mDeviceState)
+    {
+    case kDeviceStateDisabled:
+    case kDeviceStateDetached:
+        break;
+
+    case kDeviceStateChild:
+        if (&aNeighbor == &mParent)
+        {
+            BecomeDetached();
+        }
+
+        break;
+
+    case kDeviceStateRouter:
+    case kDeviceStateLeader:
+        if (aNeighbor.mState == Neighbor::kStateValid && !IsActiveRouter(aNeighbor.mValid.mRloc16))
+        {
+            mNetif.SetStateChangedFlags(OT_THREAD_CHILD_REMOVED);
+        }
+
+        break;
+    }
+
+    aNeighbor.mState = Neighbor::kStateInvalid;
+
+    return kThreadError_None;
 }
 
 Neighbor *MleRouter::GetNeighbor(uint16_t aAddress)
@@ -2890,7 +2932,7 @@ void MleRouter::HandleAddressSolicitResponse(Message &aMessage)
         case Neighbor::kStateValid:
             if (GetRouterId(mChildren[i].mValid.mRloc16) != mRouterId)
             {
-                mChildren[i].mState = Neighbor::kStateInvalid;
+                RemoveNeighbor(mChildren[i]);
             }
 
             break;
