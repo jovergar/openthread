@@ -656,7 +656,6 @@ void Mac::SentFrame(bool aAcked)
 {
     Frame &sendFrame(*static_cast<Frame *>(otPlatRadioGetTransmitBuffer(mNetif.GetOpenThreadContext())));
     Address destination;
-    Neighbor *neighbor;
     Sender *sender;
 
     if (sendFrame.GetAckRequest() && !aAcked)
@@ -674,16 +673,7 @@ void Mac::SentFrame(bool aAcked)
         }
 
         sendFrame.GetDstAddr(destination);
-
-        if ((neighbor = mMle.GetNeighbor(destination)) != NULL)
-        {
-            if (neighbor->mState == Neighbor::kStateValid && !mMle.IsActiveRouter(neighbor->mValid.mRloc16))
-            {
-                mNetif.SetStateChangedFlags(OT_THREAD_CHILD_REMOVED);
-            }
-
-            neighbor->mState = Neighbor::kStateInvalid;
-        }
+        mMle.RemoveNeighbor(destination);
     }
 
     mTransmitAttempts = 0;
