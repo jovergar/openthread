@@ -77,7 +77,7 @@ struct Command
 class Interpreter
 {
 public:
-    
+
 #ifdef OTDLL
     /**
      * Constructor
@@ -200,12 +200,12 @@ private:
 #if OPENTHREAD_ENABLE_DIAG
     void ProcessDiag(int argc, char *argv[]);
 #endif
-    
+
 #ifdef OTDLL
     void ProcessContextList(int argc, char *argv[]);
     void ProcessContext(int argc, char *argv[]);
 #endif
-    
+
 #ifndef OTDLL
     static void s_HandleEchoResponse(void *aContext, Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     static void s_HandlePingTimer(void *aContext);
@@ -215,7 +215,7 @@ private:
 #ifndef OTDLL
     static void s_HandleLinkPcapReceive(const RadioPacket *aFrame, void *aContext);
 #endif
-    
+
 #ifndef OTDLL
     void HandleEchoResponse(Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     void HandlePingTimer();
@@ -232,9 +232,9 @@ private:
 
     static const struct Command sCommands[];
     otNetifAddress sAddress;
-    
+
     Server *sServer;
-    
+
 #ifndef OTDLL
     Ip6::SockAddr sSockAddr;
     Ip6::IcmpEcho sIcmpEcho;
@@ -246,7 +246,7 @@ private:
 #endif
 
     otContext *mContext;
-    
+
 #ifdef OTDLL
     otApiContext *mApiContext;
 

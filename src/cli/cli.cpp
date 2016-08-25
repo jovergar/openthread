@@ -130,7 +130,7 @@ static otNetifAddress sAutoAddresses[8];
 #ifdef OTDLL
 Interpreter::Interpreter():
 #else
-Interpreter::Interpreter(otContext *aContext):
+Interpreter::Interpreter(otContext * aContext):
 #endif
 #ifndef OTDLL
     sIcmpEcho(aContext, &Interpreter::s_HandleEchoResponse, this),
@@ -152,7 +152,9 @@ Interpreter::Interpreter(otContext *aContext):
     otDeviceList *aDeviceList = otEnumerateDevices(mApiContext);
     assert(aDeviceList);
 
-    mContextsLength = aDeviceList->aDevicesLength > MAX_CLI_OT_CONTEXTS ? MAX_CLI_OT_CONTEXTS : (uint8_t)aDeviceList->aDevicesLength;
+    mContextsLength = aDeviceList->aDevicesLength > MAX_CLI_OT_CONTEXTS ? MAX_CLI_OT_CONTEXTS :
+                      (uint8_t)aDeviceList->aDevicesLength;
+
     for (uint8_t i = 0; i < mContextsLength; i++)
     {
         mContexts[i].aInterpreter = this;
@@ -160,9 +162,11 @@ Interpreter::Interpreter(otContext *aContext):
         assert(mContexts[i].aContext);
         otSetStateChangedCallback(mContexts[i].aContext, &Interpreter::s_HandleNetifStateChanged, &mContexts[i]);
     }
+
     otFreeMemory(aDeviceList);
 
-    if (mContextsLength > 0) mContext = mContexts[0].aContext;
+    if (mContextsLength > 0) { mContext = mContexts[0].aContext; }
+
 #else
     otSetStateChangedCallback(mContext, &Interpreter::s_HandleNetifStateChanged, this);
 #endif
@@ -681,6 +685,7 @@ void Interpreter::ProcessIpAddr(int argc, char *argv[])
     if (argc == 0)
     {
         const otNetifAddress *aUnicastAddrs = otGetUnicastAddresses(mContext);
+
         for (const otNetifAddress *addr = aUnicastAddrs; addr; addr = addr->mNext)
         {
             sServer->OutputFormat("%x:%x:%x:%x:%x:%x:%x:%x\r\n",
@@ -693,6 +698,7 @@ void Interpreter::ProcessIpAddr(int argc, char *argv[])
                                   HostSwap16(addr->mAddress.mFields.m16[6]),
                                   HostSwap16(addr->mAddress.mFields.m16[7]));
         }
+
 #ifdef OTDLL
         otFreeMemory(aUnicastAddrs);
 #endif
@@ -1979,8 +1985,8 @@ void Interpreter::ProcessContextList(int argc, char *argv[])
     {
         GUID aDeviceGuid = otGetDeviceGuid(mContexts[i].aContext);
         uint32_t aCompartment = otGetCompartmentId(mContexts[i].aContext);
-        sServer->OutputFormat("[%d] " GUID_FORMAT " (Compartment %u)\r\n", 
-            i, GUID_ARG(aDeviceGuid), aCompartment);
+        sServer->OutputFormat("[%d] " GUID_FORMAT " (Compartment %u)\r\n",
+                              i, GUID_ARG(aDeviceGuid), aCompartment);
     }
 }
 
@@ -1999,8 +2005,8 @@ void Interpreter::ProcessContext(int argc, char *argv[])
         {
             GUID aDeviceGuid = otGetDeviceGuid(mContext);
             uint32_t aCompartment = otGetCompartmentId(mContext);
-            sServer->OutputFormat("[%d] " GUID_FORMAT " (Compartment %u)\r\n", 
-                mContextIndex, GUID_ARG(aDeviceGuid), aCompartment);
+            sServer->OutputFormat("[%d] " GUID_FORMAT " (Compartment %u)\r\n",
+                                  mContextIndex, GUID_ARG(aDeviceGuid), aCompartment);
         }
     }
     else
@@ -2065,7 +2071,7 @@ exit:
 void Interpreter::s_HandleNetifStateChanged(uint32_t aFlags, void *aContext)
 {
 #ifdef OTDLL
-    otCliContext *aCliContext = static_cast<otCliContext*>(aContext);
+    otCliContext *aCliContext = static_cast<otCliContext *>(aContext);
     aCliContext->aInterpreter->HandleNetifStateChanged(aCliContext->aContext, aFlags);
 #else
     ((Interpreter *)aContext)->HandleNetifStateChanged(aFlags);
@@ -2080,7 +2086,7 @@ void Interpreter::HandleNetifStateChanged(uint32_t aFlags)
 {
     otNetworkDataIterator iterator;
     otBorderRouterConfig config;
-    
+
 #ifndef OTDLL
     otContext *aContext = mContext;
 #endif
