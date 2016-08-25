@@ -35,10 +35,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef OTDLL
+#include <assert.h>
+#endif
+
 #include <openthread.h>
+#ifndef OTDLL
 #include <openthreadcontext.h>
 #include <openthread-config.h>
 #include <openthread-diag.h>
+#endif
 
 #include "cli.hpp"
 #include "cli_dataset.hpp"
@@ -61,6 +67,10 @@ const struct Command Interpreter::sCommands[] =
     { "channel", &Interpreter::ProcessChannel },
     { "child", &Interpreter::ProcessChild },
     { "childtimeout", &Interpreter::ProcessChildTimeout },
+#ifdef OTDLL
+    { "context", &Interpreter::ProcessContext },
+    { "contextlist", &Interpreter::ProcessContextList },
+#endif
     { "contextreusedelay", &Interpreter::ProcessContextIdReuseDelay },
     { "counter", &Interpreter::ProcessCounters },
     { "dataset", &Interpreter::ProcessDataset },
@@ -82,9 +92,13 @@ const struct Command Interpreter::sCommands[] =
     { "networkname", &Interpreter::ProcessNetworkName },
     { "panid", &Interpreter::ProcessPanId },
     { "parent", &Interpreter::ProcessParent },
+#ifndef OTDLL
     { "ping", &Interpreter::ProcessPing },
+#endif
     { "pollperiod", &Interpreter::ProcessPollPeriod },
+#ifndef OTDLL
     { "promiscuous", &Interpreter::ProcessPromiscuous },
+#endif
     { "prefix", &Interpreter::ProcessPrefix },
     { "releaserouterid", &Interpreter::ProcessReleaseRouterId },
     { "reset", &Interpreter::ProcessReset },
@@ -104,17 +118,54 @@ const struct Command Interpreter::sCommands[] =
 #endif
 };
 
+#ifdef OTDLL
+uint32_t otPlatRandomGet(void)
+{
+    return (uint32_t)rand();
+}
+#endif
+
 static otNetifAddress sAutoAddresses[8];
 
+#ifdef OTDLL
+Interpreter::Interpreter():
+#else
 Interpreter::Interpreter(otContext *aContext):
+#endif
+#ifndef OTDLL
     sIcmpEcho(aContext, &Interpreter::s_HandleEchoResponse, this),
     sLength(8),
     sCount(1),
     sInterval(1000),
     sPingTimer(aContext, &Interpreter::s_HandlePingTimer, this),
+#endif
+#ifdef OTDLL
+    mContext(NULL),
+    mApiContext(otApiInit()),
+    mContextIndex(0)
+#else
     mContext(aContext)
+#endif
 {
+#ifdef OTDLL
+    assert(mApiContext);
+    otDeviceList *aDeviceList = otEnumerateDevices(mApiContext);
+    assert(aDeviceList);
+
+    mContextsLength = aDeviceList->aDevicesLength > MAX_CLI_OT_CONTEXTS ? MAX_CLI_OT_CONTEXTS : (uint8_t)aDeviceList->aDevicesLength;
+    for (uint8_t i = 0; i < mContextsLength; i++)
+    {
+        mContexts[i].aInterpreter = this;
+        mContexts[i].aContext = otContextInit(mApiContext, &aDeviceList->aDevices[i]);
+        assert(mContexts[i].aContext);
+        otSetStateChangedCallback(mContexts[i].aContext, &Interpreter::s_HandleNetifStateChanged, &mContexts[i]);
+    }
+    otFreeMemory(aDeviceList);
+
+    if (mContextsLength > 0) mContext = mContexts[0].aContext;
+#else
     otSetStateChangedCallback(mContext, &Interpreter::s_HandleNetifStateChanged, this);
+#endif
 }
 
 int Interpreter::Hex2Bin(const char *aHex, uint8_t *aBin, uint16_t aBinLength)
@@ -444,6 +495,9 @@ void Interpreter::ProcessCounters(int argc, char *argv[])
             sServer->OutputFormat("    RxErrSec: %d\r\n", counters->mRxErrSec);
             sServer->OutputFormat("    RxErrFcs: %d\r\n", counters->mRxErrFcs);
             sServer->OutputFormat("    RxErrOther: %d\r\n", counters->mRxErrOther);
+#ifdef OTDLL
+            otFreeMemory(counters);
+#endif
         }
     }
 }
@@ -515,8 +569,12 @@ void Interpreter::ProcessExtAddress(int argc, char *argv[])
 
     if (argc == 0)
     {
-        OutputBytes(otGetExtendedAddress(mContext), OT_EXT_ADDRESS_SIZE);
+        const uint8_t *aExtAddress = otGetExtendedAddress(mContext);
+        OutputBytes(aExtAddress, OT_EXT_ADDRESS_SIZE);
         sServer->OutputFormat("\r\n");
+#ifdef OTDLL
+        otFreeMemory(aExtAddress);
+#endif
     }
     else
     {
@@ -537,8 +595,12 @@ void Interpreter::ProcessExtPanId(int argc, char *argv[])
 
     if (argc == 0)
     {
-        OutputBytes(otGetExtendedPanId(mContext), OT_EXT_PAN_ID_SIZE);
+        const uint8_t *aExtPanId = otGetExtendedPanId(mContext);
+        OutputBytes(aExtPanId, OT_EXT_PAN_ID_SIZE);
         sServer->OutputFormat("\r\n");
+#ifdef OTDLL
+        otFreeMemory(aExtPanId);
+#endif
     }
     else
     {
@@ -618,7 +680,8 @@ void Interpreter::ProcessIpAddr(int argc, char *argv[])
 
     if (argc == 0)
     {
-        for (const otNetifAddress *addr = otGetUnicastAddresses(mContext); addr; addr = addr->mNext)
+        const otNetifAddress *aUnicastAddrs = otGetUnicastAddresses(mContext);
+        for (const otNetifAddress *addr = aUnicastAddrs; addr; addr = addr->mNext)
         {
             sServer->OutputFormat("%x:%x:%x:%x:%x:%x:%x:%x\r\n",
                                   HostSwap16(addr->mAddress.mFields.m16[0]),
@@ -630,6 +693,9 @@ void Interpreter::ProcessIpAddr(int argc, char *argv[])
                                   HostSwap16(addr->mAddress.mFields.m16[6]),
                                   HostSwap16(addr->mAddress.mFields.m16[7]));
         }
+#ifdef OTDLL
+        otFreeMemory(aUnicastAddrs);
+#endif
     }
     else
     {
@@ -763,6 +829,9 @@ void Interpreter::ProcessMasterKey(int argc, char *argv[])
         }
 
         sServer->OutputFormat("\r\n");
+#ifdef OTDLL
+        otFreeMemory(key);
+#endif
     }
     else
     {
@@ -880,7 +949,11 @@ void Interpreter::ProcessNetworkName(int argc, char *argv[])
 
     if (argc == 0)
     {
-        sServer->OutputFormat("%.*s\r\n", OT_NETWORK_NAME_MAX_SIZE, otGetNetworkName(mContext));
+        const char *aNetworkName = otGetNetworkName(mContext);
+        sServer->OutputFormat("%.*s\r\n", OT_NETWORK_NAME_MAX_SIZE, aNetworkName);
+#ifdef OTDLL
+        otFreeMemory(aNetworkName);
+#endif
     }
     else
     {
@@ -933,6 +1006,7 @@ exit:
     AppendResult(error);
 }
 
+#ifndef OTDLL
 void Interpreter::s_HandleEchoResponse(void *aContext, Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
 {
     Interpreter *pThis = (Interpreter *)aContext;
@@ -1039,6 +1113,7 @@ void Interpreter::HandlePingTimer()
         sPingTimer.Start(sInterval);
     }
 }
+#endif
 
 void Interpreter::ProcessPollPeriod(int argc, char *argv[])
 {
@@ -1059,6 +1134,7 @@ exit:
     AppendResult(error);
 }
 
+#ifndef OTDLL
 void Interpreter::ProcessPromiscuous(int argc, char *argv[])
 {
     ThreadError error = kThreadError_None;
@@ -1162,6 +1238,7 @@ void Interpreter::HandleLinkPcapReceive(const RadioPacket *aFrame)
 
     sServer->OutputFormat("\r\n");
 }
+#endif
 
 ThreadError Interpreter::ProcessPrefixAdd(int argc, char *argv[])
 {
@@ -1648,7 +1725,7 @@ void Interpreter::ProcessScan(int argc, char *argv[])
         scanChannels = 1 << value;
     }
 
-    SuccessOrExit(error = otActiveScan(mContext, scanChannels, 0, &Interpreter::s_HandleActiveScanResult, NULL));
+    SuccessOrExit(error = otActiveScan(mContext, scanChannels, 0, &Interpreter::s_HandleActiveScanResult, this));
     sServer->OutputFormat("| J | Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |\r\n");
     sServer->OutputFormat("+---+------------------+------------------+------+------------------+----+-----+-----+\r\n");
 
@@ -1792,8 +1869,12 @@ exit:
 
 void Interpreter::ProcessVersion(int argc, char *argv[])
 {
-    sServer->OutputFormat("%s\r\n", otGetVersionString());
+    const char *aVersion = otGetVersionString();
+    sServer->OutputFormat("%s\r\n", aVersion);
     AppendResult(kThreadError_None);
+#ifdef OTDLL
+    otFreeMemory(aVersion);
+#endif
     (void)argc;
     (void)argv;
 }
@@ -1886,6 +1967,56 @@ void Interpreter::ProcessDiag(int argc, char *argv[])
 }
 #endif
 
+#if OTDLL
+#define GUID_FORMAT "{%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}"
+#define GUID_ARG(guid) guid.Data1, guid.Data2, guid.Data3, guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]
+
+void Interpreter::ProcessContextList(int argc, char *argv[])
+{
+    sServer->OutputFormat("%d contexts found:\r\n", mContextsLength);
+
+    for (uint8_t i = 0; i < mContextsLength; i++)
+    {
+        GUID aDeviceGuid = otGetDeviceGuid(mContexts[i].aContext);
+        uint32_t aCompartment = otGetCompartmentId(mContexts[i].aContext);
+        sServer->OutputFormat("[%d] " GUID_FORMAT " (Compartment %u)\r\n", 
+            i, GUID_ARG(aDeviceGuid), aCompartment);
+    }
+}
+
+void Interpreter::ProcessContext(int argc, char *argv[])
+{
+    ThreadError error = kThreadError_None;
+    long value;
+
+    if (argc == 0)
+    {
+        if (mContext == NULL)
+        {
+            sServer->OutputFormat("No Context Set\r\n");
+        }
+        else
+        {
+            GUID aDeviceGuid = otGetDeviceGuid(mContext);
+            uint32_t aCompartment = otGetCompartmentId(mContext);
+            sServer->OutputFormat("[%d] " GUID_FORMAT " (Compartment %u)\r\n", 
+                mContextIndex, GUID_ARG(aDeviceGuid), aCompartment);
+        }
+    }
+    else
+    {
+        SuccessOrExit(error = ParseLong(argv[0], value));
+        VerifyOrExit(value >= 0 && value < mContextsLength, error = kThreadError_InvalidArgs);
+
+        mContextIndex = (uint8_t)value;
+        mContext = mContexts[mContextIndex].aContext;
+    }
+
+exit:
+    AppendResult(error);
+}
+#endif
+
 void Interpreter::ProcessLine(char *aBuf, uint16_t aBufLength, Server &aServer)
 {
     char *argv[kMaxArgs];
@@ -1933,13 +2064,26 @@ exit:
 
 void Interpreter::s_HandleNetifStateChanged(uint32_t aFlags, void *aContext)
 {
+#ifdef OTDLL
+    otCliContext *aCliContext = static_cast<otCliContext*>(aContext);
+    aCliContext->aInterpreter->HandleNetifStateChanged(aCliContext->aContext, aFlags);
+#else
     ((Interpreter *)aContext)->HandleNetifStateChanged(aFlags);
+#endif
 }
 
+#ifdef OTDLL
+void Interpreter::HandleNetifStateChanged(otContext *aContext, uint32_t aFlags)
+#else
 void Interpreter::HandleNetifStateChanged(uint32_t aFlags)
+#endif
 {
     otNetworkDataIterator iterator;
     otBorderRouterConfig config;
+    
+#ifndef OTDLL
+    otContext *aContext = mContext;
+#endif
 
     VerifyOrExit((aFlags & OT_THREAD_NETDATA_UPDATED) != 0, ;);
 
@@ -1956,7 +2100,7 @@ void Interpreter::HandleNetifStateChanged(uint32_t aFlags)
 
         iterator = OT_NETWORK_DATA_ITERATOR_INIT;
 
-        while (otGetNextOnMeshPrefix(mContext, false, &iterator, &config) == kThreadError_None)
+        while (otGetNextOnMeshPrefix(aContext, false, &iterator, &config) == kThreadError_None)
         {
             if (config.mSlaac == false)
             {
@@ -1973,7 +2117,7 @@ void Interpreter::HandleNetifStateChanged(uint32_t aFlags)
 
         if (!found)
         {
-            otRemoveUnicastAddress(mContext, address);
+            otRemoveUnicastAddress(aContext, address);
             address->mValidLifetime = 0;
         }
     }
@@ -1981,7 +2125,7 @@ void Interpreter::HandleNetifStateChanged(uint32_t aFlags)
     // add addresses
     iterator = OT_NETWORK_DATA_ITERATOR_INIT;
 
-    while (otGetNextOnMeshPrefix(mContext, false, &iterator, &config) == kThreadError_None)
+    while (otGetNextOnMeshPrefix(aContext, false, &iterator, &config) == kThreadError_None)
     {
         bool found = false;
 
@@ -2029,7 +2173,7 @@ void Interpreter::HandleNetifStateChanged(uint32_t aFlags)
                 address->mPrefixLength = config.mPrefix.mLength;
                 address->mPreferredLifetime = config.mPreferred ? 0xffffffff : 0;
                 address->mValidLifetime = 0xffffffff;
-                otAddUnicastAddress(mContext, address);
+                otAddUnicastAddress(aContext, address);
                 break;
             }
         }

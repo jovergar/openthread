@@ -36,7 +36,9 @@
 #include <string.h>
 
 #include <openthread.h>
+#ifndef OTDLL
 #include <openthread-config.h>
+#endif
 
 #include "cli.hpp"
 #include "cli_dataset.hpp"

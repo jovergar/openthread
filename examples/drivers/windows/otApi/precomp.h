@@ -21,3 +21,10 @@
 #include <winioctl.h>
 #include <otLwfIoctl.h>
 #include <rtlrefcount.h>
+
+EXTERN_C
+{
+#include <ws2def.h>
+#include <ws2ipdef.h>
+#include <mstcpip.h>
+}

@@ -35,6 +35,10 @@
 #ifndef OPENTHREAD_TYPES_H_
 #define OPENTHREAD_TYPES_H_
 
+#ifdef OTDLL
+#include <guiddef.h>
+#endif
+
 #include <openthread-std-types.h>
 #include <platform/toolchain.h>
 

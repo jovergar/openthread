@@ -196,7 +196,7 @@ OTAPI void otApiFinalize(otApiContext *aApiContext);
  * @param[in] aMem  The memory to free.
  *
  */
-OTAPI void otFreeMemory(void *aMem);
+OTAPI void otFreeMemory(const void *aMem);
 
 /**
  * This function pointer is called to notify addition and removal of OpenThread devices.
@@ -385,7 +385,7 @@ OTAPI ThreadError otThreadStop(otContext *aContext);
  * @retval FALSE  It is a child or is not a single router in the network.
  *
  */
-bool otIsSingleton(otContext *aContext);
+OTAPI bool otIsSingleton(otContext *aContext);
 
 /**
  * This function pointer is called during an IEEE 802.15.4 Active Scan when an IEEE 802.15.4 Beacon is received or
@@ -1751,8 +1751,6 @@ ThreadError otSetLinkPromiscuous(otContext *aContext, bool aPromiscuous);
  */
 OTAPI const otMacCounters *otGetMacCounters(otContext *aContext);
 
-#ifndef OTDLL
-
 /**
  * @}
  *
@@ -1767,7 +1765,7 @@ OTAPI const otMacCounters *otGetMacCounters(otContext *aContext);
  * @retval TRUE   The two IPv6 addresses are the same.
  * @retval FALSE  The two IPv6 addresses are not the same.
  */
-bool otIsIp6AddressEqual(const otIp6Address *a, const otIp6Address *b);
+OTAPI bool otIsIp6AddressEqual(const otIp6Address *a, const otIp6Address *b);
 
 /**
  * Convert a human-readable IPv6 address string into a binary representation.
@@ -1778,7 +1776,20 @@ bool otIsIp6AddressEqual(const otIp6Address *a, const otIp6Address *b);
  * @retval kThreadErrorNone        Successfully parsed the string.
  * @retval kThreadErrorInvalidArg  Failed to parse the string.
  */
-ThreadError otIp6AddressFromString(const char *aString, otIp6Address *aAddress);
+OTAPI ThreadError otIp6AddressFromString(const char *aString, otIp6Address *aAddress);
+
+/**
+ * This function returns the prefix match length (bits) for two IPv6 addresses.
+ *
+ * @param[in]  aFirst   A pointer to the first IPv6 address.
+ * @param[in]  aSecond  A pointer to the second IPv6 address.
+ *
+ * @returns  The prefix match length in bits.
+ *
+ */
+OTAPI uint8_t otIp6PrefixMatch(const otIp6Address *aFirst, const otIp6Address *aSecond);
+
+#ifndef OTDLL
 
 /**
  * @addtogroup messages  Message Buffers
@@ -2057,17 +2068,6 @@ bool otIsIcmpEchoEnabled(otContext *aContext);
  *
  */
 void otSetIcmpEchoEnabled(otContext *aContext, bool aEnabled);
-
-/**
- * This function returns the prefix match length (bits) for two IPv6 addresses.
- *
- * @param[in]  aFirst   A pointer to the first IPv6 address.
- * @param[in]  aSecond  A pointer to the second IPv6 address.
- *
- * @returns  The prefix match length in bits.
- *
- */
-uint8_t otIp6PrefixMatch(const otIp6Address *aFirst, const otIp6Address *aSecond);
 
 /**
  * @}

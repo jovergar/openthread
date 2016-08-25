@@ -35,10 +35,19 @@
 #ifndef CLI_UART_H_
 #define CLI_UART_H_
 
+#include <openthread-types.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#ifdef OTDLL
+/**
+ * Initialize the CLI UART module.
+ *
+ */
+void otCliUartInit();
+#else
 /**
  * Initialize the CLI UART module.
  *
@@ -46,6 +55,7 @@ extern "C" {
  *
  */
 void otCliUartInit(otContext *aContext);
+#endif
 
 #ifdef __cplusplus
 }  // extern "C"

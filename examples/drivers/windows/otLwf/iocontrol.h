@@ -149,5 +149,7 @@ OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otLocalLeaderPartitionId;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otAssignLinkQuality;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otPlatformReset;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otParentInfo;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSingleton;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMacCounters;
 
 #endif // _IOCONTROL_H

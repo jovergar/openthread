@@ -496,6 +496,12 @@ otLwfCompleteOpenThreadIrp(
     case IOCTL_OTLWF_OT_PARENT_INFO:
         status = otLwfIoCtl_otParentInfo(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
         break;
+    case IOCTL_OTLWF_OT_SINGLETON:
+        status = otLwfIoCtl_otSingleton(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_MAC_COUNTERS:
+        status = otLwfIoCtl_otMacCounters(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
     default:
         status = STATUS_NOT_IMPLEMENTED;
         OutBufferLength = 0;
@@ -2529,4 +2535,65 @@ otLwfIoCtl_otParentInfo(
 
     return status;
 }
-    
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otSingleton(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+	
+    UNREFERENCED_PARAMETER(InBuffer);
+    UNREFERENCED_PARAMETER(InBufferLength);
+
+    if (*OutBufferLength >= sizeof(BOOLEAN))
+    {
+        *(BOOLEAN*)OutBuffer = otIsSingleton(pFilter->otCtx) ? TRUE : FALSE;
+        *OutBufferLength = sizeof(BOOLEAN);
+        status = STATUS_SUCCESS;
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otMacCounters(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+	
+    UNREFERENCED_PARAMETER(InBuffer);
+    UNREFERENCED_PARAMETER(InBufferLength);
+
+    if (*OutBufferLength >= sizeof(otMacCounters))
+    {
+        memcpy_s(OutBuffer, *OutBufferLength, otGetMacCounters(pFilter->otCtx), sizeof(otMacCounters));
+        *OutBufferLength = sizeof(otMacCounters);
+        status = STATUS_SUCCESS;
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}    

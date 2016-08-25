@@ -37,6 +37,9 @@ using namespace std;
 // amount of time each synchronous IOCTL should take.
 const DWORD c_MaxOverlappedWaitTimeMS = 10 * 1000;
 
+// Version string returned by the API
+const char c_Version[] = "Windows"; // TODO - What should we really put here?
+
 typedef tuple<otDeviceAvailabilityChangedCallback,PVOID> otApiDeviceAvailabilityCallback;
 typedef tuple<GUID,otHandleActiveScanResult,PVOID> otApiActiveScanCallback;
 typedef tuple<GUID,otStateChangedCallback,PVOID> otApiStateChangeCallback;
@@ -361,10 +364,10 @@ exit:
 OTAPI 
 void 
 otFreeMemory(
-    _In_ void *mem
+    _In_ const void *mem
     )
 {
-    free(mem);
+    free((void*)mem);
 }
 
 // Handles cleanly invoking the register callback
@@ -956,6 +959,18 @@ otGetCompartmentId(
 }
 
 OTAPI 
+const char *
+otGetVersionString()
+{
+    char* szVersion = (char*)malloc(sizeof(c_Version));
+    if (szVersion)
+    {
+        memcpy_s(szVersion, sizeof(c_Version), c_Version, sizeof(c_Version));
+    }
+    return szVersion;
+}
+
+OTAPI 
 ThreadError 
 otEnable(
     _In_ otContext *aContext
@@ -1018,6 +1033,17 @@ otThreadStop(
     )
 {
     return DwordToThreadError(SetIOCTL(aContext, IOCTL_OTLWF_OT_THREAD, (BOOLEAN)FALSE));
+}
+
+OTAPI 
+bool 
+otIsSingleton(
+    _In_ otContext *aContext
+    )
+{
+    BOOLEAN Result = FALSE;
+    (void)QueryIOCTL(aContext, IOCTL_OTLWF_OT_SINGLETON, &Result);
+    return Result != FALSE;
 }
 
 OTAPI 
@@ -1975,7 +2001,7 @@ otSetAssignLinkQuality(
     memcpy(Buffer, &aContext->InterfaceGuid, sizeof(GUID));
     memcpy(Buffer + sizeof(GUID), aExtAddr, sizeof(otExtAddress));
     memcpy(Buffer + sizeof(GUID) + sizeof(otExtAddress), &aLinkQuality, sizeof(aLinkQuality));
-    (void)SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY, Buffer, sizeof(Buffer), NULL, 0);
+    (void)SendIOCTL(aContext->ApiHandle, IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY, Buffer, sizeof(Buffer), nullptr, 0);
 }
 
 OTAPI 
@@ -2137,4 +2163,76 @@ otGetStableNetworkDataVersion(
     uint8_t Result = 0xFF;
     (void)QueryIOCTL(aContext, IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION, &Result);
     return Result;
+}
+
+OTAPI
+const otMacCounters*
+otGetMacCounters(
+    _In_ otContext *aContext
+    )
+{
+    otMacCounters* aCounters = (otMacCounters*)malloc(sizeof(otMacCounters));
+    if (aCounters)
+    {
+        if (ERROR_SUCCESS != QueryIOCTL(aContext, IOCTL_OTLWF_OT_MAC_COUNTERS, aCounters))
+        {
+            free(aCounters);
+            aCounters = nullptr;
+        }
+    }
+    return aCounters;
+}
+
+OTAPI
+bool 
+otIsIp6AddressEqual(
+    const otIp6Address *a, 
+    const otIp6Address *b
+    )
+{
+    return memcmp(a->mFields.m8, b->mFields.m8, sizeof(otIp6Address)) == 0;
+}
+
+OTAPI
+ThreadError 
+otIp6AddressFromString(
+    const char *str, 
+    otIp6Address *address
+    )
+{
+    (void)RtlIpv6AddressToStringA((PIN6_ADDR)address, (PSTR)str);
+    return kThreadError_None;
+}
+
+OTAPI 
+uint8_t 
+otIp6PrefixMatch(
+    const otIp6Address *aFirst, 
+    const otIp6Address *aSecond
+    )
+{
+    uint8_t rval = 0;
+    uint8_t diff;
+
+    for (uint8_t i = 0; i < sizeof(otIp6Address); i++)
+    {
+        diff = aFirst->mFields.m8[i] ^ aSecond->mFields.m8[i];
+
+        if (diff == 0)
+        {
+            rval += 8;
+        }
+        else
+        {
+            while ((diff & 0x80) == 0)
+            {
+                rval++;
+                diff <<= 1;
+            }
+
+            break;
+        }
+    }
+
+    return rval;
 }

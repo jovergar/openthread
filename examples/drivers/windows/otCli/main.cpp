@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Nest Labs, Inc.
+ *  Copyright (c) 2016, Microsoft Corporation.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,53 +26,58 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * @file
- *   This file contains definitions for adding a CLI command to the CLI server.
- */
+#include <windows.h>
+#include <openthread.h>
+#include <cli/cli-uart.h>
+#include <platform/uart.h>
 
-#ifndef CLI_SERVER_HPP_
-#define CLI_SERVER_HPP_
-
-#include <openthread-types.h>
-#ifndef OTDLL
-#include <common/message.hpp>
-#endif
-
-namespace Thread {
-namespace Cli {
-
-/**
- * This class implements the CLI server.
- *
- */
-class Server
+int main(int argc, char *argv[])
 {
-public:
-    /**
-     * This method delivers raw characters to the client.
-     *
-     * @param[in]  aBuf        A pointer to a buffer.
-     * @param[in]  aBufLength  Number of bytes in the buffer.
-     *
-     * @returns The number of bytes placed in the output queue.
-     *
-     */
-    virtual int Output(const char *aBuf, uint16_t aBufLength) = 0;
+    otCliUartInit();
 
-    /**
-     * This method delivers formatted output to the client.
-     *
-     * @param[in]  aFmt  A pointer to the format string.
-     * @param[in]  ...   A variable list of arguments to format.
-     *
-     * @returns The number of bytes placed in the output queue.
-     *
-     */
-    virtual int OutputFormat(const char *fmt, ...) = 0;
-};
+    HANDLE hSTDIN = GetStdHandle(STD_INPUT_HANDLE);
+    
+    // Cache the original console mode
+    DWORD originalConsoleMode;
+    GetConsoleMode(hSTDIN, &originalConsoleMode);
 
-}  // namespace Cli
-}  // namespace Thread
+    // Wait for console events
+    while (WaitForSingleObject(hSTDIN, INFINITE) == WAIT_OBJECT_0)
+    {
+        DWORD numberOfEvent = 0;
+        if (GetNumberOfConsoleInputEvents(hSTDIN, &numberOfEvent))
+        {
+            for (; numberOfEvent > 0; numberOfEvent--)
+            {
+                INPUT_RECORD record;
+                DWORD numRead;
+                if (!ReadConsoleInput(hSTDIN, &record, 1, &numRead) ||
+                    record.EventType != KEY_EVENT ||
+                    !record.Event.KeyEvent.bKeyDown)
+                    continue;
+                
+                uint8_t ch = (uint8_t)record.Event.KeyEvent.uChar.AsciiChar;
+                otPlatUartReceived(&ch, 1);
+            }
+        }
+    }
 
-#endif  // CLI_SERVER_HPP_
+    return 0;
+}
+
+EXTERN_C ThreadError otPlatUartSend(const uint8_t *aBuf, uint16_t aBufLength)
+{
+    ThreadError error = kThreadError_None;
+
+    DWORD dwNumCharsWritten = 0;
+    if (WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), aBuf, aBufLength, &dwNumCharsWritten, NULL))
+    {
+        otPlatUartSendDone();
+    }
+    else
+    {
+        error = kThreadError_Error;
+    }
+
+    return error;
+}
