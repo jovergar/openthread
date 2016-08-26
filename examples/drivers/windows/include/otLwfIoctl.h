@@ -456,9 +456,14 @@ typedef enum _OTLWF_NOTIF_TYPE
     OTLWF_CTL_CODE(163, METHOD_BUFFERED, FILE_READ_DATA)
     // GUID - InterfaceGuid
     // otRouterInfo - aParentInfo
+    
+#define IOCTL_OTLWF_OT_MAX_CHILDREN \
+    OTLWF_CTL_CODE(164, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aMaxChildren
 
 // OpenThread function IOCTL codes
 #define MIN_OTLWF_IOCTL_FUNC_CODE 100
-#define MAX_OTLWF_IOCTL_FUNC_CODE 163
+#define MAX_OTLWF_IOCTL_FUNC_CODE 164
 
 #endif //__OTLWFIOCTL_H__

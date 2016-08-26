@@ -64,7 +64,8 @@ const size_t cAlignedInstanceSize = otALIGNED_VAR_SIZE(sizeof(otInstance), uint6
 const size_t cPublicInstanceSize = OT_INSTANCE_SIZE;
 
 // Ensure we are initializing the public definition of the size of the instance structure correctly
-STATIC_ASSERT(cPublicInstanceSize >= cAlignedInstanceSize, "Public Instance size should be enough to hold internal structure.");
+STATIC_ASSERT(cPublicInstanceSize >= cAlignedInstanceSize,
+              "Public Instance size should be enough to hold internal structure.");
 
 otInstance::otInstance(void) :
     mReceiveIp6DatagramCallback(NULL),
@@ -132,14 +133,14 @@ uint8_t otGetMaxAllowedChildren(otInstance *aInstance)
 {
     uint8_t aNumChildren;
 
-    (void)aInstance->mThreadNetif->GetMle().GetChildren(&aNumChildren);
+    (void)aInstance->mThreadNetif.GetMle().GetChildren(&aNumChildren);
 
     return aNumChildren;
 }
 
 ThreadError otSetMaxAllowedChildren(otInstance *aInstance, uint8_t aMaxChildren)
 {
-    return aInstance->mThreadNetif->GetMle().SetMaxAllowedChildren(aMaxChildren);
+    return aInstance->mThreadNetif.GetMle().SetMaxAllowedChildren(aMaxChildren);
 }
 
 uint32_t otGetChildTimeout(otInstance *aInstance)

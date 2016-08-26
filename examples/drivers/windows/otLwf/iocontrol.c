@@ -496,6 +496,9 @@ otLwfCompleteOpenThreadIrp(
     case IOCTL_OTLWF_OT_PARENT_INFO:
         status = otLwfIoCtl_otParentInfo(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
         break;
+    case IOCTL_OTLWF_OT_MAX_CHILDREN:
+        status = otLwfIoCtl_otMaxChildren(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
     default:
         status = STATUS_NOT_IMPLEMENTED;
         OutBufferLength = 0;
@@ -2521,6 +2524,40 @@ otLwfIoCtl_otParentInfo(
     {
         status = ThreadErrorToNtstatus(otGetParentInfo(pFilter->otCtx, (otRouterInfo*)OutBuffer));
         *OutBufferLength = sizeof(otRouterInfo);
+    }
+    else
+    {
+        *OutBufferLength = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otMaxChildren(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_INVALID_PARAMETER;
+
+    if (InBufferLength >= sizeof(uint8_t))
+    {
+        otSetMaxAllowedChildren(pFilter->otCtx, *(uint8_t*)InBuffer);
+        status = STATUS_SUCCESS;
+        *OutBufferLength = 0;
+    }
+    else if (*OutBufferLength >= sizeof(uint8_t))
+    {
+        *(uint8_t*)OutBuffer = otGetMaxAllowedChildren(pFilter->otCtx);
+        *OutBufferLength = sizeof(uint8_t);
+        status = STATUS_SUCCESS;
     }
     else
     {

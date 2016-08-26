@@ -543,7 +543,7 @@ OTAPI ThreadError otSetChannel(otInstance *aInstance, uint8_t aChannel);
  *
  * @sa otSetMaxAllowedChildren
  */
-uint8_t otGetMaxAllowedChildren(otInstance *aInstance);
+OTAPI uint8_t otGetMaxAllowedChildren(otInstance *aInstance);
 
 /**
  * Set the maximum number of children currently allowed.
@@ -557,7 +557,7 @@ uint8_t otGetMaxAllowedChildren(otInstance *aInstance);
  *
  * @sa otGetMaxAllowedChildren
  */
-ThreadError otSetMaxAllowedChildren(otInstance *aInstance, uint8_t aMaxChildren);
+OTAPI ThreadError otSetMaxAllowedChildren(otInstance *aInstance, uint8_t aMaxChildren);
 
 /**
  * Get the Thread Child Timeout used when operating in the Child role.
