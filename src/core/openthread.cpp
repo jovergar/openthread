@@ -904,7 +904,7 @@ void otInstanceFinalize(otInstance *aInstance)
 ThreadError otEnable(otInstance *aInstance)
 {
     ThreadError error = kThreadError_None;
-    
+
     otLogFuncEntry();
 
     VerifyOrExit(!aInstance->mEnabled, error = kThreadError_InvalidState);
