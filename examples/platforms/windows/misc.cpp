@@ -32,14 +32,14 @@
 #include <platform/misc.h>
 #include "platform-windows.h"
 
-EXTERN_C void otPlatReset(otContext *aContext)
+EXTERN_C void otPlatReset(otInstance *aInstance)
 {
     // This function does nothing on the Posix platform.
-    (void)aContext;
+    (void)aInstance;
 }
 
-EXTERN_C otPlatResetReason otPlatGetResetReason(otContext *aContext)
+EXTERN_C otPlatResetReason otPlatGetResetReason(otInstance *aInstance)
 {
-    (void)aContext;
+    (void)aInstance;
     return kPlatResetReason_PowerOn;
 }

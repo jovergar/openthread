@@ -47,16 +47,16 @@ extern "C" {
 #endif
 
 /**
- * This type represents the OpenThread Context structure.
+ * This type represents the OpenThread instance structure.
  */
-typedef struct otContext otContext;
+typedef struct otInstance otInstance;
 
 #ifdef OTDLL
 
 /**
  * This type represents the handle to the OpenThread API.
  */
-typedef struct otApiContext otApiContext;
+typedef struct otApiInstance otApiInstance;
 
 /**
  * This type represents a list of device GUIDs.
@@ -69,8 +69,8 @@ typedef struct otDeviceList
 
 #else
 
-// Size of the OpenThread context structure (bytes)
-#define OT_CONTEXT_SIZE   (9800 + OPENTHREAD_CONFIG_NUM_MESSAGE_BUFFERS * OPENTHREAD_CONFIG_MESSAGE_BUFFER_SIZE)
+// Size of the OpenThread instance structure (bytes)
+#define OT_INSTANCE_SIZE   (9850 + OPENTHREAD_CONFIG_NUM_MESSAGE_BUFFERS * OPENTHREAD_CONFIG_MESSAGE_BUFFER_SIZE)
 
 #endif
 

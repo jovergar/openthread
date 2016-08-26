@@ -51,7 +51,7 @@ EXTERN_C void PlatformInit(int argc, char *argv[])
     otPlatUartEnable();
 }
 
-EXTERN_C void PlatformProcessDrivers(otContext *aContext)
+EXTERN_C void PlatformProcessDrivers(otInstance *aInstance)
 {
     fd_set read_fds;
     fd_set write_fds;
@@ -65,13 +65,13 @@ EXTERN_C void PlatformProcessDrivers(otContext *aContext)
     windowsRadioUpdateFdSet(&read_fds, &write_fds, &max_fd);
     windowsAlarmUpdateTimeout(&timeout);
 
-    if (!otAreTaskletsPending(aContext))
+    if (!otAreTaskletsPending(aInstance))
     {
         rval = select(max_fd + 1, &read_fds, &write_fds, NULL, &timeout);
         assert(rval >= 0 && errno != ETIME);
     }
 
-    windowsRadioProcess(aContext);
-    windowsAlarmProcess(aContext);
+    windowsRadioProcess(aInstance);
+    windowsAlarmProcess(aInstance);
 }
 

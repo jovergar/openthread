@@ -61,17 +61,17 @@ extern "C" void otCliUartInit()
     Uart::sUartServer = new(&sCliUartRaw) Uart();
 }
 #else
-extern "C" void otCliUartInit(otContext *aContext)
+extern "C" void otCliUartInit(otInstance *aInstance)
 {
-    Uart::sUartServer = new(&sCliUartRaw) Uart(aContext);
+    Uart::sUartServer = new(&sCliUartRaw) Uart(aInstance);
 }
 #endif
 
 #ifdef OTDLL
 Uart::Uart()
 #else
-Uart::Uart(otContext *aContext):
-    mInterpreter(aContext)
+Uart::Uart(otInstance *aInstance):
+    mInterpreter(aInstance)
 #endif
 {
     mRxLength = 0;

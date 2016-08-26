@@ -148,8 +148,8 @@ typedef struct _MS_FILTER
     //
     // OpenThread context buffer
     //
-    UCHAR                           otCtxBuffer[OT_CONTEXT_SIZE];
-    otContext*                      otCtx;
+    UCHAR                           otInstanceBuffer[OT_INSTANCE_SIZE];
+    otInstance*                     otCtx;
 
     //
     // OpenThread state management
@@ -181,10 +181,10 @@ typedef struct _MS_FILTER
 
 } MS_FILTER, * PMS_FILTER;
 
-// Helper function that converts an otContext pointer to a MS_FILTER pointer
-__inline PMS_FILTER otCtxToFilter(_In_ otContext* otCtx)
+// Helper function that converts an otInstance pointer to a MS_FILTER pointer
+__inline PMS_FILTER otCtxToFilter(_In_ otInstance* otCtx)
 {
-    return (PMS_FILTER)CONTAINING_RECORD(otCtx, MS_FILTER, otCtxBuffer);
+    return (PMS_FILTER)CONTAINING_RECORD(otCtx, MS_FILTER, otInstanceBuffer);
 }
 
 // Helper function to indicate if a role means it is attached or not

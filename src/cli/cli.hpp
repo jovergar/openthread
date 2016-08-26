@@ -44,7 +44,7 @@
 #endif
 
 #ifdef OTDLL
-#define MAX_CLI_OT_CONTEXTS 64
+#define MAX_CLI_OT_INSTANCES 64
 #endif
 
 namespace Thread {
@@ -87,9 +87,9 @@ public:
     /**
      * Constructor
      *
-     * @param[in]  aContext  The OpenThread context structure.
+     * @param[in]  aInstance  The OpenThread instance structure.
      */
-    Interpreter(otContext *aContext);
+    Interpreter(otInstance *aInstance);
 #endif
 
     /**
@@ -202,8 +202,8 @@ private:
 #endif
 
 #ifdef OTDLL
-    void ProcessContextList(int argc, char *argv[]);
-    void ProcessContext(int argc, char *argv[]);
+    void ProcessInstanceList(int argc, char *argv[]);
+    void ProcessInstance(int argc, char *argv[]);
 #endif
 
 #ifndef OTDLL
@@ -222,7 +222,7 @@ private:
 #endif
     void HandleActiveScanResult(otActiveScanResult *aResult);
 #ifdef OTDLL
-    void HandleNetifStateChanged(otContext *aContext, uint32_t aFlags);
+    void HandleNetifStateChanged(otInstance *aInstance, uint32_t aFlags);
 #else
     void HandleNetifStateChanged(uint32_t aFlags);
 #endif
@@ -245,19 +245,19 @@ private:
     Timer sPingTimer;
 #endif
 
-    otContext *mContext;
+    otInstance *mInstance;
 
 #ifdef OTDLL
-    otApiContext *mApiContext;
+    otApiInstance *mApiInstance;
 
     struct otCliContext
     {
         Interpreter *aInterpreter;
-        otContext   *aContext;
+        otInstance  *aInstance;
     };
-    otCliContext mContexts[MAX_CLI_OT_CONTEXTS];
-    uint8_t mContextsLength;
-    uint8_t mContextIndex;
+    otCliContext mInstances[MAX_CLI_OT_INSTANCES];
+    uint8_t mInstancesLength;
+    uint8_t mInstanceIndex;
 #endif
 };
 

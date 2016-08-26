@@ -58,10 +58,10 @@ public:
     /**
      * Constructor
      *
-     * @param[in]  aContext  The OpenThread context structure.
+     * @param[in]  aInstance  The OpenThread instance structure.
      *
      */
-    Uart(otContext *aContext);
+    Uart(otInstance *aInstance);
 #endif
 
     /**
