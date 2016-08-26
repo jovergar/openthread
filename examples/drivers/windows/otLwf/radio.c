@@ -37,19 +37,19 @@
 
 void 
 otPlatReset(
-    _In_ otContext *aContext
+    _In_ otInstance *otCtx
     )
 {
     // This function does nothing currently.
-    UNREFERENCED_PARAMETER(aContext);
+    UNREFERENCED_PARAMETER(otCtx);
 }
 
 otPlatResetReason 
 otPlatGetResetReason(
-    _In_ otContext *aContext
+    _In_ otInstance *otCtx
     )
 {
-    UNREFERENCED_PARAMETER(aContext);
+    UNREFERENCED_PARAMETER(otCtx);
     return kPlatResetReason_PowerOn;
 }
 
@@ -78,7 +78,7 @@ otLwfRadioInit(
     LogFuncExit(DRIVER_DEFAULT);
 }
 
-ThreadError otPlatRadioSetPanId(_In_ otContext *otCtx, uint16_t panid)
+ThreadError otPlatRadioSetPanId(_In_ otInstance *otCtx, uint16_t panid)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     NDIS_STATUS status;
@@ -110,7 +110,7 @@ ThreadError otPlatRadioSetPanId(_In_ otContext *otCtx, uint16_t panid)
     return kThreadError_None;
 }
 
-ThreadError otPlatRadioSetExtendedAddress(_In_ otContext *otCtx, uint8_t *address)
+ThreadError otPlatRadioSetExtendedAddress(_In_ otInstance *otCtx, uint8_t *address)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     NDIS_STATUS status;
@@ -146,7 +146,7 @@ ThreadError otPlatRadioSetExtendedAddress(_In_ otContext *otCtx, uint8_t *addres
     return kThreadError_None;
 }
 
-ThreadError otPlatRadioSetShortAddress(_In_ otContext *otCtx, uint16_t address)
+ThreadError otPlatRadioSetShortAddress(_In_ otInstance *otCtx, uint16_t address)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     NDIS_STATUS status;
@@ -178,7 +178,7 @@ ThreadError otPlatRadioSetShortAddress(_In_ otContext *otCtx, uint16_t address)
     return kThreadError_None;
 }
 
-void otPlatRadioSetPromiscuous(_In_ otContext *otCtx, int aEnable)
+void otPlatRadioSetPromiscuous(_In_ otInstance *otCtx, int aEnable)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     NDIS_STATUS status;
@@ -203,7 +203,7 @@ void otPlatRadioSetPromiscuous(_In_ otContext *otCtx, int aEnable)
     }
 }
 
-ThreadError otPlatRadioEnable(_In_ otContext *otCtx)
+ThreadError otPlatRadioEnable(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
 
@@ -216,7 +216,7 @@ ThreadError otPlatRadioEnable(_In_ otContext *otCtx)
     return kThreadError_None;
 }
 
-ThreadError otPlatRadioDisable(_In_ otContext *otCtx)
+ThreadError otPlatRadioDisable(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
 
@@ -229,7 +229,7 @@ ThreadError otPlatRadioDisable(_In_ otContext *otCtx)
     return kThreadError_None;
 }
 
-ThreadError otPlatRadioSleep(_In_ otContext *otCtx)
+ThreadError otPlatRadioSleep(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
 
@@ -243,7 +243,7 @@ ThreadError otPlatRadioSleep(_In_ otContext *otCtx)
     return kThreadError_None;
 }
 
-ThreadError otPlatRadioReceive(_In_ otContext *otCtx, uint8_t aChannel)
+ThreadError otPlatRadioReceive(_In_ otInstance *otCtx, uint8_t aChannel)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
 
@@ -289,20 +289,20 @@ ThreadError otPlatRadioReceive(_In_ otContext *otCtx, uint8_t aChannel)
     return kThreadError_None;
 }
 
-RadioPacket *otPlatRadioGetTransmitBuffer(_In_ otContext *otCtx)
+RadioPacket *otPlatRadioGetTransmitBuffer(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     return &pFilter->otTransmitFrame;
 }
 
-int8_t otPlatRadioGetRssi(_In_ otContext *otCtx)
+int8_t otPlatRadioGetRssi(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     UNREFERENCED_PARAMETER(pFilter);
     return 0;
 }
 
-otRadioCaps otPlatRadioGetCaps(_In_ otContext *otCtx)
+otRadioCaps otPlatRadioGetCaps(_In_ otInstance *otCtx)
 {
     return 
         ((otCtxToFilter(otCtx)->MiniportCapabilities.RadioCapabilities & OT_RADIO_CAP_ACK_TIMEOUT) != 0) ? 
@@ -310,7 +310,7 @@ otRadioCaps otPlatRadioGetCaps(_In_ otContext *otCtx)
             kRadioCapsNone;
 }
 
-int otPlatRadioGetPromiscuous(_In_ otContext *otCtx)
+int otPlatRadioGetPromiscuous(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     return pFilter->otPromiscuous;
@@ -339,7 +339,7 @@ otLwfRadioReceiveFrame(
     LogFuncExit(DRIVER_DATA_PATH);
 }
 
-ThreadError otPlatRadioTransmit(_In_ otContext *otCtx)
+ThreadError otPlatRadioTransmit(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     ThreadError error = kThreadError_Busy;

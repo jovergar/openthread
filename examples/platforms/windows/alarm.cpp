@@ -46,13 +46,13 @@ EXTERN_C uint32_t otPlatAlarmGetNow()
     return GetTickCount();
 }
 
-EXTERN_C void otPlatAlarmStartAt(otContext *, uint32_t t0, uint32_t dt)
+EXTERN_C void otPlatAlarmStartAt(otInstance *, uint32_t t0, uint32_t dt)
 {
     s_alarm = t0 + dt;
     s_is_running = true;
 }
 
-EXTERN_C void otPlatAlarmStop(otContext *)
+EXTERN_C void otPlatAlarmStop(otInstance *)
 {
     s_is_running = false;
 }
@@ -88,7 +88,7 @@ void windowsAlarmUpdateTimeout(struct timeval *aTimeout)
     }
 }
 
-void windowsAlarmProcess(otContext *aContext)
+void windowsAlarmProcess(otInstance *aInstance)
 {
     int32_t remaining;
 
@@ -99,7 +99,7 @@ void windowsAlarmProcess(otContext *aContext)
         if (remaining <= 0)
         {
             s_is_running = false;
-            otPlatAlarmFired(aContext);
+            otPlatAlarmFired(aInstance);
         }
     }
 }

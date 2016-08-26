@@ -453,7 +453,7 @@ Return Value:
 {
     NDIS_STATUS     NdisStatus = NDIS_STATUS_SUCCESS;
     PMS_FILTER      pFilter = (PMS_FILTER)FilterModuleContext;
-    size_t          otCtxSize = sizeof(pFilter->otCtxBuffer);
+    size_t          otCtxSize = sizeof(pFilter->otInstanceBuffer);
 
     PNDIS_RESTART_GENERAL_ATTRIBUTES NdisGeneralAttributes;
     PNDIS_RESTART_ATTRIBUTES         NdisRestartAttributes;
@@ -508,7 +508,7 @@ Return Value:
     // Initialize the OpenThread library
     //
     pFilter->otCachedRole = kDeviceRoleDisabled;
-    pFilter->otCtx = otContextInit(pFilter->otCtxBuffer, &otCtxSize);
+    pFilter->otCtx = otInstanceInit(pFilter->otInstanceBuffer, &otCtxSize);
     NT_ASSERT(pFilter->otCtx);
     if (pFilter->otCtx == NULL)
     {
@@ -556,7 +556,7 @@ error:
         if (pFilter->otCtx != NULL)
         {
             otDisable(pFilter->otCtx);
-            otContextFinalize(pFilter->otCtx);
+            otInstanceFinalize(pFilter->otCtx);
             pFilter->otCtx = NULL;
         }
     }
@@ -636,7 +636,7 @@ N.B.: When the filter is in Pausing state, it can still process OID requests,
     //
     // Free OpenThread context memory
     //
-    otContextFinalize(pFilter->otCtx);
+    otInstanceFinalize(pFilter->otCtx);
     pFilter->otCtx = NULL;
 
     // Set the state back to Paused now that we are done
@@ -785,10 +785,10 @@ uint32_t otPlatRandomGet()
     return (uint32_t)RtlRandomEx(&Counter.LowPart);
 }
 
-void otSignalTaskletPending(_In_ otContext *aContext)
+void otSignalTaskletPending(_In_ otInstance *otCtx)
 {
     LogVerbose(DRIVER_DEFAULT, "otSignalTaskletPending");
-    PMS_FILTER pFilter = otCtxToFilter(aContext);
+    PMS_FILTER pFilter = otCtxToFilter(otCtx);
     otLwfEventProcessingIndicateNewTasklet(pFilter);
 }
 

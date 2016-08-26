@@ -47,7 +47,7 @@ otPlatAlarmGetNow()
 
 void 
 otPlatAlarmStop(
-    _In_ otContext *otCtx
+    _In_ otInstance *otCtx
     )
 {
     LogVerbose(DRIVER_DEFAULT, "otPlatAlarmStop");
@@ -56,7 +56,7 @@ otPlatAlarmStop(
 
 void 
 otPlatAlarmStartAt(
-    _In_ otContext *otCtx, 
+    _In_ otInstance *otCtx, 
     uint32_t now, 
     uint32_t waitTime
     )
