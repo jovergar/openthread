@@ -510,6 +510,7 @@ exit:
 
     if (error != kThreadError_None || !forward)
     {
+        Message::Free(message);
     }
 
     otLogFuncExitErr(error);
