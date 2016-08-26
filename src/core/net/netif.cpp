@@ -36,7 +36,7 @@
 #include <common/logging.hpp>
 #include <common/message.hpp>
 #include <net/netif.hpp>
-#include <openthreadcontext.h>
+#include <openthreadinstance.h>
 
 #ifdef WINDOWS_LOGGING
 #include "netif.tmh"
@@ -45,9 +45,9 @@
 namespace Thread {
 namespace Ip6 {
 
-Netif::Netif(otContext *aContext) :
-    mContext(aContext),
-    mStateChangedTask(aContext, &Netif::HandleStateChangedTask, this)
+Netif::Netif(otInstance *aInstance) :
+    mInstance(aInstance),
+    mStateChangedTask(aInstance, &Netif::HandleStateChangedTask, this)
 {
     mCallbacks = NULL;
     mUnicastAddresses = NULL;
@@ -83,13 +83,13 @@ ThreadError Netif::AddNetif()
     ThreadError error = kThreadError_None;
     Netif *netif;
 
-    if (mContext->mNetifListHead == NULL)
+    if (mInstance->mNetifListHead == NULL)
     {
-        mContext->mNetifListHead = this;
+        mInstance->mNetifListHead = this;
     }
     else
     {
-        netif = mContext->mNetifListHead;
+        netif = mInstance->mNetifListHead;
 
         do
         {
@@ -107,7 +107,7 @@ ThreadError Netif::AddNetif()
 
     if (mInterfaceId < 0)
     {
-        mInterfaceId = mContext->mNextInterfaceId++;
+        mInterfaceId = mInstance->mNextInterfaceId++;
     }
 
     otLogDebgIp6("new interface id=%d\n", mInterfaceId);
@@ -120,15 +120,15 @@ ThreadError Netif::RemoveNetif()
 {
     ThreadError error = kThreadError_None;
 
-    VerifyOrExit(mContext->mNetifListHead != NULL, error = kThreadError_Busy);
+    VerifyOrExit(mInstance->mNetifListHead != NULL, error = kThreadError_Busy);
 
-    if (mContext->mNetifListHead == this)
+    if (mInstance->mNetifListHead == this)
     {
-        mContext->mNetifListHead = mNext;
+        mInstance->mNetifListHead = mNext;
     }
     else
     {
-        for (Netif *netif = mContext->mNetifListHead; netif->mNext; netif = netif->mNext)
+        for (Netif *netif = mInstance->mNetifListHead; netif->mNext; netif = netif->mNext)
         {
             if (netif->mNext != this)
             {
@@ -151,11 +151,11 @@ Netif *Netif::GetNext() const
     return mNext;
 }
 
-Netif *Netif::GetNetifById(otContext *aContext, int8_t aInterfaceId)
+Netif *Netif::GetNetifById(otInstance *aInstance, int8_t aInterfaceId)
 {
     Netif *netif;
 
-    for (netif = aContext->mNetifListHead; netif; netif = netif->mNext)
+    for (netif = aInstance->mNetifListHead; netif; netif = netif->mNext)
     {
         if (netif->mInterfaceId == aInterfaceId)
         {
@@ -167,11 +167,11 @@ exit:
     return netif;
 }
 
-Netif *Netif::GetNetifByName(otContext *aContext, char *aName)
+Netif *Netif::GetNetifByName(otInstance *aInstance, char *aName)
 {
     Netif *netif;
 
-    for (netif = aContext->mNetifListHead; netif; netif = netif->mNext)
+    for (netif = aInstance->mNetifListHead; netif; netif = netif->mNext)
     {
         if (strcmp(netif->GetName(), aName) == 0)
         {
@@ -331,16 +331,16 @@ exit:
     return error;
 }
 
-Netif *Netif::GetNetifList(otContext *aContext)
+Netif *Netif::GetNetifList(otInstance *aInstance)
 {
-    return aContext->mNetifListHead;
+    return aInstance->mNetifListHead;
 }
 
-bool Netif::IsUnicastAddress(otContext *aContext, const Address &aAddress)
+bool Netif::IsUnicastAddress(otInstance *aInstance, const Address &aAddress)
 {
     bool rval = false;
 
-    for (Netif *netif = aContext->mNetifListHead; netif; netif = netif->mNext)
+    for (Netif *netif = aInstance->mNetifListHead; netif; netif = netif->mNext)
     {
         for (NetifUnicastAddress *cur = netif->mUnicastAddresses; cur; cur = cur->GetNext())
         {
@@ -355,7 +355,7 @@ exit:
     return rval;
 }
 
-const NetifUnicastAddress *Netif::SelectSourceAddress(otContext *aContext, MessageInfo &aMessageInfo)
+const NetifUnicastAddress *Netif::SelectSourceAddress(otInstance *aInstance, MessageInfo &aMessageInfo)
 {
     Address *destination = &aMessageInfo.GetPeerAddr();
     int interfaceId = aMessageInfo.mInterfaceId;
@@ -364,7 +364,7 @@ const NetifUnicastAddress *Netif::SelectSourceAddress(otContext *aContext, Messa
     int8_t candidateId;
     int8_t rvalIface = 0;
 
-    for (Netif *netif = GetNetifList(aContext); netif; netif = netif->mNext)
+    for (Netif *netif = GetNetifList(aInstance); netif; netif = netif->mNext)
     {
         candidateId = netif->GetInterfaceId();
 
@@ -440,11 +440,11 @@ exit:
     return rvalAddr;
 }
 
-int8_t Netif::GetOnLinkNetif(otContext *aContext, const Address &aAddress)
+int8_t Netif::GetOnLinkNetif(otInstance *aInstance, const Address &aAddress)
 {
     int8_t rval = -1;
 
-    for (Netif *netif = aContext->mNetifListHead; netif; netif = netif->mNext)
+    for (Netif *netif = aInstance->mNetifListHead; netif; netif = netif->mNext)
     {
         for (NetifUnicastAddress *cur = netif->mUnicastAddresses; cur; cur = cur->GetNext())
         {
@@ -457,6 +457,11 @@ int8_t Netif::GetOnLinkNetif(otContext *aContext, const Address &aAddress)
 
 exit:
     return rval;
+}
+
+bool Netif::IsStateChangedCallbackPending(void)
+{
+    return mStateChangedFlags != 0;
 }
 
 void Netif::SetStateChangedFlags(uint32_t aFlags)

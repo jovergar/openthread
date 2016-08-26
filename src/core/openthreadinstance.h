@@ -32,8 +32,8 @@
  *  This file defines the structure of the variables required for all instances of OpenThread API.
  */
 
-#ifndef OPENTHREADCONTEXT_H_
-#define OPENTHREADCONTEXT_H_
+#ifndef OPENTHREADINSTANCE_H_
+#define OPENTHREADINSTANCE_H_
 
 #include <openthread-core-default-config.h>
 #include <openthread-types.h>
@@ -44,7 +44,7 @@
 /**
  * This type represents all the static / global variables used by OpenThread allocated in one place.
  */
-typedef struct otContext
+typedef struct otInstance
 {
     //
     // Callbacks
@@ -105,8 +105,8 @@ typedef struct otContext
     Thread::Ip6::Mpl mMpl;
 
     // Constructor
-    otContext(void);
+    otInstance(void);
 
-} otContext;
+} otInstance;
 
-#endif  // OPENTHREADCONTEXT_H_
+#endif  // OPENTHREADINSTANCE_H_

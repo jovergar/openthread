@@ -95,7 +95,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
     ULONG                   Size;
     PNET_BUFFER             SendNetBuffer;
     ULONG                   bytesProcessed = 0;
-    size_t                  otCtxSize = sizeof(pFilter->otCtxBuffer);
+    size_t                  otInstanceSize = sizeof(pFilter->otInstanceBuffer);
 
     LogFuncEntry(DRIVER_DEFAULT);
 
@@ -345,11 +345,11 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
 
         // Initialize the OpenThread library
         pFilter->otCachedRole = kDeviceRoleDisabled;
-        pFilter->otCtx = otContextInit(pFilter->otCtxBuffer, &otCtxSize);
+        pFilter->otCtx = otInstanceInit(pFilter->otInstanceBuffer, &otInstanceSize);
         NT_ASSERT(pFilter->otCtx);
         if (pFilter->otCtx == NULL)
         {
-            LogError(DRIVER_DEFAULT, "otInit failed, otCtxSize = %u bytes", (ULONG)otCtxSize);
+            LogError(DRIVER_DEFAULT, "otInstanceInit failed, otInstanceSize = %u bytes", (ULONG)otInstanceSize);
             Status = NDIS_STATUS_RESOURCES;
             break;
         }
@@ -381,7 +381,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             if (pFilter->otCtx != NULL)
             {
                 otDisable(pFilter->otCtx);
-                otContextFinalize(pFilter->otCtx);
+                otInstanceFinalize(pFilter->otCtx);
                 pFilter->otCtx = NULL;
             }
 
@@ -450,7 +450,7 @@ NOTE: Called at PASSIVE_LEVEL and the filter is in paused state
     otLwfEventProcessingStop(pFilter);
     
     // Free OpenThread context memory
-    otContextFinalize(pFilter->otCtx);
+    otInstanceFinalize(pFilter->otCtx);
     pFilter->otCtx = NULL;
 
     // Free NBL & Pools
@@ -778,10 +778,10 @@ uint32_t otPlatRandomGet()
     return (uint32_t)RtlRandomEx(&Counter.LowPart);
 }
 
-void otSignalTaskletPending(_In_ otContext *aContext)
+void otSignalTaskletPending(_In_ otInstance *otCtx)
 {
     LogVerbose(DRIVER_DEFAULT, "otSignalTaskletPending");
-    PMS_FILTER pFilter = otCtxToFilter(aContext);
+    PMS_FILTER pFilter = otCtxToFilter(otCtx);
     otLwfEventProcessingIndicateNewTasklet(pFilter);
 }
 
