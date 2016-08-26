@@ -1138,6 +1138,27 @@ otSetChannel(
 }
 
 OTAPI 
+uint8_t 
+otGetMaxAllowedChildren(
+    _In_ otInstance *aInstance
+    )
+{
+    uint8_t Result = 0;
+    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAX_CHILDREN, &Result);
+    return Result;
+}
+
+OTAPI 
+ThreadError 
+otSetMaxAllowedChildren(
+    _In_ otInstance *aInstance, 
+    uint8_t aMaxChildren
+    )
+{
+    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAX_CHILDREN, aMaxChildren));
+}
+
+OTAPI 
 uint32_t 
 otGetChildTimeout(
     _In_ otInstance *aInstance
