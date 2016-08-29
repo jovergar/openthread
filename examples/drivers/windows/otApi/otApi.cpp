@@ -1247,7 +1247,7 @@ otGetLinkMode(
     )
 {
     otLinkModeConfig Result = {0};
-	static_assert(sizeof(Result) == 1, "otLinkModeConfig must be 1 byte");
+	static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
     (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LINK_MODE, &Result);
     return Result;
 }
@@ -1259,7 +1259,7 @@ otSetLinkMode(
     otLinkModeConfig aConfig
     )
 {
-	static_assert(sizeof(aConfig) == 1, "otLinkModeConfig must be 1 byte");
+	static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_LINK_MODE, aConfig));
 }
 
@@ -1270,7 +1270,12 @@ otGetMasterKey(
     _Out_ uint8_t *aKeyLength
     )
 {
-    otMasterKey *Result = (otMasterKey*)malloc(sizeof(otMasterKey) + sizeof(uint8_t));
+    struct otMasterKeyAndLength
+    {
+        otMasterKey Key;
+        uint8_t Length;
+    };
+    otMasterKeyAndLength *Result = (otMasterKeyAndLength*)malloc(sizeof(otMasterKeyAndLength));
     if (Result == nullptr) return nullptr;
     if (QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MASTER_KEY, Result) != ERROR_SUCCESS)
     {
@@ -1279,7 +1284,7 @@ otGetMasterKey(
     }
     else
     {
-        *aKeyLength = *(uint8_t*)(Result + 1);
+        *aKeyLength = Result->Length;
     }
     return (uint8_t*)Result;
 }
@@ -1570,10 +1575,10 @@ OTAPI
 ThreadError
 otSetActiveDataset(
     _In_ otInstance *aInstance, 
-    _In_ otOperationalDataset *aDataset
+    _In_ const otOperationalDataset *aDataset
     )
 {
-    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ACTIVE_DATASET, (const otOperationalDataset*)aDataset));
+    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ACTIVE_DATASET, aDataset));
 }
 
 OTAPI
@@ -1590,10 +1595,10 @@ OTAPI
 ThreadError
 otSetPendingDataset(
     _In_ otInstance *aInstance, 
-    _In_ otOperationalDataset *aDataset
+    _In_ const otOperationalDataset *aDataset
     )
 {
-    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_PENDING_DATASET, (const otOperationalDataset*)aDataset));
+    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_PENDING_DATASET, aDataset));
 }
 
 OTAPI 
@@ -2172,6 +2177,7 @@ otGetParentInfo(
     _Out_ otRouterInfo *aParentInfo
     )
 {
+	static_assert(sizeof(otRouterInfo) == 20, "The size of otRouterInfo should be 20 bytes");
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_PARENT_INFO, aParentInfo));
 }
 

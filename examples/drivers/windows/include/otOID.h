@@ -62,7 +62,12 @@
     } OT_MP_MODE;
     typedef enum OT_RADIO_CAPABILITY
     {
-        OT_RADIO_CAP_ACK_TIMEOUT    = 1 << 0,  // Radio supports Ack timeouts internally
+        // Radio supports Ack timeouts internally
+        OT_RADIO_CAP_ACK_TIMEOUT                        = 1 << 0,
+        // Radio supports MAC retry logic and timers; as well as collision avoidance.
+        OT_RADIO_CAP_MAC_RETRY_AND_COLLISION_AVOIDANCE  = 1 << 1,
+        // Radio supports sleeping
+        OT_RADIO_CAP_SLEEP                              = 1 << 2,
     } OT_RADIO_CAPABILITY;
     typedef struct _OT_CAPABILITIES
     {

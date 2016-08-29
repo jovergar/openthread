@@ -330,14 +330,14 @@ otLwfRadioReceiveFrame(
 
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
 
-    NT_ASSERT(pFilter->otPhyState == kStateReceive);
-    if (pFilter->otPhyState == kStateReceive)
+    NT_ASSERT(pFilter->otPhyState > kStateDisabled);
+    if (pFilter->otPhyState > kStateSleep)
     {
         otPlatRadioReceiveDone(pFilter->otCtx, &pFilter->otReceiveFrame, kThreadError_None);
     }
     else
     {
-        LogVerbose(DRIVER_DATA_PATH, "MAC Frame Dropped: Wrong State, %u", (ULONG)pFilter->otPhyState);
+        LogVerbose(DRIVER_DATA_PATH, "Mac frame dropped because not actively receiving.");
     }
     
     LogFuncExit(DRIVER_DATA_PATH);

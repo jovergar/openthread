@@ -27,57 +27,54 @@
  */
 
 #include <windows.h>
+#include <stdio.h>
+
 #include <openthread.h>
 #include <cli/cli-uart.h>
 #include <platform/uart.h>
 
+bool skipNextLine = false;
+
 int main(int argc, char *argv[])
 {
     otCliUartInit();
-
-    HANDLE hSTDIN = GetStdHandle(STD_INPUT_HANDLE);
     
-    // Cache the original console mode
-    DWORD originalConsoleMode;
-    GetConsoleMode(hSTDIN, &originalConsoleMode);
-
-    // Wait for console events
-    while (WaitForSingleObject(hSTDIN, INFINITE) == WAIT_OBJECT_0)
+    char cmd[1024] = "\n";
+    otPlatUartReceived((uint8_t*)cmd, 1);
+    
+    for (;;)
     {
-        DWORD numberOfEvent = 0;
-        if (GetNumberOfConsoleInputEvents(hSTDIN, &numberOfEvent))
-        {
-            for (; numberOfEvent > 0; numberOfEvent--)
-            {
-                INPUT_RECORD record;
-                DWORD numRead;
-                if (!ReadConsoleInput(hSTDIN, &record, 1, &numRead) ||
-                    record.EventType != KEY_EVENT ||
-                    !record.Event.KeyEvent.bKeyDown)
-                    continue;
-                
-                uint8_t ch = (uint8_t)record.Event.KeyEvent.uChar.AsciiChar;
-                otPlatUartReceived(&ch, 1);
-            }
-        }
+        cmd[0] = 0;
+        if (NULL == fgets(cmd, sizeof(cmd), stdin))
+            continue;
+
+        size_t cmdLen = strlen(cmd);
+        if (cmdLen >= sizeof(cmd)) cmdLen = sizeof(cmd);
+
+        if (strncmp(cmd, "exit", 4) == 0) 
+            break;
+        
+        skipNextLine = true;
+        otPlatUartReceived((uint8_t*)cmd, (uint16_t)cmdLen);
     }
 
-    return 0;
+    return NO_ERROR;
 }
 
 EXTERN_C ThreadError otPlatUartSend(const uint8_t *aBuf, uint16_t aBufLength)
 {
     ThreadError error = kThreadError_None;
 
-    DWORD dwNumCharsWritten = 0;
-    if (WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), aBuf, aBufLength, &dwNumCharsWritten, NULL))
+    if (!skipNextLine)
     {
-        otPlatUartSendDone();
+        for (uint16_t i = 0; i < aBufLength; i++)
+            fputc(aBuf[i], stdout);
     }
-    else
-    {
-        error = kThreadError_Error;
-    }
+
+    if (aBuf[aBufLength - 1] == '\n')
+        skipNextLine = false;
+    
+    otPlatUartSendDone();
 
     return error;
 }

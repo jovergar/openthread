@@ -150,24 +150,26 @@ Interpreter::Interpreter(otInstance * aInstance):
 {
 #ifdef OTDLL
     assert(mApiInstance);
-    otDeviceList *aDeviceList = otEnumerateDevices(mApiInstance);
-    assert(aDeviceList);
-
-    mInstancesLength = aDeviceList->aDevicesLength > MAX_CLI_OT_INSTANCES ? MAX_CLI_OT_INSTANCES :
-                       (uint8_t)aDeviceList->aDevicesLength;
-
-    for (uint8_t i = 0; i < mInstancesLength; i++)
+    if (mApiInstance)
     {
-        mInstances[i].aInterpreter = this;
-        mInstances[i].aInstance = otInstanceInit(mApiInstance, &aDeviceList->aDevices[i]);
-        assert(mInstances[i].aInstance);
-        otSetStateChangedCallback(mInstances[i].aInstance, &Interpreter::s_HandleNetifStateChanged, &mInstances[i]);
+        otDeviceList *aDeviceList = otEnumerateDevices(mApiInstance);
+        assert(aDeviceList);
+
+        mInstancesLength = aDeviceList->aDevicesLength > MAX_CLI_OT_INSTANCES ? MAX_CLI_OT_INSTANCES :
+                           (uint8_t)aDeviceList->aDevicesLength;
+
+        for (uint8_t i = 0; i < mInstancesLength; i++)
+        {
+            mInstances[i].aInterpreter = this;
+            mInstances[i].aInstance = otInstanceInit(mApiInstance, &aDeviceList->aDevices[i]);
+            assert(mInstances[i].aInstance);
+            otSetStateChangedCallback(mInstances[i].aInstance, &Interpreter::s_HandleNetifStateChanged, &mInstances[i]);
+        }
+
+        otFreeMemory(aDeviceList);
+
+        if (mInstancesLength > 0) { mInstance = mInstances[0].aInstance; }
     }
-
-    otFreeMemory(aDeviceList);
-
-    if (mInstancesLength > 0) { mInstance = mInstances[0].aInstance; }
-
 #else
     otSetStateChangedCallback(mInstance, &Interpreter::s_HandleNetifStateChanged, this);
 #endif

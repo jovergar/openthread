@@ -902,26 +902,16 @@ otLwfIoCtl_otLinkMode(
 {
     NTSTATUS status = STATUS_INVALID_PARAMETER;
 	
-	/*
-		For some reason (sizeof(otLinkModeConfig) == 4) in C, but not C++,
-		so this code needs to do a bit of manual labor to get the one byte
-		into the otLinkModeConfig struct.
-	*/
 	static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
-	if (InBufferLength >= sizeof(uint8_t))
+	if (InBufferLength >= sizeof(otLinkModeConfig))
 	{
-		otLinkModeConfig Config = {0};
-		memcpy(&Config, InBuffer, sizeof(uint8_t));
-		status = ThreadErrorToNtstatus(
-					otSetLinkMode(pFilter->otCtx, Config)
-					);
+		status = ThreadErrorToNtstatus(otSetLinkMode(pFilter->otCtx, *(otLinkModeConfig*)InBuffer));
 		*OutBufferLength = 0;
 	}
-	else if (*OutBufferLength >= sizeof(uint8_t))
+	else if (*OutBufferLength >= sizeof(otLinkModeConfig))
 	{
-		otLinkModeConfig Config = otGetLinkMode(pFilter->otCtx);
-		memcpy(OutBuffer, &Config, sizeof(uint8_t));
-        *OutBufferLength = sizeof(uint8_t);
+		*(otLinkModeConfig*)OutBuffer = otGetLinkMode(pFilter->otCtx);
+        *OutBufferLength = sizeof(otLinkModeConfig);
 		status = STATUS_SUCCESS;
 	}
 	else
@@ -2525,7 +2515,8 @@ otLwfIoCtl_otParentInfo(
 	
     UNREFERENCED_PARAMETER(InBuffer);
     UNREFERENCED_PARAMETER(InBufferLength);
-
+    
+	static_assert(sizeof(otRouterInfo) == 20, "The size of otRouterInfo should be 20 bytes");
     if (*OutBufferLength >= sizeof(otRouterInfo))
     {
         status = ThreadErrorToNtstatus(otGetParentInfo(pFilter->otCtx, (otRouterInfo*)OutBuffer));

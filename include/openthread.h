@@ -924,7 +924,7 @@ OTAPI ThreadError otGetActiveDataset(otInstance *aInstance, otOperationalDataset
  * @retval kThreadError_InvalidArgs  @p aDataset was NULL.
  *
  */
-OTAPI ThreadError otSetActiveDataset(otInstance *aInstance, otOperationalDataset *aDataset);
+OTAPI ThreadError otSetActiveDataset(otInstance *aInstance, const otOperationalDataset *aDataset);
 
 /**
  * This function gets the Pending Operational Dataset.
@@ -949,7 +949,7 @@ OTAPI ThreadError otGetPendingDataset(otInstance *aInstance, otOperationalDatase
  * @retval kThreadError_InvalidArgs  @p aDataset was NULL.
  *
  */
-OTAPI ThreadError otSetPendingDataset(otInstance *aInstance, otOperationalDataset *aDataset);
+OTAPI ThreadError otSetPendingDataset(otInstance *aInstance, const otOperationalDataset *aDataset);
 
 /**
  * Get the data poll period of sleepy end deivce.
