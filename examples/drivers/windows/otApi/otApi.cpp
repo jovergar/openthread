@@ -75,7 +75,7 @@ typedef struct otApiInstance
         DeviceAvailabilityCallbacks((otDeviceAvailabilityChangedCallback)nullptr, (PVOID)nullptr)
     { 
         InitializeCriticalSection(&CallbackLock);
-		RtlInitializeReferenceCount(&CallbackRefCount);
+        RtlInitializeReferenceCount(&CallbackRefCount);
     }
 
     ~otApiInstance()
@@ -272,8 +272,8 @@ otApiFinalize(
     
     otLogFuncEntry();
 
-	// If we never got the handle, nothing left to clean up
-	if (aApitInstance->DeviceHandle == INVALID_HANDLE_VALUE) goto exit;
+    // If we never got the handle, nothing left to clean up
+    if (aApitInstance->DeviceHandle == INVALID_HANDLE_VALUE) goto exit;
 
     //
     // Make sure we unregister callbacks
@@ -351,8 +351,8 @@ otApiFinalize(
     {
         CloseHandle(aApitInstance->CallbackCompleteEvent);
     }
-	
-	// Close the device handle
+    
+    // Close the device handle
     CloseHandle(aApitInstance->DeviceHandle);
 
 exit:
@@ -664,13 +664,13 @@ SendIOCTL(
         goto error;
     }
 
-	if (dwBytesReturned != nOutBufferSize)
-	{
-		dwError = ERROR_INVALID_DATA;
+    if (dwBytesReturned != nOutBufferSize)
+    {
+        dwError = ERROR_INVALID_DATA;
         otLogCritApi("GetOverlappedResult returned invalid output size, expected=%u actual=%u", 
-			         nOutBufferSize, dwBytesReturned);
-		goto error;
-	}
+                     nOutBufferSize, dwBytesReturned);
+        goto error;
+    }
 
 error:
 
@@ -812,7 +812,7 @@ otEnumerateDevices(
     DWORD dwBytesReturned = 0;
     otDeviceList* pDeviceList = nullptr;
     DWORD cbDeviceList = sizeof(otDeviceList);
-	
+    
     otLogFuncEntry();
 
     Overlapped.hEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -830,7 +830,7 @@ otEnumerateDevices(
         dwError = ERROR_NOT_ENOUGH_MEMORY;
         goto error;
     }
-	RtlZeroMemory(pDeviceList, cbDeviceList);
+    RtlZeroMemory(pDeviceList, cbDeviceList);
     
     // Query in a loop to account for it changing between calls
     while (true)
@@ -889,7 +889,7 @@ otEnumerateDevices(
             dwError = ERROR_NOT_ENOUGH_MEMORY;
             goto error;
         }
-		RtlZeroMemory(pDeviceList, cbDeviceList);
+        RtlZeroMemory(pDeviceList, cbDeviceList);
     }
 
 error:
@@ -904,7 +904,7 @@ error:
     {
         CloseHandle(Overlapped.hEvent);
     }
-	
+    
     otLogFuncExitMsg("%d devices", pDeviceList == nullptr ? -1 : (int)pDeviceList->aDevicesLength);
 
     return pDeviceList;
@@ -1266,7 +1266,7 @@ otGetLinkMode(
     )
 {
     otLinkModeConfig Result = {0};
-	static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
+    static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
     (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LINK_MODE, &Result);
     return Result;
 }
@@ -1278,7 +1278,7 @@ otSetLinkMode(
     otLinkModeConfig aConfig
     )
 {
-	static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
+    static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_LINK_MODE, aConfig));
 }
 
@@ -2041,7 +2041,7 @@ otBecomeChild(
     )
 {
     uint8_t Role = kDeviceRoleDetached;
-	uint8_t Filter = (uint8_t)aFilter;
+    uint8_t Filter = (uint8_t)aFilter;
 
     BYTE Buffer[sizeof(GUID) + sizeof(Role) + sizeof(Filter)];
     memcpy(Buffer, &aInstance->InterfaceGuid, sizeof(GUID));
@@ -2311,7 +2311,7 @@ otGetParentInfo(
     _Out_ otRouterInfo *aParentInfo
     )
 {
-	static_assert(sizeof(otRouterInfo) == 20, "The size of otRouterInfo should be 20 bytes");
+    static_assert(sizeof(otRouterInfo) == 20, "The size of otRouterInfo should be 20 bytes");
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_PARENT_INFO, aParentInfo));
 }
 

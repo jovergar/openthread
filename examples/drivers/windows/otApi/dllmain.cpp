@@ -32,8 +32,8 @@
 BOOL 
 __stdcall 
 DllMain(
-	HINSTANCE hinstDll, 
-	DWORD dwReason, 
+    HINSTANCE hinstDll, 
+    DWORD dwReason, 
     LPVOID /* lpvReserved */
     )
 {
