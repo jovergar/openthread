@@ -252,6 +252,16 @@ OTAPI otInstance *otInstanceInit(otApiInstance *aApiInstance, const GUID *aDevic
 OTAPI GUID otGetDeviceGuid(otInstance *aInstance);
 
 /**
+ * This queries the Windows device/interface IfIndex for the otContext.
+ *
+ * @param[in] aContext  The OpenThread context structure.
+ *
+ * @retval uint32_t  The device IfIndex.
+ *
+ */
+OTAPI uint32_t otGetDeviceIfIndex(otInstance *aInstance);
+
+/**
  * This queries the Windows Compartment ID for the otContext.
  *
  * @param[in] aContext  The OpenThread context structure.

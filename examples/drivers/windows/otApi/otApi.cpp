@@ -141,6 +141,7 @@ typedef struct otApiInstance
 typedef struct otInstance
 {
     otApiInstance   *ApiHandle;      // Pointer to the Api handle
+    NET_IFINDEX      InterfaceIndex; // Interface Index
     GUID             InterfaceGuid;  // Interface guid
     ULONG            CompartmentID;  // Interface Compartment ID
 
@@ -934,6 +935,15 @@ otInstanceInit(
             aInstance->ApiHandle = aApitInstance;
             aInstance->InterfaceGuid = *aDeviceGuid;
             aInstance->CompartmentID = Result.CompartmentID;
+
+            NET_LUID InterfaceLuid;
+            if (ConvertInterfaceGuidToLuid(aDeviceGuid, &InterfaceLuid) != ERROR_SUCCESS ||
+                ConvertInterfaceLuidToIndex(&InterfaceLuid, &aInstance->InterfaceIndex) != ERROR_SUCCESS)
+            {
+                otLogCritApi("Failed to convert interface guid to index!");
+                free(aInstance);
+                aInstance = nullptr;
+            }
         }
     }
 
@@ -947,6 +957,15 @@ otGetDeviceGuid(
     )
 {
     return aInstance->InterfaceGuid;
+}
+
+OTAPI 
+uint32_t 
+otGetDeviceIfIndex(
+    otInstance *aInstance
+    )
+{
+    return aInstance->InterfaceIndex;
 }
 
 OTAPI 
@@ -1511,15 +1530,130 @@ otGetShortAddress(
     return Result;
 }
 
+BOOL
+GetAdapterAddresses(
+    PIP_ADAPTER_ADDRESSES * ppIAA
+)
+{
+    PIP_ADAPTER_ADDRESSES pIAA = NULL;
+    DWORD len = 0;
+    DWORD flags;
+
+    flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+    if (GetAdaptersAddresses(AF_INET6, flags, NULL, NULL, &len) != ERROR_BUFFER_OVERFLOW)
+        return FALSE;
+
+    pIAA = (PIP_ADAPTER_ADDRESSES)malloc(len);
+    if (pIAA) {
+        GetAdaptersAddresses(AF_INET6, flags, NULL, pIAA, &len);
+        *ppIAA = pIAA;
+        return TRUE;
+    }
+    return FALSE;
+}
+
 OTAPI
 const otNetifAddress *
 otGetUnicastAddresses(
     _In_ otInstance *aInstance
     )
 {
-    // TODO
-    UNREFERENCED_PARAMETER(aInstance);
-    return nullptr;
+    // Put the current thead in the correct compartment
+    bool RevertCompartmentOnExit = false;
+    ULONG OriginalCompartmentID = GetCurrentThreadCompartmentId();
+    if (OriginalCompartmentID != aInstance->CompartmentID)
+    {
+        DWORD dwError = ERROR_SUCCESS;
+        if ((dwError = SetCurrentThreadCompartmentId(aInstance->CompartmentID)) != ERROR_SUCCESS)
+        {
+            otLogCritApi("SetCurrentThreadCompartmentId failed, %!WINERROR!", dwError);
+            return nullptr;
+        }
+        RevertCompartmentOnExit = true;
+    }
+
+    otNetifAddress *addrs = nullptr;
+
+    // Query the current adapter addresses and format them in the proper output format
+    PIP_ADAPTER_ADDRESSES pIAAList;
+    if (GetAdapterAddresses(&pIAAList))
+    {
+        ULONG AddrCount = 0;
+
+        // Loop through all the interfaces
+        for (auto pIAA = pIAAList; pIAA != nullptr; pIAA = pIAA->Next) 
+        {
+            // Look for the right interface
+            if (pIAA->Ipv6IfIndex != aInstance->InterfaceIndex) continue;
+
+            // Look through all unicast addresses
+            for (auto pUnicastAddr = pIAA->FirstUnicastAddress; 
+                 pUnicastAddr != nullptr; 
+                 pUnicastAddr = pUnicastAddr->Next)
+            {
+                AddrCount++;
+            }
+
+            break;
+        }
+
+        // Allocate the addresses
+        addrs = (otNetifAddress*)malloc(AddrCount * sizeof(otNetifAddress));
+        if (addrs == nullptr)
+        {
+            otLogWarnApi("Not enough memory to alloc otNetifAddress array");
+            goto error;
+        }
+        ZeroMemory(addrs, AddrCount * sizeof(otNetifAddress));
+
+        // Initialize the next pointers
+        for (ULONG i = 0; i < AddrCount; i++)
+        {
+            addrs[i].mNext = (i + 1 == AddrCount) ? nullptr : &addrs[i + 1];
+        }
+
+        AddrCount = 0;
+
+        // Loop through all the interfaces
+        for (auto pIAA = pIAAList; pIAA != nullptr; pIAA = pIAA->Next) 
+        {
+            // Look for the right interface
+            if (pIAA->Ipv6IfIndex != aInstance->InterfaceIndex) continue;
+
+            // Look through all unicast addresses
+            for (auto pUnicastAddr = pIAA->FirstUnicastAddress; 
+                 pUnicastAddr != nullptr; 
+                 pUnicastAddr = pUnicastAddr->Next)
+            {
+                LPSOCKADDR_IN6 pAddr = (LPSOCKADDR_IN6)pUnicastAddr->Address.lpSockaddr;
+
+                // Copy the necessary parameters
+                memcpy(&addrs[AddrCount].mAddress, &pAddr->sin6_addr, sizeof(pAddr->sin6_addr));
+                addrs[AddrCount].mPreferredLifetime = pUnicastAddr->PreferredLifetime;
+                addrs[AddrCount].mValidLifetime = pUnicastAddr->ValidLifetime;
+                addrs[AddrCount].mPrefixLength = pUnicastAddr->OnLinkPrefixLength;
+
+                AddrCount++;
+            }
+
+            break;
+        }
+
+    error:
+        free(pIAAList);
+    }
+    else
+    {
+        otLogCritApi("GetAdapterAddresses failed!");
+    }
+
+    // Revert the comparment if necessary
+    if (RevertCompartmentOnExit)
+    {
+        (VOID)SetCurrentThreadCompartmentId(OriginalCompartmentID);
+    }
+
+    return addrs;
 }
 
 OTAPI
@@ -2227,8 +2361,91 @@ otIp6AddressFromString(
     otIp6Address *address
     )
 {
-    (void)RtlIpv6AddressToStringA((PIN6_ADDR)address, (PSTR)str);
-    return kThreadError_None;
+    ThreadError error = kThreadError_None;
+    uint8_t *dst = reinterpret_cast<uint8_t *>(address->mFields.m8);
+    uint8_t *endp = reinterpret_cast<uint8_t *>(address->mFields.m8 + 15);
+    uint8_t *colonp = NULL;
+    uint16_t val = 0;
+    uint8_t count = 0;
+    bool first = true;
+    char ch;
+    uint8_t d;
+
+    memset(address->mFields.m8, 0, 16);
+
+    dst--;
+
+    for (;;)
+    {
+        ch = *str++;
+        d = ch & 0xf;
+
+        if (('a' <= ch && ch <= 'f') || ('A' <= ch && ch <= 'F'))
+        {
+            d += 9;
+        }
+        else if (ch == ':' || ch == '\0' || ch == ' ')
+        {
+            if (count)
+            {
+                if (dst + 2 > endp)
+                {
+                    error = kThreadError_Parse;
+                    goto exit;
+                }
+                *(dst + 1) = static_cast<uint8_t>(val >> 8);
+                *(dst + 2) = static_cast<uint8_t>(val);
+                dst += 2;
+                count = 0;
+                val = 0;
+            }
+            else if (ch == ':')
+            {
+                if (!(colonp == nullptr || first))
+                {
+                    error = kThreadError_Parse;
+                    goto exit;
+                }
+                colonp = dst;
+            }
+
+            if (ch == '\0' || ch == ' ')
+            {
+                break;
+            }
+
+            continue;
+        }
+        else
+        {
+            if (!('0' <= ch && ch <= '9'))
+            {
+                error = kThreadError_Parse;
+                goto exit;
+            }
+        }
+
+        first = false;
+        val = static_cast<uint16_t>((val << 4) | d);
+        if (!(++count <= 4))
+        {
+            error = kThreadError_Parse;
+            goto exit;
+        }
+    }
+
+    while (colonp && dst > colonp)
+    {
+        *endp-- = *dst--;
+    }
+
+    while (endp > dst)
+    {
+        *endp-- = 0;
+    }
+
+exit:
+    return error;
 }
 
 OTAPI 

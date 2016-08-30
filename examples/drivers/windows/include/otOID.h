@@ -66,7 +66,8 @@
         OT_RADIO_CAP_ACK_TIMEOUT                        = 1 << 0,
         // Radio supports MAC retry logic and timers; as well as collision avoidance.
         OT_RADIO_CAP_MAC_RETRY_AND_COLLISION_AVOIDANCE  = 1 << 1,
-        // Radio supports sleeping
+        // Radio supports sleeping. If the device supports sleeping, it is assumed to
+        // default to the sleep state on bring up.
         OT_RADIO_CAP_SLEEP                              = 1 << 2,
     } OT_RADIO_CAPABILITY;
     typedef struct _OT_CAPABILITIES
@@ -84,8 +85,21 @@
 // Radio Mode OIDs
 //
 
+// Used to query/set sleep mode; only used if RadioCapabilities 
+// indicates support for OT_RADIO_CAP_SLEEP.
+#define OID_OT_SLEEP_MODE                           OT_DEFINE_OID(100, OT_OPERATIONAL_OID, OT_OPTIONAL_OID)
+    typedef struct _OT_SLEEP_MODE
+    {
+        #define OT_SLEEP_MODE_REVISION_1 1
+        NDIS_OBJECT_HEADER Header;
+        BOOLEAN            InSleepMode;
+    } OT_SLEEP_MODE, * POT_SLEEP_MODE;
+
+#define SIZEOF_OT_SLEEP_MODE_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(OT_SLEEP_MODE, InSleepMode)
+
 // Used to query/set promiscuous mode
-#define OID_OT_PROMISCUOUS_MODE                     OT_DEFINE_OID(100, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
+#define OID_OT_PROMISCUOUS_MODE                     OT_DEFINE_OID(101, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
     typedef struct _OT_PROMISCUOUS_MODE
     {
         #define OT_PROMISCUOUS_MODE_REVISION_1 1
@@ -97,7 +111,7 @@
     RTL_SIZEOF_THROUGH_FIELD(OT_PROMISCUOUS_MODE, InPromiscuousMode)
 
 // Used to query/set the Pan ID
-#define OID_OT_PAND_ID                              OT_DEFINE_OID(101, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
+#define OID_OT_PAND_ID                              OT_DEFINE_OID(102, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
     typedef struct _OT_PAND_ID
     {
         #define OT_PAND_ID_REVISION_1 1
@@ -109,7 +123,7 @@
     RTL_SIZEOF_THROUGH_FIELD(OT_PAND_ID, PanID)
 
 // Used to query/set the Short Address
-#define OID_OT_SHORT_ADDRESS                        OT_DEFINE_OID(102, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
+#define OID_OT_SHORT_ADDRESS                        OT_DEFINE_OID(103, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
     typedef struct _OT_SHORT_ADDRESS
     {
         #define OT_SHORT_ADDRESS_REVISION_1 1
@@ -121,7 +135,7 @@
     RTL_SIZEOF_THROUGH_FIELD(OT_SHORT_ADDRESS, ShortAddress)
 
 // Used to query/set the Extended Address
-#define OID_OT_EXTENDED_ADDRESS                     OT_DEFINE_OID(103, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
+#define OID_OT_EXTENDED_ADDRESS                     OT_DEFINE_OID(104, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
     typedef struct _OT_EXTENDED_ADDRESS
     {
         #define OT_EXTENDED_ADDRESS_REVISION_1 1
@@ -133,7 +147,7 @@
     RTL_SIZEOF_THROUGH_FIELD(OT_EXTENDED_ADDRESS, ExtendedAddress)
 
 // Used to query/set the current listening channel
-#define OID_OT_CURRENT_CHANNEL                      OT_DEFINE_OID(104, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
+#define OID_OT_CURRENT_CHANNEL                      OT_DEFINE_OID(105, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
     typedef struct _OT_CURRENT_CHANNEL
     {
         #define OT_CURRENT_CHANNEL_REVISION_1 1
@@ -144,17 +158,17 @@
 #define SIZEOF_OT_CURRENT_CHANNEL_REVISION_1 \
     RTL_SIZEOF_THROUGH_FIELD(OT_CURRENT_CHANNEL, Channel)
 
-// Used to query the noise floor (not currently used?)
-#define OID_OT_NOISE_FLOOR                          OT_DEFINE_OID(105, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
-    typedef struct _OT_NOISE_FLOOR
+// Used to query the current RSSI (not currently used?)
+#define OID_OT_RSSI                                 OT_DEFINE_OID(106, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
+    typedef struct _OT_RSSI
     {
-        #define OT_NOISE_FLOOR_REVISION_1 1
+        #define OT_RSSI_REVISION_1 1
         NDIS_OBJECT_HEADER Header;
-        CHAR               NoiseFloor;
-    } OT_NOISE_FLOOR, * POT_NOISE_FLOOR;
+        CHAR               Rssi;
+    } OT_RSSI, * POT_RSSI;
 
-#define SIZEOF_OT_NOISE_FLOOR_REVISION_1 \
-    RTL_SIZEOF_THROUGH_FIELD(OT_NOISE_FLOOR, NoiseFloor)
+#define SIZEOF_OT_RSSI_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(OT_RSSI, Rssi)
 
 //
 // Thread Mode OIDs

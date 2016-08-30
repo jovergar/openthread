@@ -150,6 +150,7 @@ Interpreter::Interpreter(otInstance * aInstance):
 {
 #ifdef OTDLL
     assert(mApiInstance);
+
     if (mApiInstance)
     {
         otDeviceList *aDeviceList = otEnumerateDevices(mApiInstance);
@@ -170,6 +171,7 @@ Interpreter::Interpreter(otInstance * aInstance):
 
         if (mInstancesLength > 0) { mInstance = mInstances[0].aInstance; }
     }
+
 #else
     otSetStateChangedCallback(mInstance, &Interpreter::s_HandleNetifStateChanged, this);
 #endif
