@@ -85,17 +85,15 @@ typedef enum _OTLWF_NOTIF_TYPE
             // Payload for OTLWF_NOTIF_DISCOVER
             struct
             {
+                BOOLEAN                 Valid;
                 otActiveScanResult      Results;
-                otNetworkName           NetworkName;
-                otExtendedPanId         ExtendedPanId;
             } DiscoverPayload;
 
             // Payload for OTLWF_NOTIF_ACTIVE_SCAN
             struct
             {
+                BOOLEAN                 Valid;
                 otActiveScanResult      Results;
-                otNetworkName           NetworkName;
-                otExtendedPanId         ExtendedPanId;
             } ActiveScanPayload;
         };
     } OTLWF_NOTIFICATION, *POTLWF_NOTIFICATION;

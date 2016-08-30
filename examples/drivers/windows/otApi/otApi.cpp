@@ -449,9 +449,6 @@ ProcessNotification(
     }
     else if (Notif->NotifType == OTLWF_NOTIF_DISCOVER)
     {
-        Notif->DiscoverPayload.Results.mExtendedPanId = Notif->DiscoverPayload.ExtendedPanId;
-        Notif->DiscoverPayload.Results.mNetworkName = Notif->DiscoverPayload.NetworkName;
-
         otHandleActiveScanResult Callback = nullptr;
         PVOID                    CallbackContext = nullptr;
 
@@ -467,7 +464,7 @@ ProcessNotification(
 
                 // Set callback
                 Callback = get<1>(aApitInstance->DiscoverCallbacks[i]);
-                CallbackContext = get<2>(aApitInstance->StateChangedCallbacks[i]);
+                CallbackContext = get<2>(aApitInstance->DiscoverCallbacks[i]);
                 break;
             }
         }
@@ -477,7 +474,14 @@ ProcessNotification(
         // Invoke the callback outside the lock
         if (Callback)
         {
-            Callback(&Notif->DiscoverPayload.Results, CallbackContext);
+            if (Notif->DiscoverPayload.Valid)
+            {
+                Callback(&Notif->DiscoverPayload.Results, CallbackContext);
+            }
+            else
+            {
+                Callback(nullptr, CallbackContext);
+            }
 
             // Release ref
             if (RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
@@ -489,9 +493,6 @@ ProcessNotification(
     }
     else if (Notif->NotifType == OTLWF_NOTIF_ACTIVE_SCAN)
     {
-        Notif->ActiveScanPayload.Results.mExtendedPanId = Notif->ActiveScanPayload.ExtendedPanId;
-        Notif->ActiveScanPayload.Results.mNetworkName = Notif->ActiveScanPayload.NetworkName;
-
         otHandleActiveScanResult Callback = nullptr;
         PVOID                    CallbackContext = nullptr;
 
@@ -507,7 +508,7 @@ ProcessNotification(
 
                 // Set callback
                 Callback = get<1>(aApitInstance->ActiveScanCallbacks[i]);
-                CallbackContext = get<2>(aApitInstance->StateChangedCallbacks[i]);
+                CallbackContext = get<2>(aApitInstance->ActiveScanCallbacks[i]);
                 break;
             }
         }
@@ -517,7 +518,14 @@ ProcessNotification(
         // Invoke the callback outside the lock
         if (Callback)
         {
-            Callback(&Notif->ActiveScanPayload.Results, CallbackContext);
+            if (Notif->ActiveScanPayload.Valid)
+            {
+                Callback(&Notif->ActiveScanPayload.Results, CallbackContext);
+            }
+            else
+            {
+                Callback(nullptr, CallbackContext);
+            }
 
             // Release ref
             if (RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
