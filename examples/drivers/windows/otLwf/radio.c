@@ -150,8 +150,8 @@ ThreadError otPlatRadioSetShortAddress(_In_ otInstance *otCtx, uint16_t address)
     ULONG bytesProcessed;
     OT_SHORT_ADDRESS OidBuffer = { {NDIS_OBJECT_TYPE_DEFAULT, OT_SHORT_ADDRESS_REVISION_1, SIZEOF_OT_SHORT_ADDRESS_REVISION_1}, address };
     
-    NT_ASSERT(pFilter->otPhyState != kStateTransmit);
-    if (pFilter->otPhyState == kStateTransmit) return kThreadError_Busy;
+    //NT_ASSERT(pFilter->otPhyState != kStateTransmit);
+    //if (pFilter->otPhyState == kStateTransmit) return kThreadError_Busy;
 
     LogInfo(DRIVER_DEFAULT, "Interface %!GUID! set Short Mac Address: %X", &pFilter->InterfaceGuid, address);
 
@@ -236,9 +236,33 @@ ThreadError otPlatRadioSleep(_In_ otInstance *otCtx)
     if (pFilter->otPhyState != kStateSleep && pFilter->otPhyState != kStateReceive) 
         return kThreadError_Busy;
 
-    pFilter->otPhyState = kStateSleep;
-    
-    LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateSleep.", pFilter);
+    if (pFilter->otPhyState != kStateSleep)
+    {
+        pFilter->otPhyState = kStateSleep;
+        LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateSleep.", pFilter);
+        
+        if ((pFilter->MiniportCapabilities.RadioCapabilities & OT_RADIO_CAP_SLEEP) != 0)
+        {
+            NDIS_STATUS status;
+            ULONG bytesProcessed;
+            OT_SLEEP_MODE OidBuffer = { {NDIS_OBJECT_TYPE_DEFAULT, OT_SLEEP_MODE_REVISION_1, SIZEOF_OT_SLEEP_MODE_REVISION_1}, TRUE };
+
+            // Indicate to the miniport
+            status = 
+                otLwfSendInternalRequest(
+                    pFilter,
+                    NdisRequestSetInformation,
+                    OID_OT_SLEEP_MODE,
+                    &OidBuffer,
+                    sizeof(OidBuffer),
+                    &bytesProcessed
+                    );
+            if (status != NDIS_STATUS_SUCCESS)
+            {
+                LogError(DRIVER_DEFAULT, "Set for OID_OT_SLEEP_MODE failed, %!NDIS_STATUS!", status);
+            }
+        }
+    }
 
     return kThreadError_None;
 }
@@ -251,6 +275,33 @@ ThreadError otPlatRadioReceive(_In_ otInstance *otCtx, uint8_t aChannel)
     if (pFilter->otPhyState == kStateDisabled) return kThreadError_Busy;
     
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
+    
+    // If we are currently in the sleep state and the minport supports sleep 
+    // mode, come out of sleep mode now.
+    if (pFilter->otPhyState == kStateSleep)
+    {        
+        if ((pFilter->MiniportCapabilities.RadioCapabilities & OT_RADIO_CAP_SLEEP) != 0)
+        {
+            NDIS_STATUS status;
+            ULONG bytesProcessed;
+            OT_SLEEP_MODE OidBuffer = { {NDIS_OBJECT_TYPE_DEFAULT, OT_SLEEP_MODE_REVISION_1, SIZEOF_OT_SLEEP_MODE_REVISION_1}, FALSE };
+
+            // Indicate to the miniport
+            status = 
+                otLwfSendInternalRequest(
+                    pFilter,
+                    NdisRequestSetInformation,
+                    OID_OT_SLEEP_MODE,
+                    &OidBuffer,
+                    sizeof(OidBuffer),
+                    &bytesProcessed
+                    );
+            if (status != NDIS_STATUS_SUCCESS)
+            {
+                LogError(DRIVER_DEFAULT, "Set for OID_OT_SLEEP_MODE failed, %!NDIS_STATUS!", status);
+            }
+        }
+    }
 
     // Update current channel if different
     if (pFilter->otCurrentListenChannel != aChannel)
@@ -330,14 +381,14 @@ otLwfRadioReceiveFrame(
 
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
 
-    NT_ASSERT(pFilter->otPhyState == kStateReceive);
-    if (pFilter->otPhyState == kStateReceive)
+    NT_ASSERT(pFilter->otPhyState > kStateDisabled);
+    if (pFilter->otPhyState > kStateDisabled)
     {
         otPlatRadioReceiveDone(pFilter->otCtx, &pFilter->otReceiveFrame, kThreadError_None);
     }
     else
     {
-        LogVerbose(DRIVER_DATA_PATH, "MAC Frame Dropped: Wrong State, %u", (ULONG)pFilter->otPhyState);
+        LogVerbose(DRIVER_DATA_PATH, "Mac frame dropped.");
     }
     
     LogFuncExit(DRIVER_DATA_PATH);

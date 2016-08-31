@@ -85,17 +85,15 @@ typedef enum _OTLWF_NOTIF_TYPE
             // Payload for OTLWF_NOTIF_DISCOVER
             struct
             {
+                BOOLEAN                 Valid;
                 otActiveScanResult      Results;
-                otNetworkName           NetworkName;
-                otExtendedPanId         ExtendedPanId;
             } DiscoverPayload;
 
             // Payload for OTLWF_NOTIF_ACTIVE_SCAN
             struct
             {
+                BOOLEAN                 Valid;
                 otActiveScanResult      Results;
-                otNetworkName           NetworkName;
-                otExtendedPanId         ExtendedPanId;
             } ActiveScanPayload;
         };
     } OTLWF_NOTIFICATION, *POTLWF_NOTIFICATION;
@@ -457,13 +455,23 @@ typedef enum _OTLWF_NOTIF_TYPE
     // GUID - InterfaceGuid
     // otRouterInfo - aParentInfo
     
+#define IOCTL_OTLWF_OT_SINGLETON \
+    OTLWF_CTL_CODE(164, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // BOOLEAN - aSingleton
+    
+#define IOCTL_OTLWF_OT_MAC_COUNTERS \
+    OTLWF_CTL_CODE(165, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // otMacCounters - aCounters
+
 #define IOCTL_OTLWF_OT_MAX_CHILDREN \
-    OTLWF_CTL_CODE(164, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    OTLWF_CTL_CODE(166, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
     // GUID - InterfaceGuid
     // uint8_t - aMaxChildren
 
 // OpenThread function IOCTL codes
 #define MIN_OTLWF_IOCTL_FUNC_CODE 100
-#define MAX_OTLWF_IOCTL_FUNC_CODE 164
+#define MAX_OTLWF_IOCTL_FUNC_CODE 166
 
 #endif //__OTLWFIOCTL_H__

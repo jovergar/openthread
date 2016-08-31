@@ -880,11 +880,15 @@ void otSetStateChangedCallback(otInstance *aInstance, otStateChangedCallback aCa
 const char *otGetVersionString(void)
 {
     static const char sVersion[] =
-        PACKAGE_NAME "/" PACKAGE_VERSION "; "
+        PACKAGE_NAME "/" PACKAGE_VERSION
 #ifdef  PLATFORM_INFO
-        PLATFORM_INFO "; "
+        "; " PLATFORM_INFO
 #endif
-        __DATE__ " " __TIME__;
+#if !defined(WINDOWS_KERNEL) || defined(DBG)
+        "; " __DATE__ " " __TIME__;
+#else
+        ;
+#endif
 
     return sVersion;
 }
@@ -1285,7 +1289,7 @@ exit:
     return error;
 }
 
-ThreadError otSetActiveDataset(otInstance *aInstance, otOperationalDataset *aDataset)
+ThreadError otSetActiveDataset(otInstance *aInstance, const otOperationalDataset *aDataset)
 {
     ThreadError error;
 
@@ -1309,7 +1313,7 @@ exit:
     return error;
 }
 
-ThreadError otSetPendingDataset(otInstance *aInstance, otOperationalDataset *aDataset)
+ThreadError otSetPendingDataset(otInstance *aInstance, const otOperationalDataset *aDataset)
 {
     ThreadError error;
 

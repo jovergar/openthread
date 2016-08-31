@@ -196,7 +196,7 @@ OTAPI void otApiFinalize(otApiInstance *aApiInstance);
  * @param[in] aMem  The memory to free.
  *
  */
-OTAPI void otFreeMemory(void *aMem);
+OTAPI void otFreeMemory(const void *aMem);
 
 /**
  * This function pointer is called to notify addition and removal of OpenThread devices.
@@ -250,6 +250,16 @@ OTAPI otInstance *otInstanceInit(otApiInstance *aApiInstance, const GUID *aDevic
  *
  */
 OTAPI GUID otGetDeviceGuid(otInstance *aInstance);
+
+/**
+ * This queries the Windows device/interface IfIndex for the otContext.
+ *
+ * @param[in] aContext  The OpenThread context structure.
+ *
+ * @retval uint32_t  The device IfIndex.
+ *
+ */
+OTAPI uint32_t otGetDeviceIfIndex(otInstance *aInstance);
 
 /**
  * This queries the Windows Compartment ID for the otContext.
@@ -387,7 +397,7 @@ OTAPI ThreadError otThreadStop(otInstance *aInstance);
  * @retval FALSE  It is a child or is not a single router in the network.
  *
  */
-bool otIsSingleton(otInstance *aInstance);
+OTAPI bool otIsSingleton(otInstance *aInstance);
 
 /**
  * This function pointer is called during an IEEE 802.15.4 Active Scan when an IEEE 802.15.4 Beacon is received or
@@ -924,7 +934,7 @@ OTAPI ThreadError otGetActiveDataset(otInstance *aInstance, otOperationalDataset
  * @retval kThreadError_InvalidArgs  @p aDataset was NULL.
  *
  */
-OTAPI ThreadError otSetActiveDataset(otInstance *aInstance, otOperationalDataset *aDataset);
+OTAPI ThreadError otSetActiveDataset(otInstance *aInstance, const otOperationalDataset *aDataset);
 
 /**
  * This function gets the Pending Operational Dataset.
@@ -949,7 +959,7 @@ OTAPI ThreadError otGetPendingDataset(otInstance *aInstance, otOperationalDatase
  * @retval kThreadError_InvalidArgs  @p aDataset was NULL.
  *
  */
-OTAPI ThreadError otSetPendingDataset(otInstance *aInstance, otOperationalDataset *aDataset);
+OTAPI ThreadError otSetPendingDataset(otInstance *aInstance, const otOperationalDataset *aDataset);
 
 /**
  * Get the data poll period of sleepy end deivce.
@@ -1778,8 +1788,6 @@ ThreadError otSetLinkPromiscuous(otInstance *aInstance, bool aPromiscuous);
  */
 OTAPI const otMacCounters *otGetMacCounters(otInstance *aInstance);
 
-#ifndef OTDLL
-
 /**
  * @}
  *
@@ -1794,7 +1802,7 @@ OTAPI const otMacCounters *otGetMacCounters(otInstance *aInstance);
  * @retval TRUE   The two IPv6 addresses are the same.
  * @retval FALSE  The two IPv6 addresses are not the same.
  */
-bool otIsIp6AddressEqual(const otIp6Address *a, const otIp6Address *b);
+OTAPI bool otIsIp6AddressEqual(const otIp6Address *a, const otIp6Address *b);
 
 /**
  * Convert a human-readable IPv6 address string into a binary representation.
@@ -1805,7 +1813,20 @@ bool otIsIp6AddressEqual(const otIp6Address *a, const otIp6Address *b);
  * @retval kThreadErrorNone        Successfully parsed the string.
  * @retval kThreadErrorInvalidArg  Failed to parse the string.
  */
-ThreadError otIp6AddressFromString(const char *aString, otIp6Address *aAddress);
+OTAPI ThreadError otIp6AddressFromString(const char *aString, otIp6Address *aAddress);
+
+/**
+ * This function returns the prefix match length (bits) for two IPv6 addresses.
+ *
+ * @param[in]  aFirst   A pointer to the first IPv6 address.
+ * @param[in]  aSecond  A pointer to the second IPv6 address.
+ *
+ * @returns  The prefix match length in bits.
+ *
+ */
+OTAPI uint8_t otIp6PrefixMatch(const otIp6Address *aFirst, const otIp6Address *aSecond);
+
+#ifndef OTDLL
 
 /**
  * @addtogroup messages  Message Buffers
@@ -2084,17 +2105,6 @@ bool otIsIcmpEchoEnabled(otInstance *aInstance);
  *
  */
 void otSetIcmpEchoEnabled(otInstance *aInstance, bool aEnabled);
-
-/**
- * This function returns the prefix match length (bits) for two IPv6 addresses.
- *
- * @param[in]  aFirst   A pointer to the first IPv6 address.
- * @param[in]  aSecond  A pointer to the second IPv6 address.
- *
- * @returns  The prefix match length in bits.
- *
- */
-uint8_t otIp6PrefixMatch(const otIp6Address *aFirst, const otIp6Address *aSecond);
 
 /**
  * @}

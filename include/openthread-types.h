@@ -35,6 +35,10 @@
 #ifndef OPENTHREAD_TYPES_H_
 #define OPENTHREAD_TYPES_H_
 
+#ifdef OTDLL
+#include <guiddef.h>
+#endif
+
 #include <openthread-std-types.h>
 #include <platform/toolchain.h>
 
@@ -365,6 +369,9 @@ typedef struct otOperationalDataset
 /**
  * This structure represents an MLE Link Mode configuration.
  */
+#ifdef _WIN32
+__declspec(align(4))
+#endif
 typedef struct otLinkModeConfig
 {
     /**
@@ -612,6 +619,9 @@ typedef struct
  * This structure holds diagnostic information for a Thread Router
  *
  */
+#ifdef _WIN32
+__declspec(align(4))
+#endif
 typedef struct
 {
     otExtAddress   mExtAddress;            ///< IEEE 802.15.4 Extended Address

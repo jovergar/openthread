@@ -7,6 +7,10 @@
 
 #include <windows.h>
 #include <winnt.h>
+#include <winsock2.h>
+#include <ws2ipdef.h>
+#include <IPHlpApi.h>
+#include <mstcpip.h>
 #include <new>
 #include <vector>
 #include <tuple>

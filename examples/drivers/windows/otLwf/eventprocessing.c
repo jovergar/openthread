@@ -677,34 +677,13 @@ otLwfEventWorkerThread(
             {
                 POTLWF_NBL_EVENT Event = NULL;
                 NdisAcquireSpinLock(&pFilter->EventsLock);
-                
-                if (IsListeningForPackets(pFilter))
-                {
-                    // Just get the first item ('send' or 'recv'), if available
-                    if (!IsListEmpty(&pFilter->NBLsHead))
-                    {
-                        PLIST_ENTRY Link = RemoveHeadList(&pFilter->NBLsHead);
-                        Event = CONTAINING_RECORD(Link, OTLWF_NBL_EVENT, Link);
-                        if (Event->Received) pFilter->CountPendingRecvNBLs--;
-                    }
-                }
-                else
-                {
-                    // Get the next 'send' item to process
-                    PLIST_ENTRY Link = pFilter->NBLsHead.Flink;
-                    while (Link != &pFilter->NBLsHead)
-                    {
-                        POTLWF_NBL_EVENT _Event = CONTAINING_RECORD(Link, OTLWF_NBL_EVENT, Link);
-                        Link = Link->Flink;
 
-                        // Only return it if not 'recv'
-                        if (_Event->Received == FALSE)
-                        {
-                            RemoveEntryList(&_Event->Link);
-                            Event = _Event;
-                            break;
-                        }
-                    }
+                // Just get the first item ('send' or 'recv'), if available
+                if (!IsListEmpty(&pFilter->NBLsHead))
+                {
+                    PLIST_ENTRY Link = RemoveHeadList(&pFilter->NBLsHead);
+                    Event = CONTAINING_RECORD(Link, OTLWF_NBL_EVENT, Link);
+                    if (Event->Received) pFilter->CountPendingRecvNBLs--;
                 }
 
                 NdisReleaseSpinLock(&pFilter->EventsLock);

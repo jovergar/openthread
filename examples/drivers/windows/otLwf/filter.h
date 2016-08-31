@@ -193,12 +193,6 @@ _inline BOOLEAN IsAttached(_In_ otDeviceRole role)
     return role > kDeviceRoleDetached;
 }
 
-// Helper function to indicate OpenThread is ready to process a receive packet
-_inline BOOLEAN IsListeningForPackets(_In_ PMS_FILTER pFilter)
-{
-    return pFilter->otPhyState == kStateReceive;
-}
-
 //
 // function prototypes
 //

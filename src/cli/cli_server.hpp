@@ -34,7 +34,10 @@
 #ifndef CLI_SERVER_HPP_
 #define CLI_SERVER_HPP_
 
+#include <openthread-types.h>
+#ifndef OTDLL
 #include <common/message.hpp>
+#endif
 
 namespace Thread {
 namespace Cli {

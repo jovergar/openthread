@@ -37,9 +37,15 @@
 #include <stdarg.h>
 
 #include <cli/cli_server.hpp>
+#ifndef OTDLL
 #include <net/icmp6.hpp>
 #include <common/timer.hpp>
 #include <openthread-config.h>
+#endif
+
+#ifdef OTDLL
+#define MAX_CLI_OT_INSTANCES 64
+#endif
 
 namespace Thread {
 
@@ -72,10 +78,19 @@ class Interpreter
 {
 public:
 
+#ifdef OTDLL
     /**
      * Constructor
      */
+    Interpreter();
+#else
+    /**
+     * Constructor
+     *
+     * @param[in]  aInstance  The OpenThread instance structure.
+     */
     Interpreter(otInstance *aInstance);
+#endif
 
     /**
      * This method interprets a CLI command.
@@ -187,31 +202,64 @@ private:
     void ProcessDiag(int argc, char *argv[]);
 #endif
 
+#ifdef OTDLL
+    void ProcessInstanceList(int argc, char *argv[]);
+    void ProcessInstance(int argc, char *argv[]);
+#endif
+
+#ifndef OTDLL
     static void s_HandleEchoResponse(void *aContext, Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     static void s_HandlePingTimer(void *aContext);
+#endif
     static void s_HandleActiveScanResult(otActiveScanResult *aResult, void *aContext);
     static void s_HandleNetifStateChanged(uint32_t aFlags, void *aContext);
+#ifndef OTDLL
     static void s_HandleLinkPcapReceive(const RadioPacket *aFrame, void *aContext);
+#endif
 
+#ifndef OTDLL
     void HandleEchoResponse(Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     void HandlePingTimer();
+#endif
     void HandleActiveScanResult(otActiveScanResult *aResult);
+#ifdef OTDLL
+    void HandleNetifStateChanged(otInstance *aInstance, uint32_t aFlags);
+#else
     void HandleNetifStateChanged(uint32_t aFlags);
+#endif
+#ifndef OTDLL
     void HandleLinkPcapReceive(const RadioPacket *aFrame);
+#endif
 
     static const struct Command sCommands[];
     otNetifAddress sAddress;
 
+    Server *sServer;
+
+#ifndef OTDLL
     Ip6::SockAddr sSockAddr;
     Ip6::IcmpEcho sIcmpEcho;
-    Server *sServer;
     uint8_t sEchoRequest[1500];
     uint16_t sLength;
     uint16_t sCount;
     uint32_t sInterval;
     Timer sPingTimer;
+#endif
 
     otInstance *mInstance;
+
+#ifdef OTDLL
+    otApiInstance *mApiInstance;
+
+    struct otCliContext
+    {
+        Interpreter *aInterpreter;
+        otInstance  *aInstance;
+    };
+    otCliContext mInstances[MAX_CLI_OT_INSTANCES];
+    uint8_t mInstancesLength;
+    uint8_t mInstanceIndex;
+#endif
 };
 
 }  // namespace Cli

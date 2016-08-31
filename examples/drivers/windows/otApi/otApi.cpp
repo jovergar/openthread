@@ -37,6 +37,9 @@ using namespace std;
 // amount of time each synchronous IOCTL should take.
 const DWORD c_MaxOverlappedWaitTimeMS = 10 * 1000;
 
+// Version string returned by the API
+const char c_Version[] = "Windows"; // TODO - What should we really put here?
+
 typedef tuple<otDeviceAvailabilityChangedCallback,PVOID> otApiDeviceAvailabilityCallback;
 typedef tuple<GUID,otHandleActiveScanResult,PVOID> otApiActiveScanCallback;
 typedef tuple<GUID,otStateChangedCallback,PVOID> otApiStateChangeCallback;
@@ -72,7 +75,7 @@ typedef struct otApiInstance
         DeviceAvailabilityCallbacks((otDeviceAvailabilityChangedCallback)nullptr, (PVOID)nullptr)
     { 
         InitializeCriticalSection(&CallbackLock);
-		RtlInitializeReferenceCount(&CallbackRefCount);
+        RtlInitializeReferenceCount(&CallbackRefCount);
     }
 
     ~otApiInstance()
@@ -138,6 +141,7 @@ typedef struct otApiInstance
 typedef struct otInstance
 {
     otApiInstance   *ApiHandle;      // Pointer to the Api handle
+    NET_IFINDEX      InterfaceIndex; // Interface Index
     GUID             InterfaceGuid;  // Interface guid
     ULONG            CompartmentID;  // Interface Compartment ID
 
@@ -268,8 +272,8 @@ otApiFinalize(
     
     otLogFuncEntry();
 
-	// If we never got the handle, nothing left to clean up
-	if (aApitInstance->DeviceHandle == INVALID_HANDLE_VALUE) goto exit;
+    // If we never got the handle, nothing left to clean up
+    if (aApitInstance->DeviceHandle == INVALID_HANDLE_VALUE) goto exit;
 
     //
     // Make sure we unregister callbacks
@@ -347,8 +351,8 @@ otApiFinalize(
     {
         CloseHandle(aApitInstance->CallbackCompleteEvent);
     }
-	
-	// Close the device handle
+    
+    // Close the device handle
     CloseHandle(aApitInstance->DeviceHandle);
 
 exit:
@@ -361,10 +365,10 @@ exit:
 OTAPI 
 void 
 otFreeMemory(
-    _In_ void *mem
+    _In_ const void *mem
     )
 {
-    free(mem);
+    free((void*)mem);
 }
 
 // Handles cleanly invoking the register callback
@@ -445,9 +449,6 @@ ProcessNotification(
     }
     else if (Notif->NotifType == OTLWF_NOTIF_DISCOVER)
     {
-        Notif->DiscoverPayload.Results.mExtendedPanId = Notif->DiscoverPayload.ExtendedPanId;
-        Notif->DiscoverPayload.Results.mNetworkName = Notif->DiscoverPayload.NetworkName;
-
         otHandleActiveScanResult Callback = nullptr;
         PVOID                    CallbackContext = nullptr;
 
@@ -463,7 +464,7 @@ ProcessNotification(
 
                 // Set callback
                 Callback = get<1>(aApitInstance->DiscoverCallbacks[i]);
-                CallbackContext = get<2>(aApitInstance->StateChangedCallbacks[i]);
+                CallbackContext = get<2>(aApitInstance->DiscoverCallbacks[i]);
                 break;
             }
         }
@@ -473,7 +474,14 @@ ProcessNotification(
         // Invoke the callback outside the lock
         if (Callback)
         {
-            Callback(&Notif->DiscoverPayload.Results, CallbackContext);
+            if (Notif->DiscoverPayload.Valid)
+            {
+                Callback(&Notif->DiscoverPayload.Results, CallbackContext);
+            }
+            else
+            {
+                Callback(nullptr, CallbackContext);
+            }
 
             // Release ref
             if (RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
@@ -485,9 +493,6 @@ ProcessNotification(
     }
     else if (Notif->NotifType == OTLWF_NOTIF_ACTIVE_SCAN)
     {
-        Notif->ActiveScanPayload.Results.mExtendedPanId = Notif->ActiveScanPayload.ExtendedPanId;
-        Notif->ActiveScanPayload.Results.mNetworkName = Notif->ActiveScanPayload.NetworkName;
-
         otHandleActiveScanResult Callback = nullptr;
         PVOID                    CallbackContext = nullptr;
 
@@ -503,7 +508,7 @@ ProcessNotification(
 
                 // Set callback
                 Callback = get<1>(aApitInstance->ActiveScanCallbacks[i]);
-                CallbackContext = get<2>(aApitInstance->StateChangedCallbacks[i]);
+                CallbackContext = get<2>(aApitInstance->ActiveScanCallbacks[i]);
                 break;
             }
         }
@@ -513,7 +518,14 @@ ProcessNotification(
         // Invoke the callback outside the lock
         if (Callback)
         {
-            Callback(&Notif->ActiveScanPayload.Results, CallbackContext);
+            if (Notif->ActiveScanPayload.Valid)
+            {
+                Callback(&Notif->ActiveScanPayload.Results, CallbackContext);
+            }
+            else
+            {
+                Callback(nullptr, CallbackContext);
+            }
 
             // Release ref
             if (RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
@@ -660,13 +672,13 @@ SendIOCTL(
         goto error;
     }
 
-	if (dwBytesReturned != nOutBufferSize)
-	{
-		dwError = ERROR_INVALID_DATA;
+    if (dwBytesReturned != nOutBufferSize)
+    {
+        dwError = ERROR_INVALID_DATA;
         otLogCritApi("GetOverlappedResult returned invalid output size, expected=%u actual=%u", 
-			         nOutBufferSize, dwBytesReturned);
-		goto error;
-	}
+                     nOutBufferSize, dwBytesReturned);
+        goto error;
+    }
 
 error:
 
@@ -808,7 +820,7 @@ otEnumerateDevices(
     DWORD dwBytesReturned = 0;
     otDeviceList* pDeviceList = nullptr;
     DWORD cbDeviceList = sizeof(otDeviceList);
-	
+    
     otLogFuncEntry();
 
     Overlapped.hEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -826,7 +838,7 @@ otEnumerateDevices(
         dwError = ERROR_NOT_ENOUGH_MEMORY;
         goto error;
     }
-	RtlZeroMemory(pDeviceList, cbDeviceList);
+    RtlZeroMemory(pDeviceList, cbDeviceList);
     
     // Query in a loop to account for it changing between calls
     while (true)
@@ -885,7 +897,7 @@ otEnumerateDevices(
             dwError = ERROR_NOT_ENOUGH_MEMORY;
             goto error;
         }
-		RtlZeroMemory(pDeviceList, cbDeviceList);
+        RtlZeroMemory(pDeviceList, cbDeviceList);
     }
 
 error:
@@ -900,7 +912,7 @@ error:
     {
         CloseHandle(Overlapped.hEvent);
     }
-	
+    
     otLogFuncExitMsg("%d devices", pDeviceList == nullptr ? -1 : (int)pDeviceList->aDevicesLength);
 
     return pDeviceList;
@@ -931,6 +943,15 @@ otInstanceInit(
             aInstance->ApiHandle = aApitInstance;
             aInstance->InterfaceGuid = *aDeviceGuid;
             aInstance->CompartmentID = Result.CompartmentID;
+
+            NET_LUID InterfaceLuid;
+            if (ConvertInterfaceGuidToLuid(aDeviceGuid, &InterfaceLuid) != ERROR_SUCCESS ||
+                ConvertInterfaceLuidToIndex(&InterfaceLuid, &aInstance->InterfaceIndex) != ERROR_SUCCESS)
+            {
+                otLogCritApi("Failed to convert interface guid to index!");
+                free(aInstance);
+                aInstance = nullptr;
+            }
         }
     }
 
@@ -948,11 +969,32 @@ otGetDeviceGuid(
 
 OTAPI 
 uint32_t 
+otGetDeviceIfIndex(
+    otInstance *aInstance
+    )
+{
+    return aInstance->InterfaceIndex;
+}
+
+OTAPI 
+uint32_t 
 otGetCompartmentId(
     _In_ otInstance *aInstance
     )
 {
     return aInstance->CompartmentID;
+}
+
+OTAPI 
+const char *
+otGetVersionString()
+{
+    char* szVersion = (char*)malloc(sizeof(c_Version));
+    if (szVersion)
+    {
+        memcpy_s(szVersion, sizeof(c_Version), c_Version, sizeof(c_Version));
+    }
+    return szVersion;
 }
 
 OTAPI 
@@ -1018,6 +1060,17 @@ otThreadStop(
     )
 {
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_THREAD, (BOOLEAN)FALSE));
+}
+
+OTAPI 
+bool 
+otIsSingleton(
+    _In_ otInstance *aInstance
+    )
+{
+    BOOLEAN Result = FALSE;
+    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_SINGLETON, &Result);
+    return Result != FALSE;
 }
 
 OTAPI 
@@ -1221,7 +1274,7 @@ otGetLinkMode(
     )
 {
     otLinkModeConfig Result = {0};
-	static_assert(sizeof(Result) == 1, "otLinkModeConfig must be 1 byte");
+    static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
     (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LINK_MODE, &Result);
     return Result;
 }
@@ -1233,7 +1286,7 @@ otSetLinkMode(
     otLinkModeConfig aConfig
     )
 {
-	static_assert(sizeof(aConfig) == 1, "otLinkModeConfig must be 1 byte");
+    static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_LINK_MODE, aConfig));
 }
 
@@ -1244,7 +1297,12 @@ otGetMasterKey(
     _Out_ uint8_t *aKeyLength
     )
 {
-    otMasterKey *Result = (otMasterKey*)malloc(sizeof(otMasterKey) + sizeof(uint8_t));
+    struct otMasterKeyAndLength
+    {
+        otMasterKey Key;
+        uint8_t Length;
+    };
+    otMasterKeyAndLength *Result = (otMasterKeyAndLength*)malloc(sizeof(otMasterKeyAndLength));
     if (Result == nullptr) return nullptr;
     if (QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MASTER_KEY, Result) != ERROR_SUCCESS)
     {
@@ -1253,7 +1311,7 @@ otGetMasterKey(
     }
     else
     {
-        *aKeyLength = *(uint8_t*)(Result + 1);
+        *aKeyLength = Result->Length;
     }
     return (uint8_t*)Result;
 }
@@ -1480,15 +1538,130 @@ otGetShortAddress(
     return Result;
 }
 
+BOOL
+GetAdapterAddresses(
+    PIP_ADAPTER_ADDRESSES * ppIAA
+)
+{
+    PIP_ADAPTER_ADDRESSES pIAA = NULL;
+    DWORD len = 0;
+    DWORD flags;
+
+    flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+    if (GetAdaptersAddresses(AF_INET6, flags, NULL, NULL, &len) != ERROR_BUFFER_OVERFLOW)
+        return FALSE;
+
+    pIAA = (PIP_ADAPTER_ADDRESSES)malloc(len);
+    if (pIAA) {
+        GetAdaptersAddresses(AF_INET6, flags, NULL, pIAA, &len);
+        *ppIAA = pIAA;
+        return TRUE;
+    }
+    return FALSE;
+}
+
 OTAPI
 const otNetifAddress *
 otGetUnicastAddresses(
     _In_ otInstance *aInstance
     )
 {
-    // TODO
-    UNREFERENCED_PARAMETER(aInstance);
-    return nullptr;
+    // Put the current thead in the correct compartment
+    bool RevertCompartmentOnExit = false;
+    ULONG OriginalCompartmentID = GetCurrentThreadCompartmentId();
+    if (OriginalCompartmentID != aInstance->CompartmentID)
+    {
+        DWORD dwError = ERROR_SUCCESS;
+        if ((dwError = SetCurrentThreadCompartmentId(aInstance->CompartmentID)) != ERROR_SUCCESS)
+        {
+            otLogCritApi("SetCurrentThreadCompartmentId failed, %!WINERROR!", dwError);
+            return nullptr;
+        }
+        RevertCompartmentOnExit = true;
+    }
+
+    otNetifAddress *addrs = nullptr;
+
+    // Query the current adapter addresses and format them in the proper output format
+    PIP_ADAPTER_ADDRESSES pIAAList;
+    if (GetAdapterAddresses(&pIAAList))
+    {
+        ULONG AddrCount = 0;
+
+        // Loop through all the interfaces
+        for (auto pIAA = pIAAList; pIAA != nullptr; pIAA = pIAA->Next) 
+        {
+            // Look for the right interface
+            if (pIAA->Ipv6IfIndex != aInstance->InterfaceIndex) continue;
+
+            // Look through all unicast addresses
+            for (auto pUnicastAddr = pIAA->FirstUnicastAddress; 
+                 pUnicastAddr != nullptr; 
+                 pUnicastAddr = pUnicastAddr->Next)
+            {
+                AddrCount++;
+            }
+
+            break;
+        }
+
+        // Allocate the addresses
+        addrs = (otNetifAddress*)malloc(AddrCount * sizeof(otNetifAddress));
+        if (addrs == nullptr)
+        {
+            otLogWarnApi("Not enough memory to alloc otNetifAddress array");
+            goto error;
+        }
+        ZeroMemory(addrs, AddrCount * sizeof(otNetifAddress));
+
+        // Initialize the next pointers
+        for (ULONG i = 0; i < AddrCount; i++)
+        {
+            addrs[i].mNext = (i + 1 == AddrCount) ? nullptr : &addrs[i + 1];
+        }
+
+        AddrCount = 0;
+
+        // Loop through all the interfaces
+        for (auto pIAA = pIAAList; pIAA != nullptr; pIAA = pIAA->Next) 
+        {
+            // Look for the right interface
+            if (pIAA->Ipv6IfIndex != aInstance->InterfaceIndex) continue;
+
+            // Look through all unicast addresses
+            for (auto pUnicastAddr = pIAA->FirstUnicastAddress; 
+                 pUnicastAddr != nullptr; 
+                 pUnicastAddr = pUnicastAddr->Next)
+            {
+                LPSOCKADDR_IN6 pAddr = (LPSOCKADDR_IN6)pUnicastAddr->Address.lpSockaddr;
+
+                // Copy the necessary parameters
+                memcpy(&addrs[AddrCount].mAddress, &pAddr->sin6_addr, sizeof(pAddr->sin6_addr));
+                addrs[AddrCount].mPreferredLifetime = pUnicastAddr->PreferredLifetime;
+                addrs[AddrCount].mValidLifetime = pUnicastAddr->ValidLifetime;
+                addrs[AddrCount].mPrefixLength = pUnicastAddr->OnLinkPrefixLength;
+
+                AddrCount++;
+            }
+
+            break;
+        }
+
+    error:
+        free(pIAAList);
+    }
+    else
+    {
+        otLogCritApi("GetAdapterAddresses failed!");
+    }
+
+    // Revert the comparment if necessary
+    if (RevertCompartmentOnExit)
+    {
+        (VOID)SetCurrentThreadCompartmentId(OriginalCompartmentID);
+    }
+
+    return addrs;
 }
 
 OTAPI
@@ -1544,10 +1717,10 @@ OTAPI
 ThreadError
 otSetActiveDataset(
     _In_ otInstance *aInstance, 
-    _In_ otOperationalDataset *aDataset
+    _In_ const otOperationalDataset *aDataset
     )
 {
-    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ACTIVE_DATASET, (const otOperationalDataset*)aDataset));
+    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ACTIVE_DATASET, aDataset));
 }
 
 OTAPI
@@ -1564,10 +1737,10 @@ OTAPI
 ThreadError
 otSetPendingDataset(
     _In_ otInstance *aInstance, 
-    _In_ otOperationalDataset *aDataset
+    _In_ const otOperationalDataset *aDataset
     )
 {
-    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_PENDING_DATASET, (const otOperationalDataset*)aDataset));
+    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_PENDING_DATASET, aDataset));
 }
 
 OTAPI 
@@ -1876,7 +2049,7 @@ otBecomeChild(
     )
 {
     uint8_t Role = kDeviceRoleDetached;
-	uint8_t Filter = (uint8_t)aFilter;
+    uint8_t Filter = (uint8_t)aFilter;
 
     BYTE Buffer[sizeof(GUID) + sizeof(Role) + sizeof(Filter)];
     memcpy(Buffer, &aInstance->InterfaceGuid, sizeof(GUID));
@@ -1996,7 +2169,7 @@ otSetAssignLinkQuality(
     memcpy(Buffer, &aInstance->InterfaceGuid, sizeof(GUID));
     memcpy(Buffer + sizeof(GUID), aExtAddr, sizeof(otExtAddress));
     memcpy(Buffer + sizeof(GUID) + sizeof(otExtAddress), &aLinkQuality, sizeof(aLinkQuality));
-    (void)SendIOCTL(aInstance->ApiHandle, IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY, Buffer, sizeof(Buffer), NULL, 0);
+    (void)SendIOCTL(aInstance->ApiHandle, IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY, Buffer, sizeof(Buffer), nullptr, 0);
 }
 
 OTAPI 
@@ -2146,6 +2319,7 @@ otGetParentInfo(
     _Out_ otRouterInfo *aParentInfo
     )
 {
+    static_assert(sizeof(otRouterInfo) == 20, "The size of otRouterInfo should be 20 bytes");
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_PARENT_INFO, aParentInfo));
 }
 
@@ -2158,4 +2332,159 @@ otGetStableNetworkDataVersion(
     uint8_t Result = 0xFF;
     (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION, &Result);
     return Result;
+}
+
+OTAPI
+const otMacCounters*
+otGetMacCounters(
+    _In_ otInstance *aInstance
+    )
+{
+    otMacCounters* aCounters = (otMacCounters*)malloc(sizeof(otMacCounters));
+    if (aCounters)
+    {
+        if (ERROR_SUCCESS != QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_COUNTERS, aCounters))
+        {
+            free(aCounters);
+            aCounters = nullptr;
+        }
+    }
+    return aCounters;
+}
+
+OTAPI
+bool 
+otIsIp6AddressEqual(
+    const otIp6Address *a, 
+    const otIp6Address *b
+    )
+{
+    return memcmp(a->mFields.m8, b->mFields.m8, sizeof(otIp6Address)) == 0;
+}
+
+OTAPI
+ThreadError 
+otIp6AddressFromString(
+    const char *str, 
+    otIp6Address *address
+    )
+{
+    ThreadError error = kThreadError_None;
+    uint8_t *dst = reinterpret_cast<uint8_t *>(address->mFields.m8);
+    uint8_t *endp = reinterpret_cast<uint8_t *>(address->mFields.m8 + 15);
+    uint8_t *colonp = NULL;
+    uint16_t val = 0;
+    uint8_t count = 0;
+    bool first = true;
+    char ch;
+    uint8_t d;
+
+    memset(address->mFields.m8, 0, 16);
+
+    dst--;
+
+    for (;;)
+    {
+        ch = *str++;
+        d = ch & 0xf;
+
+        if (('a' <= ch && ch <= 'f') || ('A' <= ch && ch <= 'F'))
+        {
+            d += 9;
+        }
+        else if (ch == ':' || ch == '\0' || ch == ' ')
+        {
+            if (count)
+            {
+                if (dst + 2 > endp)
+                {
+                    error = kThreadError_Parse;
+                    goto exit;
+                }
+                *(dst + 1) = static_cast<uint8_t>(val >> 8);
+                *(dst + 2) = static_cast<uint8_t>(val);
+                dst += 2;
+                count = 0;
+                val = 0;
+            }
+            else if (ch == ':')
+            {
+                if (!(colonp == nullptr || first))
+                {
+                    error = kThreadError_Parse;
+                    goto exit;
+                }
+                colonp = dst;
+            }
+
+            if (ch == '\0' || ch == ' ')
+            {
+                break;
+            }
+
+            continue;
+        }
+        else
+        {
+            if (!('0' <= ch && ch <= '9'))
+            {
+                error = kThreadError_Parse;
+                goto exit;
+            }
+        }
+
+        first = false;
+        val = static_cast<uint16_t>((val << 4) | d);
+        if (!(++count <= 4))
+        {
+            error = kThreadError_Parse;
+            goto exit;
+        }
+    }
+
+    while (colonp && dst > colonp)
+    {
+        *endp-- = *dst--;
+    }
+
+    while (endp > dst)
+    {
+        *endp-- = 0;
+    }
+
+exit:
+    return error;
+}
+
+OTAPI 
+uint8_t 
+otIp6PrefixMatch(
+    const otIp6Address *aFirst, 
+    const otIp6Address *aSecond
+    )
+{
+    uint8_t rval = 0;
+    uint8_t diff;
+
+    for (uint8_t i = 0; i < sizeof(otIp6Address); i++)
+    {
+        diff = aFirst->mFields.m8[i] ^ aSecond->mFields.m8[i];
+
+        if (diff == 0)
+        {
+            rval += 8;
+        }
+        else
+        {
+            while ((diff & 0x80) == 0)
+            {
+                rval++;
+                diff <<= 1;
+            }
+
+            break;
+        }
+    }
+
+    return rval;
 }

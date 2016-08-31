@@ -874,15 +874,55 @@ void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
 void otLwfActiveScanCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext)
 {
     LogFuncEntry(DRIVER_DEFAULT);
-    UNREFERENCED_PARAMETER(aResult);
-    UNREFERENCED_PARAMETER(aContext);
+
+    PMS_FILTER pFilter = (PMS_FILTER)aContext;
+    PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
+    if (NotifEntry)
+    {
+        RtlZeroMemory(NotifEntry, sizeof(FILTER_NOTIFICATION_ENTRY));
+        NotifEntry->Notif.InterfaceGuid = pFilter->InterfaceGuid;
+        NotifEntry->Notif.NotifType = OTLWF_NOTIF_ACTIVE_SCAN;
+
+        if (aResult)
+        {
+            NotifEntry->Notif.ActiveScanPayload.Valid = TRUE;
+            NotifEntry->Notif.ActiveScanPayload.Results = *aResult;
+        }
+        else
+        {
+            NotifEntry->Notif.ActiveScanPayload.Valid = FALSE;
+        }
+        
+        otLwfIndicateNotification(NotifEntry);
+    }
+
     LogFuncExit(DRIVER_DEFAULT);
 }
 
 void otLwfDiscoverCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext)
 {
     LogFuncEntry(DRIVER_DEFAULT);
-    UNREFERENCED_PARAMETER(aResult);
-    UNREFERENCED_PARAMETER(aContext);
+
+    PMS_FILTER pFilter = (PMS_FILTER)aContext;
+    PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
+    if (NotifEntry)
+    {
+        RtlZeroMemory(NotifEntry, sizeof(FILTER_NOTIFICATION_ENTRY));
+        NotifEntry->Notif.InterfaceGuid = pFilter->InterfaceGuid;
+        NotifEntry->Notif.NotifType = OTLWF_NOTIF_DISCOVER;
+
+        if (aResult)
+        {
+            NotifEntry->Notif.DiscoverPayload.Valid = TRUE;
+            NotifEntry->Notif.DiscoverPayload.Results = *aResult;
+        }
+        else
+        {
+            NotifEntry->Notif.DiscoverPayload.Valid = FALSE;
+        }
+        
+        otLwfIndicateNotification(NotifEntry);
+    }
+
     LogFuncExit(DRIVER_DEFAULT);
 }

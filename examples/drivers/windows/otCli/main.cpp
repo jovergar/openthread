@@ -26,33 +26,55 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "precomp.h"
-#include "dllmain.tmh"
+#include <windows.h>
+#include <stdio.h>
 
-BOOL 
-__stdcall 
-DllMain(
-    HINSTANCE hinstDll, 
-    DWORD dwReason, 
-    LPVOID /* lpvReserved */
-    )
+#include <openthread.h>
+#include <cli/cli-uart.h>
+#include <platform/uart.h>
+
+bool skipNextLine = false;
+
+int main(int argc, char *argv[])
 {
-    switch (dwReason)
+    otCliUartInit();
+    
+    char cmd[1024] = "\n";
+    otPlatUartReceived((uint8_t*)cmd, 1);
+    
+    for (;;)
     {
-    case DLL_PROCESS_ATTACH:
-        DisableThreadLibraryCalls(hinstDll);
-        WPP_INIT_TRACING(L"otApi");
-        break;
+        cmd[0] = 0;
+        if (NULL == fgets(cmd, sizeof(cmd), stdin))
+            continue;
 
-    case DLL_PROCESS_DETACH:
-        WPP_CLEANUP();
-        break;
+        size_t cmdLen = strlen(cmd);
+        if (cmdLen >= sizeof(cmd)) cmdLen = sizeof(cmd);
 
-    case DLL_THREAD_ATTACH:
-    case DLL_THREAD_DETACH:
-        break;
+        if (strncmp(cmd, "exit", 4) == 0) 
+            break;
+        
+        skipNextLine = true;
+        otPlatUartReceived((uint8_t*)cmd, (uint16_t)cmdLen);
     }
 
-    return TRUE;
+    return NO_ERROR;
 }
 
+EXTERN_C ThreadError otPlatUartSend(const uint8_t *aBuf, uint16_t aBufLength)
+{
+    ThreadError error = kThreadError_None;
+
+    if (!skipNextLine)
+    {
+        for (uint16_t i = 0; i < aBufLength; i++)
+            fputc(aBuf[i], stdout);
+    }
+
+    if (aBuf[aBufLength - 1] == '\n')
+        skipNextLine = false;
+    
+    otPlatUartSendDone();
+
+    return error;
+}

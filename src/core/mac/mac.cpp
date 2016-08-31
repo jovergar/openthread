@@ -57,6 +57,7 @@ static const char sNetworkNameInit[] = "OpenThread";
 #ifdef _WIN32
 const uint32_t kMinBackoffSum = kMinBackoff + (kUnitBackoffPeriod *kPhyUsPerSymbol * (1 << kMinBE)) / 1000;
 const uint32_t kMaxBackoffSum = kMinBackoff + (kUnitBackoffPeriod *kPhyUsPerSymbol * (1 << kMaxBE)) / 1000;
+static_assert(kMinBackoffSum > 0, "The min backoff value should be greater than zero!");
 #endif
 
 void Mac::StartCsmaBackoff(void)
@@ -70,16 +71,9 @@ void Mac::StartCsmaBackoff(void)
     }
 
     backoff = kMinBackoff + (kUnitBackoffPeriod * kPhyUsPerSymbol * (1 << backoffExponent)) / 1000;
+    backoff = otPlatRandomGet() % backoff;
 
-    // If backoff is non-zero, start the timer. Otherwise fire off immediately.
-    if (backoff != 0 && (backoff = (otPlatRandomGet() % backoff)) != 0)
-    {
-        mBackoffTimer.Start(backoff);
-    }
-    else
-    {
-        HandleBeginTransmit();
-    }
+    mBackoffTimer.Start(backoff);
 }
 
 Mac::Mac(ThreadNetif &aThreadNetif):
@@ -557,7 +551,7 @@ exit:
 
 extern "C" void otPlatRadioTransmitDone(otInstance *aInstance, bool aRxPending, ThreadError aError)
 {
-    otLogFuncEntryMsg("%!otError!", aError);
+    otLogFuncEntryMsg("%!otError!, aRxPending=%u", aError, aRxPending ? 1 : 0);
     aInstance->mMac->TransmitDoneTask(aRxPending, aError);
     otLogFuncExit();
 }
