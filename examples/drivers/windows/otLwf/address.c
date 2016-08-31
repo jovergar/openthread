@@ -33,10 +33,34 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID 
 otLwfOnAddressAdded(
     _In_ PMS_FILTER pFilter, 
-    _In_ const otNetifAddress* Addr
+    _In_ const otNetifAddress* Addr,
+    _In_ BOOLEAN UpdateWindows
     )
 {
-    if (pFilter->otCachedAddrCount < OT_MAX_ADDRESSES)
+    if (pFilter->otCachedAddrCount >= OT_MAX_ADDRESSES)
+    {
+        LogError(DRIVER_DEFAULT, "Failing to add new address as we have reached our max!");
+        return;
+    }
+
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! adding address: %!IPV6ADDR! (%u-bit prefix)", 
+        &pFilter->InterfaceGuid, 
+        (PIN6_ADDR)&Addr->mAddress,
+        Addr->mPrefixLength
+        );
+
+    // Update local cache
+    memcpy(pFilter->otCachedAddr + pFilter->otCachedAddrCount, Addr, sizeof(IN6_ADDR));
+    pFilter->otCachedAddrCount++;
+
+    // If this is link local, cache it as our link local address
+    if (IN6_IS_ADDR_LINKLOCAL((PIN6_ADDR)&Addr->mAddress))
+    {
+        memcpy(&pFilter->otLinkLocalAddr, Addr, sizeof(IN6_ADDR));
+    }
+        
+    // Update Windows if necessary
+    if (UpdateWindows)
     {
         NTSTATUS status;
         MIB_UNICASTIPADDRESS_ROW newRow;
@@ -65,26 +89,10 @@ otLwfOnAddressAdded(
             newRow.SuffixOrigin = IpSuffixOriginRandom;             // Was created randomly
         }
 
-        LogInfo(DRIVER_DEFAULT, "Interface %!GUID! adding address: %!IPV6ADDR! (%u-bit prefix)", 
-            &pFilter->InterfaceGuid, 
-            &newRow.Address.Ipv6.sin6_addr,
-            Addr->mPrefixLength
-            );
-
         status = CreateUnicastIpAddressEntry(&newRow);
         if (!NT_SUCCESS(status))
         {
             LogError(DRIVER_DEFAULT, "CreateUnicastIpAddressEntry failed %!STATUS!", status);
-        }
-        else
-        {
-            memcpy(pFilter->otCachedAddr + pFilter->otCachedAddrCount, Addr, sizeof(IN6_ADDR));
-            pFilter->otCachedAddrCount++;
-
-            if (IN6_IS_ADDR_LINKLOCAL(&newRow.Address.Ipv6.sin6_addr))
-            {
-                memcpy(&pFilter->otLinkLocalAddr, Addr, sizeof(IN6_ADDR));
-            }
         }
     }
 }
@@ -93,24 +101,14 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID 
 otLwfOnAddressRemoved(
     _In_ PMS_FILTER pFilter, 
-    _In_ ULONG CachedIndex
+    _In_ ULONG CachedIndex,
+    _In_ BOOLEAN UpdateWindows
     )
 {
-    MIB_UNICASTIPADDRESS_ROW deleteRow;
-    InitializeUnicastIpAddressEntry(&deleteRow);
-    
-    NT_ASSERT(pFilter->otCachedAddrCount != 0);
-    NT_ASSERT(CachedIndex < pFilter->otCachedAddrCount);
+    // Cache address before we delete local cache
+    IN6_ADDR Addr = pFilter->otCachedAddr[CachedIndex];
 
-    deleteRow.InterfaceIndex = pFilter->InterfaceIndex;
-    deleteRow.InterfaceLuid = pFilter->InterfaceLuid;
-    deleteRow.Address.si_family = AF_INET6;
-
-    deleteRow.Address.Ipv6.sin6_addr = pFilter->otCachedAddr[CachedIndex];
-    
-    // Best effort remove address from TCPIP
-    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! removing address: %!IPV6ADDR!", &pFilter->InterfaceGuid, &pFilter->otCachedAddr[CachedIndex]);
-    (VOID)DeleteUnicastIpAddressEntry(&deleteRow);
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! removing address: %!IPV6ADDR!", &pFilter->InterfaceGuid, &Addr);
 
     // Remove the cached entry
     if (CachedIndex + 1 != pFilter->otCachedAddrCount)
@@ -119,6 +117,25 @@ otLwfOnAddressRemoved(
                 (pFilter->otCachedAddrCount - CachedIndex - 1) * sizeof(IN6_ADDR)
                 );
     pFilter->otCachedAddrCount--;
+
+    // Update Windows if necessary
+    if (UpdateWindows)
+    {
+        MIB_UNICASTIPADDRESS_ROW deleteRow;
+        InitializeUnicastIpAddressEntry(&deleteRow);
+    
+        NT_ASSERT(pFilter->otCachedAddrCount != 0);
+        NT_ASSERT(CachedIndex < pFilter->otCachedAddrCount);
+
+        deleteRow.InterfaceIndex = pFilter->InterfaceIndex;
+        deleteRow.InterfaceLuid = pFilter->InterfaceLuid;
+        deleteRow.Address.si_family = AF_INET6;
+
+        deleteRow.Address.Ipv6.sin6_addr = Addr;
+    
+        // Best effort remove address from TCPIP
+        (VOID)DeleteUnicastIpAddressEntry(&deleteRow);
+    }
 }
 
 int 
@@ -204,6 +221,108 @@ error:
     return status;
 }
 
+// Callback from Windows TCPIP stack when an address change occurs
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+NETIOAPI_API_ 
+otLwfAddressChangeCallback(
+    _In_ PVOID CallerContext,
+    _In_opt_ PMIB_UNICASTIPADDRESS_ROW Row,
+    _In_ MIB_NOTIFICATION_TYPE NotificationType
+    )
+{
+    PMS_FILTER pFilter = (PMS_FILTER)CallerContext;
+    if (Row == NULL || pFilter == NULL) return;
+
+    // Ignore notifications that aren't for our interface
+    if (Row->InterfaceIndex != pFilter->InterfaceIndex) return;
+
+    // Ignore parameter change notifications
+    if (NotificationType == MibParameterNotification) return;
+
+    LogFuncEntryMsg(DRIVER_DEFAULT, "%p (%u)", pFilter, NotificationType);
+
+    // Since we don't pass in the initial flag, we shouldn't get this type
+    NT_ASSERT(NotificationType != MibInitialNotification);
+
+    // Queue up the event for processing
+    otLwfEventProcessingIndicateAddressChange(
+        pFilter,
+        NotificationType,
+        &Row->Address.Ipv6.sin6_addr
+        );
+
+    LogFuncExit(DRIVER_DEFAULT);
+}
+
+// Callback on the OpenThread thread for processing an address change
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfEventProcessingAddressChanged(
+    _In_ PMS_FILTER             pFilter,
+    _In_ MIB_NOTIFICATION_TYPE  NotificationType,
+    _In_ PIN6_ADDR              pAddr
+    )
+{
+    LogFuncEntry(DRIVER_DEFAULT);
+
+    if (NotificationType == MibAddInstance)
+    {
+        MIB_UNICASTIPADDRESS_ROW Row;
+        InitializeUnicastIpAddressEntry(&Row);
+
+        Row.Address.si_family = AF_INET6;
+        Row.Address.Ipv6.sin6_addr = *pAddr;
+        Row.InterfaceIndex = pFilter->InterfaceIndex;
+        Row.InterfaceLuid = pFilter->InterfaceLuid;
+
+        NTSTATUS status = GetUnicastIpAddressEntry(&Row);
+        if (!NT_SUCCESS(status))
+        {
+            LogError(DRIVER_DEFAULT, "GetUnicastIpAddressEntry failed, %!STATUS!", status);
+        }
+        else
+        {
+            otNetifAddress otAddr = {0};
+            memcpy(&otAddr.mAddress, pAddr, sizeof(IN6_ADDR));
+            otAddr.mPreferredLifetime = Row.PreferredLifetime;
+            otAddr.mPrefixLength = Row.OnLinkPrefixLength;
+            otAddr.mValidLifetime = Row.ValidLifetime;
+
+            // Update our cache
+            otLwfOnAddressAdded(pFilter, &otAddr, FALSE);
+
+            // Add the address to OpenThread
+            /*ThreadError otError = otAddUnicastAddress(pFilter->otCtx, &otAddr);
+            if (otError != kThreadError_None)
+            {
+                LogError(DRIVER_DEFAULT, "otAddUnicastAddress failed, %!otError!", otError);
+            }*/
+        }
+    }
+    else if (NotificationType == MibDeleteInstance)
+    {
+        // Look for the address in our cache
+        int index = otLwfFindCachedAddrIndex(pFilter, pAddr);
+
+        // If it's not already deleted from our cache, then Windows
+        // is deleting the adddress and we need to update OpenThread.
+        if (index != -1)
+        {
+            // Update our cache
+            otLwfOnAddressRemoved(pFilter, (ULONG)index, FALSE);
+            
+            otNetifAddress otAddr = {0};
+            memcpy(&otAddr.mAddress, pAddr, sizeof(IN6_ADDR));
+
+            // Find the correct address from OpenThread to remove (best effort)
+            (void)otRemoveUnicastAddress(pFilter->otCtx, &otAddr);
+        }
+    }
+
+    LogFuncExit(DRIVER_DEFAULT);
+}
+
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID 
 otLwfAddressesUpdated(
@@ -223,7 +342,7 @@ otLwfAddressesUpdated(
         int index = otLwfFindCachedAddrIndex(pFilter, (PIN6_ADDR)&addr->mAddress);
         if (index == -1)
         {
-            otLwfOnAddressAdded(pFilter, addr);
+            otLwfOnAddressAdded(pFilter, addr, TRUE);
         }
         else
         {
@@ -238,7 +357,7 @@ otLwfAddressesUpdated(
     {
         if ((FoundInOpenThread & (1 << i)) == 0)
         {
-            otLwfOnAddressRemoved(pFilter, (ULONG)i);
+            otLwfOnAddressRemoved(pFilter, (ULONG)i, TRUE);
         }
     }
     

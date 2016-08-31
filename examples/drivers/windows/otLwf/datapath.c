@@ -416,7 +416,7 @@ Arguments:
     
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p, CancelId: %p", FilterModuleContext, CancelId);
 
-    otLwfEventProcessingCancelNetBufferLists(pFilter, CancelId);
+    otLwfEventProcessingIndicateNetBufferListsCancelled(pFilter, CancelId);
     
     LogFuncExit(DRIVER_DATA_PATH);
 }

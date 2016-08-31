@@ -90,6 +90,9 @@ typedef struct _MS_FILTER
     // Current state (Running or not) of the Filter instance
     FILTER_STATE                    State;
     NDIS_EVENT                      FilterPauseComplete;
+
+    // Handle for unicast IP address notifications
+    HANDLE                          AddressChangeHandle;
     
     //
     // Interface / Adapter variables
@@ -123,8 +126,11 @@ typedef struct _MS_FILTER
     //
     PVOID                           EventWorkerThread;
     KEVENT                          EventWorkerThreadStopEvent;
+    KEVENT                          EventWorkerThreadProcessAddressChanges;
     KEVENT                          EventWorkerThreadProcessNBLs;
     NDIS_SPIN_LOCK                  EventsLock;
+    _Guarded_by_(EventsLock)
+    LIST_ENTRY                      AddressChangesHead;
     _Guarded_by_(EventsLock)
     LIST_ENTRY                      NBLsHead;
     ULONG                           CountPendingRecvNBLs;
@@ -214,6 +220,8 @@ FILTER_CANCEL_SEND_NET_BUFFER_LISTS FilterCancelSendNetBufferLists;
 // Event Processing Functions
 //
 
+EXT_CALLBACK otLwfEventProcessingTimer;
+
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
 otLwfEventProcessingStart(
@@ -228,7 +236,7 @@ otLwfEventProcessingStop(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-otLwfEventProcessingUpdateWaitTime(
+otLwfEventProcessingIndicateNewWaitTime(
     _In_ PMS_FILTER             pFilter,
     _In_ ULONG                  waitTime
     );
@@ -237,6 +245,14 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
 otLwfEventProcessingIndicateNewTasklet(
     _In_ PMS_FILTER             pFilter
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfEventProcessingIndicateAddressChange(
+    _In_ PMS_FILTER             pFilter,
+    _In_ MIB_NOTIFICATION_TYPE  NotificationType,
+    _In_ PIN6_ADDR              pAddr
     );
 
 _IRQL_requires_max_(DISPATCH_LEVEL)
@@ -251,23 +267,14 @@ otLwfEventProcessingIndicateNewNetBufferLists(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-otLwfEventProcessingCancelNetBufferLists(
+otLwfEventProcessingIndicateNetBufferListsCancelled(
     _In_ PMS_FILTER             pFilter,
     _In_ PVOID                  CancelId
     );
 
-_Function_class_(EXT_CALLBACK)
-_IRQL_requires_(DISPATCH_LEVEL)
-_IRQL_requires_same_
-VOID
-otLwfEventProcessingTimer(
-    _In_ PEX_TIMER Timer,
-    _In_opt_ PVOID Context
-    );
-
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-otLwfEventProcessingQueueIrp(
+otLwfEventProcessingIndicateIrp(
     _In_ PMS_FILTER pFilter,
     _In_ PIRP       Irp
     );
@@ -300,6 +307,23 @@ void otLwfDiscoverCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext
 //
 // Address Functions
 //
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+NETIOAPI_API_ 
+otLwfAddressChangeCallback(
+    _In_ PVOID CallerContext,
+    _In_opt_ PMIB_UNICASTIPADDRESS_ROW Row,
+    _In_ MIB_NOTIFICATION_TYPE NotificationType
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfEventProcessingAddressChanged(
+    _In_ PMS_FILTER             pFilter,
+    _In_ MIB_NOTIFICATION_TYPE  NotificationType,
+    _In_ PIN6_ADDR              pAddr
+    );
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS 

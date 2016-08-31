@@ -180,7 +180,7 @@ otLwfIoCtlOpenThreadControl(
     }
 
     // Pend the Irp for processing on the OpenThread event processing thread
-    otLwfEventProcessingQueueIrp(pFilter, Irp);
+    otLwfEventProcessingIndicateIrp(pFilter, Irp);
 
     // Release our ref on the filter
     otLwfReleaseInterface(pFilter);

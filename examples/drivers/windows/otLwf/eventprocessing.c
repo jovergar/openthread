@@ -35,6 +35,14 @@
 #include "precomp.h"
 #include "eventprocessing.tmh"
 
+typedef struct _OTLWF_ADDR_EVENT
+{
+    LIST_ENTRY              Link;
+    MIB_NOTIFICATION_TYPE   NotificationType;
+    IN6_ADDR                Address;
+
+} OTLWF_ADDR_EVENT, *POTLWF_ADDR_EVENT;
+
 typedef struct _OTLWF_NBL_EVENT
 {
     LIST_ENTRY          Link;
@@ -159,7 +167,18 @@ otLwfEventProcessingStop(
     }
 
     // Clean up any left over events
-    PLIST_ENTRY Link = pFilter->NBLsHead.Flink;
+    PLIST_ENTRY Link = pFilter->AddressChangesHead.Flink;
+    while (Link != &pFilter->AddressChangesHead)
+    {
+        POTLWF_ADDR_EVENT Event = CONTAINING_RECORD(Link, OTLWF_ADDR_EVENT, Link);
+        Link = Link->Flink;
+
+        // Delete the event
+        NdisFreeMemory(Event, 0, 0);
+    }
+
+    // Clean up any left over events
+    Link = pFilter->NBLsHead.Flink;
     while (Link != &pFilter->NBLsHead)
     {
         POTLWF_NBL_EVENT Event = CONTAINING_RECORD(Link, OTLWF_NBL_EVENT, Link);
@@ -172,6 +191,7 @@ otLwfEventProcessingStop(
     }
 
     // Reinitialize the list head
+    InitializeListHead(&pFilter->AddressChangesHead);
     InitializeListHead(&pFilter->NBLsHead);
     
     FILTER_ACQUIRE_LOCK(&pFilter->EventsLock, FALSE);
@@ -205,7 +225,7 @@ otLwfEventProcessingStop(
 // Updates the wait time for the alarm
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-otLwfEventProcessingUpdateWaitTime(
+otLwfEventProcessingIndicateNewWaitTime(
     _In_ PMS_FILTER             pFilter,
     _In_ ULONG                  waitTime
     )
@@ -273,6 +293,34 @@ otLwfEventProcessingIndicateNewTasklet(
     KeSetEvent(&pFilter->EventWorkerThreadProcessTasklets, 0, FALSE);
 }
 
+// Called to indicate that we have an Address change to process
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfEventProcessingIndicateAddressChange(
+    _In_ PMS_FILTER             pFilter,
+    _In_ MIB_NOTIFICATION_TYPE  NotificationType,
+    _In_ PIN6_ADDR              pAddr
+    )
+{
+    POTLWF_ADDR_EVENT Event = FILTER_ALLOC_MEM(pFilter->FilterHandle, sizeof(OTLWF_ADDR_EVENT));
+    if (Event == NULL)
+    {
+        LogWarning(DRIVER_DATA_PATH, "Failed to alloc new OTLWF_ADDR_EVENT");
+        return;
+    }
+    
+    Event->NotificationType = NotificationType;
+    Event->Address = *pAddr;
+
+    // Add the event to the queue
+    NdisAcquireSpinLock(&pFilter->EventsLock);
+    InsertTailList(&pFilter->AddressChangesHead, &Event->Link);
+    NdisReleaseSpinLock(&pFilter->EventsLock);
+    
+    // Set the event to indicate we have a new address to process
+    KeSetEvent(&pFilter->EventWorkerThreadProcessAddressChanges, 0, FALSE);
+}
+
 // Called to indicate that we have a NetBufferLists to process
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
@@ -308,7 +356,7 @@ otLwfEventProcessingIndicateNewNetBufferLists(
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-otLwfEventProcessingCancelNetBufferLists(
+otLwfEventProcessingIndicateNetBufferListsCancelled(
     _In_ PMS_FILTER             pFilter,
     _In_ PVOID                  CancelId
     )
@@ -455,7 +503,7 @@ otLwfEventProcessingCancelIrp(
 // Queues an Irp for processing
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
-otLwfEventProcessingQueueIrp(
+otLwfEventProcessingIndicateIrp(
     _In_ PMS_FILTER pFilter,
     _In_ PIRP       Irp
     )
@@ -595,13 +643,17 @@ otLwfEventWorkerThread(
         &pFilter->EventWorkerThreadWaitTimeUpdated,
         &pFilter->EventWorkerThreadProcessTasklets,
         &pFilter->SendNetBufferListComplete,
-        &pFilter->EventWorkerThreadProcessIrp
+        &pFilter->EventWorkerThreadProcessIrp,
+        &pFilter->EventWorkerThreadProcessAddressChanges
     };
 
     KWAIT_BLOCK WaitBlocks[ARRAYSIZE(WaitEvents)] = { 0 };
 
     // Space to processing buffers
     UCHAR MessageBuffer[1500];
+
+    // Query the current addresses from TCPIP and cache them
+    (void)otLwfInitializeAddresses(pFilter);
 
     for (;;)
     {
@@ -827,6 +879,33 @@ otLwfEventWorkerThread(
         {
             // Process any IRPs that were pended
             otLwfEventProcessingNextIrp(pFilter);
+        }
+        else if (status == STATUS_WAIT_0 + 6) // EventWorkerThreadProcessAddressChanges fired
+        {
+            // Go through the queue until there are no more items
+            for (;;)
+            {
+                POTLWF_ADDR_EVENT Event = NULL;
+                NdisAcquireSpinLock(&pFilter->EventsLock);
+
+                // Get the next item, if available
+                if (!IsListEmpty(&pFilter->AddressChangesHead))
+                {
+                    PLIST_ENTRY Link = RemoveHeadList(&pFilter->AddressChangesHead);
+                    Event = CONTAINING_RECORD(Link, OTLWF_ADDR_EVENT, Link);
+                }
+
+                NdisReleaseSpinLock(&pFilter->EventsLock);
+
+                // Break out of the loop if we have emptied the queue
+                if (Event == NULL) break;
+                
+                // Process the address change on the Openthread thread
+                otLwfEventProcessingAddressChanged(pFilter, Event->NotificationType, &Event->Address);
+
+                // Free the event
+                NdisFreeMemory(Event, 0, 0);
+            }
         }
         else
         {

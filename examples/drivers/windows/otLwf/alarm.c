@@ -51,7 +51,7 @@ otPlatAlarmStop(
     )
 {
     LogVerbose(DRIVER_DEFAULT, "otPlatAlarmStop");
-    otLwfEventProcessingUpdateWaitTime(otCtxToFilter(otCtx), (ULONG)(-1));
+    otLwfEventProcessingIndicateNewWaitTime(otCtxToFilter(otCtx), (ULONG)(-1));
 }
 
 void 
@@ -63,5 +63,5 @@ otPlatAlarmStartAt(
 {
     UNREFERENCED_PARAMETER(now);
     LogVerbose(DRIVER_DEFAULT, "otPlatAlarmStartAt %u ms", waitTime);
-    otLwfEventProcessingUpdateWaitTime(otCtxToFilter(otCtx), waitTime);
+    otLwfEventProcessingIndicateNewWaitTime(otCtxToFilter(otCtx), waitTime);
 }

@@ -249,6 +249,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
         // Initialize the event processing
         pFilter->EventWorkerThread = NULL;
         NdisAllocateSpinLock(&pFilter->EventsLock);
+        InitializeListHead(&pFilter->AddressChangesHead);
         InitializeListHead(&pFilter->NBLsHead);
         InitializeListHead(&pFilter->EventIrpListHead);
         KeInitializeEvent(
@@ -263,6 +264,11 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             );
         KeInitializeEvent(
             &pFilter->EventWorkerThreadProcessTasklets,
+            SynchronizationEvent, // auto-clearing event
+            FALSE                 // event initially non-signalled
+            );
+        KeInitializeEvent(
+            &pFilter->EventWorkerThreadProcessAddressChanges,
             SynchronizationEvent, // auto-clearing event
             FALSE                 // event initially non-signalled
             );
@@ -329,16 +335,6 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
         // Query the compartment ID for this interface to use for the IP stack
         pFilter->InterfaceCompartmentID = GetInterfaceCompartmentID(&pFilter->InterfaceLuid);
         LogVerbose(DRIVER_DEFAULT, "Interface %!GUID! is in Compartment %u", &pFilter->InterfaceGuid, (ULONG)pFilter->InterfaceCompartmentID);
-    
-        // Register for address changed notifications
-        // TODO ...
-
-        // Query the current addresses from TCPIP and cache them
-        if (!NT_SUCCESS(otLwfInitializeAddresses(pFilter)))
-        {
-            Status = NDIS_STATUS_DEVICE_FAILED;
-            break;
-        }
 
         // Initialize the radio layer
         otLwfRadioInit(pFilter);
@@ -364,6 +360,22 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             Status = NDIS_STATUS_RESOURCES;
             break;
         }
+    
+        // Register for address changed notifications
+        NtStatus = 
+            NotifyUnicastIpAddressChange(
+                AF_INET6,
+                otLwfAddressChangeCallback,
+                pFilter,
+                FALSE,
+                &pFilter->AddressChangeHandle
+                );
+        if (!NT_SUCCESS(NtStatus))
+        {
+            LogError(DRIVER_DEFAULT, "NotifyUnicastIpAddressChange failed, %!STATUS!", NtStatus);
+            Status = NDIS_STATUS_FAILURE;
+            break;
+        }
 
         // Add Filter to global list of Thread Filters
         NdisAcquireSpinLock(&FilterListLock);
@@ -378,8 +390,17 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
     {
         if (pFilter != NULL)
         {
+            if (pFilter->AddressChangeHandle != NULL)
+            {
+                CancelMibChangeNotify2(pFilter->AddressChangeHandle);
+                pFilter->AddressChangeHandle = NULL;
+            }
+
             if (pFilter->otCtx != NULL)
             {
+                // Stop event processing thread
+                otLwfEventProcessingStop(pFilter);
+
                 otDisable(pFilter->otCtx);
                 otInstanceFinalize(pFilter->otCtx);
                 pFilter->otCtx = NULL;
@@ -445,6 +466,10 @@ NOTE: Called at PASSIVE_LEVEL and the filter is in paused state
         NT_ASSERT(pFilter->IoControlReferences == 0);
         LogInfo(DRIVER_DEFAULT, "Received Io Control shutdown event.");
     }
+    
+    // Unregister from address change notifications
+    CancelMibChangeNotify2(pFilter->AddressChangeHandle);
+    pFilter->AddressChangeHandle = NULL;
 
     // Stop event processing thread
     otLwfEventProcessingStop(pFilter);
