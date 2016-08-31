@@ -88,7 +88,7 @@ ThreadError otPlatRadioSetPanId(_In_ otInstance *otCtx, uint16_t panid)
     NT_ASSERT(pFilter->otPhyState != kStateTransmit);
     if (pFilter->otPhyState == kStateTransmit) return kThreadError_Busy;
 
-    LogInfo(DRIVER_DEFAULT, "Filter %p set PanID: %X", pFilter, panid);
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! set PanID: %X", &pFilter->InterfaceGuid, panid);
 
     pFilter->otPanID = panid;
 
@@ -120,13 +120,10 @@ ThreadError otPlatRadioSetExtendedAddress(_In_ otInstance *otCtx, uint8_t *addre
     NT_ASSERT(pFilter->otPhyState != kStateTransmit);
     if (pFilter->otPhyState == kStateTransmit) return kThreadError_Busy;
 
-    LogInfo(DRIVER_DEFAULT, "Filter %p set Ext Addr: %llX", pFilter, *(ULONGLONG*)address);
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! set Extended Mac Address: %llX", &pFilter->InterfaceGuid, *(ULONGLONG*)address);
 
-    for (size_t i = 0; i < sizeof(pFilter->otExtendedAddress); i++)
-    {
-        pFilter->otExtendedAddress[i] = address[sizeof(pFilter->otExtendedAddress) - 1 - i];
-        OidBuffer.ExtendedAddress[i] = address[sizeof(pFilter->otExtendedAddress) - 1 - i];
-    }
+    pFilter->otExtendedAddress = *(ULONGLONG*)address;
+    OidBuffer.ExtendedAddress = *(ULONGLONG*)address;
 
     // Indicate to the miniport
     status = 
@@ -153,10 +150,10 @@ ThreadError otPlatRadioSetShortAddress(_In_ otInstance *otCtx, uint16_t address)
     ULONG bytesProcessed;
     OT_SHORT_ADDRESS OidBuffer = { {NDIS_OBJECT_TYPE_DEFAULT, OT_SHORT_ADDRESS_REVISION_1, SIZEOF_OT_SHORT_ADDRESS_REVISION_1}, address };
     
-    NT_ASSERT(pFilter->otPhyState != kStateTransmit);
-    if (pFilter->otPhyState == kStateTransmit) return kThreadError_Busy;
+    //NT_ASSERT(pFilter->otPhyState != kStateTransmit);
+    //if (pFilter->otPhyState == kStateTransmit) return kThreadError_Busy;
 
-    LogInfo(DRIVER_DEFAULT, "Filter %p set Short Addr: %X", pFilter, address);
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! set Short Mac Address: %X", &pFilter->InterfaceGuid, address);
 
     pFilter->otShortAddress = address;
 
@@ -206,7 +203,8 @@ void otPlatRadioSetPromiscuous(_In_ otInstance *otCtx, int aEnable)
 ThreadError otPlatRadioEnable(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
-
+    
+    NT_ASSERT(pFilter->otPhyState <= kStateSleep);
     if (pFilter->otPhyState > kStateSleep) return kThreadError_Busy;
 
     pFilter->otPhyState = kStateSleep;
@@ -219,7 +217,8 @@ ThreadError otPlatRadioEnable(_In_ otInstance *otCtx)
 ThreadError otPlatRadioDisable(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
-
+    
+    NT_ASSERT(pFilter->otPhyState <= kStateSleep);
     if (pFilter->otPhyState > kStateSleep) return kThreadError_Busy;
 
     pFilter->otPhyState = kStateDisabled;
@@ -232,13 +231,38 @@ ThreadError otPlatRadioDisable(_In_ otInstance *otCtx)
 ThreadError otPlatRadioSleep(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
-
+    
+    NT_ASSERT(pFilter->otPhyState == kStateSleep || pFilter->otPhyState == kStateReceive);
     if (pFilter->otPhyState != kStateSleep && pFilter->otPhyState != kStateReceive) 
         return kThreadError_Busy;
 
-    pFilter->otPhyState = kStateSleep;
-    
-    LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateSleep.", pFilter);
+    if (pFilter->otPhyState != kStateSleep)
+    {
+        pFilter->otPhyState = kStateSleep;
+        LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateSleep.", pFilter);
+        
+        if ((pFilter->MiniportCapabilities.RadioCapabilities & OT_RADIO_CAP_SLEEP) != 0)
+        {
+            NDIS_STATUS status;
+            ULONG bytesProcessed;
+            OT_SLEEP_MODE OidBuffer = { {NDIS_OBJECT_TYPE_DEFAULT, OT_SLEEP_MODE_REVISION_1, SIZEOF_OT_SLEEP_MODE_REVISION_1}, TRUE };
+
+            // Indicate to the miniport
+            status = 
+                otLwfSendInternalRequest(
+                    pFilter,
+                    NdisRequestSetInformation,
+                    OID_OT_SLEEP_MODE,
+                    &OidBuffer,
+                    sizeof(OidBuffer),
+                    &bytesProcessed
+                    );
+            if (status != NDIS_STATUS_SUCCESS)
+            {
+                LogError(DRIVER_DEFAULT, "Set for OID_OT_SLEEP_MODE failed, %!NDIS_STATUS!", status);
+            }
+        }
+    }
 
     return kThreadError_None;
 }
@@ -246,12 +270,38 @@ ThreadError otPlatRadioSleep(_In_ otInstance *otCtx)
 ThreadError otPlatRadioReceive(_In_ otInstance *otCtx, uint8_t aChannel)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
-
+    
+    NT_ASSERT(pFilter->otPhyState != kStateDisabled);
     if (pFilter->otPhyState == kStateDisabled) return kThreadError_Busy;
     
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
+    
+    // If we are currently in the sleep state and the minport supports sleep 
+    // mode, come out of sleep mode now.
+    if (pFilter->otPhyState == kStateSleep)
+    {        
+        if ((pFilter->MiniportCapabilities.RadioCapabilities & OT_RADIO_CAP_SLEEP) != 0)
+        {
+            NDIS_STATUS status;
+            ULONG bytesProcessed;
+            OT_SLEEP_MODE OidBuffer = { {NDIS_OBJECT_TYPE_DEFAULT, OT_SLEEP_MODE_REVISION_1, SIZEOF_OT_SLEEP_MODE_REVISION_1}, FALSE };
 
-    pFilter->otPhyState = kStateReceive;
+            // Indicate to the miniport
+            status = 
+                otLwfSendInternalRequest(
+                    pFilter,
+                    NdisRequestSetInformation,
+                    OID_OT_SLEEP_MODE,
+                    &OidBuffer,
+                    sizeof(OidBuffer),
+                    &bytesProcessed
+                    );
+            if (status != NDIS_STATUS_SUCCESS)
+            {
+                LogError(DRIVER_DEFAULT, "Set for OID_OT_SLEEP_MODE failed, %!NDIS_STATUS!", status);
+            }
+        }
+    }
 
     // Update current channel if different
     if (pFilter->otCurrentListenChannel != aChannel)
@@ -278,11 +328,17 @@ ThreadError otPlatRadioReceive(_In_ otInstance *otCtx, uint8_t aChannel)
             LogError(DRIVER_DEFAULT, "Set for OID_OT_CURRENT_CHANNEL failed, %!NDIS_STATUS!", status);
         }
     }
+
+    // Only transition to the receive state if we were sleeping; otherwise we 
+    // are already in receive or transmit state.
+    if (pFilter->otPhyState == kStateSleep)
+    {
+        pFilter->otPhyState = kStateReceive;
+        LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateReceive.", pFilter);
     
-    LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateReceive.", pFilter);
-    
-    // Set the event to indicate we can process NBLs
-    KeSetEvent(&pFilter->EventWorkerThreadProcessNBLs, 0, FALSE);
+        // Set the event to indicate we can process NBLs
+        KeSetEvent(&pFilter->EventWorkerThreadProcessNBLs, 0, FALSE);
+    }
     
     LogFuncExit(DRIVER_DATA_PATH);
 
@@ -325,15 +381,14 @@ otLwfRadioReceiveFrame(
 
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
 
-    if (pFilter->otPhyState == kStateReceive)
+    NT_ASSERT(pFilter->otPhyState > kStateDisabled);
+    if (pFilter->otPhyState > kStateDisabled)
     {
-        LogVerbose(DRIVER_DATA_PATH, "---> otPlatRadioReceiveDone");
         otPlatRadioReceiveDone(pFilter->otCtx, &pFilter->otReceiveFrame, kThreadError_None);
-        LogVerbose(DRIVER_DATA_PATH, "<--- otPlatRadioReceiveDone");
     }
     else
     {
-        LogVerbose(DRIVER_DATA_PATH, "MAC Frame Dropped: Wrong State, %u", (ULONG)pFilter->otPhyState);
+        LogVerbose(DRIVER_DATA_PATH, "Mac frame dropped.");
     }
     
     LogFuncExit(DRIVER_DATA_PATH);
@@ -346,7 +401,8 @@ ThreadError otPlatRadioTransmit(_In_ otInstance *otCtx)
     
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
 
-    if (pFilter->otPhyState >= kStateReceive)
+    NT_ASSERT(pFilter->otPhyState == kStateReceive);
+    if (pFilter->otPhyState == kStateReceive)
     {
         error = kThreadError_None;
         pFilter->otPhyState = kStateTransmit;
@@ -422,6 +478,13 @@ otLwfRadioTransmitFrameDone(
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p", pFilter);
 
     pFilter->SendPending = FALSE;
+    
+    NT_ASSERT(pFilter->otPhyState == kStateTransmit);
+
+    // Now that we are completing a send, fall back to receive state and set the event
+    pFilter->otPhyState = kStateReceive;
+    LogInfo(DRIVER_DEFAULT, "Filter %p PhyState = kStateReceive.", pFilter);
+    KeSetEvent(&pFilter->EventWorkerThreadProcessNBLs, 0, FALSE);
 
     if (STATUS_SUCCESS == pFilter->SendNetBufferList->Status)
     {
@@ -429,6 +492,10 @@ otLwfRadioTransmitFrameDone(
         BOOLEAN FramePending = (SendNblContext->Flags & OT_NBL_FLAG_ACK_FRAME_PENDING) != 0 || pFilter->CountPendingRecvNBLs != 0;
 
         otPlatRadioTransmitDone(pFilter->otCtx, FramePending, kThreadError_None);
+    }
+    else if (STATUS_DEVICE_BUSY == pFilter->SendNetBufferList->Status)
+    {
+        otPlatRadioTransmitDone(pFilter->otCtx, false, kThreadError_ChannelAccessFailure);
     }
     else if (STATUS_TIMEOUT == pFilter->SendNetBufferList->Status)
     {

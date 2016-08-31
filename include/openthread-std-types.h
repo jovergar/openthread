@@ -35,7 +35,7 @@
 #ifndef OPENTHREAD_STD_TYPES_H_
 #define OPENTHREAD_STD_TYPES_H_
 
-#ifndef WINDOWS_KERNEL
+#if !defined(WINDOWS_KERNEL) && !defined(OTDLL)
 
 #include <stdint.h>
 #include <stdbool.h>

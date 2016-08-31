@@ -29,6 +29,28 @@
 #include "precomp.h"
 #include "filter.tmh"
 
+// Helper function to query the CompartmentID of a Network Interface
+COMPARTMENT_ID 
+GetInterfaceCompartmentID(
+    _In_ PIF_LUID pNetLuid
+    )
+{  
+    COMPARTMENT_ID CompartmentID = UNSPECIFIED_COMPARTMENT_ID;  
+  
+    NTSTATUS Status =  
+        NsiGetParameter(  
+            NsiActive,  
+            &NPI_MS_NDIS_MODULEID,  
+            NdisNsiObjectInterfaceInformation,  
+            pNetLuid, sizeof(*pNetLuid),  
+            NsiStructRoDynamic,  
+            &CompartmentID, sizeof(CompartmentID),  
+            FIELD_OFFSET(NDIS_NSI_INTERFACE_INFORMATION_ROD, CompartmentId)
+            );  
+  
+    return (NT_SUCCESS(Status) ? CompartmentID : DEFAULT_COMPARTMENT_ID);  
+}  
+
 _Use_decl_annotations_
 NDIS_STATUS
 FilterAttach(
@@ -73,6 +95,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
     ULONG                   Size;
     PNET_BUFFER             SendNetBuffer;
     ULONG                   bytesProcessed = 0;
+    size_t                  otInstanceSize = sizeof(pFilter->otInstanceBuffer);
 
     LogFuncEntry(DRIVER_DEFAULT);
 
@@ -227,6 +250,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
         pFilter->EventWorkerThread = NULL;
         NdisAllocateSpinLock(&pFilter->EventsLock);
         InitializeListHead(&pFilter->NBLsHead);
+        InitializeListHead(&pFilter->EventIrpListHead);
         KeInitializeEvent(
             &pFilter->EventWorkerThreadStopEvent,
             SynchronizationEvent, // auto-clearing event
@@ -244,6 +268,11 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             );
         KeInitializeEvent(
             &pFilter->EventWorkerThreadProcessNBLs,
+            SynchronizationEvent, // auto-clearing event
+            FALSE                 // event initially non-signalled
+            );
+        KeInitializeEvent(
+            &pFilter->EventWorkerThreadProcessIrp,
             SynchronizationEvent, // auto-clearing event
             FALSE                 // event initially non-signalled
             );
@@ -297,6 +326,45 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             break;
         }
 
+        // Query the compartment ID for this interface to use for the IP stack
+        pFilter->InterfaceCompartmentID = GetInterfaceCompartmentID(&pFilter->InterfaceLuid);
+        LogVerbose(DRIVER_DEFAULT, "Interface %!GUID! is in Compartment %u", &pFilter->InterfaceGuid, (ULONG)pFilter->InterfaceCompartmentID);
+    
+        // Register for address changed notifications
+        // TODO ...
+
+        // Query the current addresses from TCPIP and cache them
+        if (!NT_SUCCESS(otLwfInitializeAddresses(pFilter)))
+        {
+            Status = NDIS_STATUS_DEVICE_FAILED;
+            break;
+        }
+
+        // Initialize the radio layer
+        otLwfRadioInit(pFilter);
+
+        // Initialize the OpenThread library
+        pFilter->otCachedRole = kDeviceRoleDisabled;
+        pFilter->otCtx = otInstanceInit(pFilter->otInstanceBuffer, &otInstanceSize);
+        NT_ASSERT(pFilter->otCtx);
+        if (pFilter->otCtx == NULL)
+        {
+            LogError(DRIVER_DEFAULT, "otInstanceInit failed, otInstanceSize = %u bytes", (ULONG)otInstanceSize);
+            Status = NDIS_STATUS_RESOURCES;
+            break;
+        }
+
+        // Register callbacks with OpenThread
+        otSetStateChangedCallback(pFilter->otCtx, otLwfStateChangedCallback, pFilter);
+        otSetReceiveIp6DatagramCallback(pFilter->otCtx, otLwfReceiveIp6DatagramCallback, pFilter);
+
+        // Initialize the event processing thread
+        if (!NT_SUCCESS(otLwfEventProcessingStart(pFilter)))
+        {
+            Status = NDIS_STATUS_RESOURCES;
+            break;
+        }
+
         // Add Filter to global list of Thread Filters
         NdisAcquireSpinLock(&FilterListLock);
         InsertTailList(&FilterModuleList, &pFilter->FilterModuleLink);
@@ -310,6 +378,13 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
     {
         if (pFilter != NULL)
         {
+            if (pFilter->otCtx != NULL)
+            {
+                otDisable(pFilter->otCtx);
+                otInstanceFinalize(pFilter->otCtx);
+                pFilter->otCtx = NULL;
+            }
+
             if (pFilter->EventHighPrecisionTimer) ExDeleteTimer(pFilter->EventHighPrecisionTimer, TRUE, FALSE, NULL);
             NdisFreeMemory(pFilter, 0, 0);
         }
@@ -371,6 +446,13 @@ NOTE: Called at PASSIVE_LEVEL and the filter is in paused state
         LogInfo(DRIVER_DEFAULT, "Received Io Control shutdown event.");
     }
 
+    // Stop event processing thread
+    otLwfEventProcessingStop(pFilter);
+    
+    // Free OpenThread context memory
+    otInstanceFinalize(pFilter->otCtx);
+    pFilter->otCtx = NULL;
+
     // Free NBL & Pools
     NdisAdvanceNetBufferDataStart(NET_BUFFER_LIST_FIRST_NB(pFilter->SendNetBufferList), kMaxPHYPacketSize, TRUE, NULL);
     NdisFreeNetBufferList(pFilter->SendNetBufferList);
@@ -385,12 +467,12 @@ NOTE: Called at PASSIVE_LEVEL and the filter is in paused state
     LogFuncExit(DRIVER_DEFAULT);
 }
 
-// Sends an interface arrival/removal notification
+// Indicates an interface state change has taken place (used for interface arrival/removal)
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
-otLwfNotifyInterfaceAvailableChange(
+otLwfNotifyDeviceAvailabilityChange(
     _In_ PMS_FILTER             pFilter,
-    _In_ OTLWF_NOTIF_TYPE       state
+    _In_ BOOLEAN                fAvailable
     )
 {
     PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
@@ -398,33 +480,12 @@ otLwfNotifyInterfaceAvailableChange(
     {
         RtlZeroMemory(NotifEntry, sizeof(FILTER_NOTIFICATION_ENTRY));
         NotifEntry->Notif.InterfaceGuid = pFilter->InterfaceGuid;
-        NotifEntry->Notif.NotifType = state;
+        NotifEntry->Notif.NotifType = OTLWF_NOTIF_DEVICE_AVAILABILITY;
+        NotifEntry->Notif.DeviceAvailabilityPayload.Available = fAvailable;
 
         otLwfIndicateNotification(NotifEntry);
     }
 }
-
-// Helper function to query the CompartmentID of a Network Interface
-COMPARTMENT_ID 
-GetInterfaceCompartmentID(
-    _In_ PIF_LUID pNetLuid
-    )
-{  
-    COMPARTMENT_ID CompartmentID = UNSPECIFIED_COMPARTMENT_ID;  
-  
-    NTSTATUS Status =  
-        NsiGetParameter(  
-            NsiActive,  
-            &NPI_MS_NDIS_MODULEID,  
-            NdisNsiObjectInterfaceInformation,  
-            pNetLuid, sizeof(*pNetLuid),  
-            NsiStructRoDynamic,  
-            &CompartmentID, sizeof(CompartmentID),  
-            FIELD_OFFSET(NDIS_NSI_INTERFACE_INFORMATION_ROD, CompartmentId)
-            );  
-  
-    return (NT_SUCCESS(Status) ? CompartmentID : DEFAULT_COMPARTMENT_ID);  
-}  
 
 _Use_decl_annotations_
 NDIS_STATUS
@@ -453,7 +514,6 @@ Return Value:
 {
     NDIS_STATUS     NdisStatus = NDIS_STATUS_SUCCESS;
     PMS_FILTER      pFilter = (PMS_FILTER)FilterModuleContext;
-    size_t          otCtxSize = sizeof(pFilter->otInstanceBuffer);
 
     PNDIS_RESTART_GENERAL_ATTRIBUTES NdisGeneralAttributes;
     PNDIS_RESTART_ATTRIBUTES         NdisRestartAttributes;
@@ -484,54 +544,6 @@ Return Value:
         NdisGeneralAttributes->LookaheadSize = 128;
     }
 
-    // Query the compartment ID for this interface to use for the IP stack
-    pFilter->InterfaceCompartmentID = GetInterfaceCompartmentID(&pFilter->InterfaceLuid);
-    LogVerbose(DRIVER_DEFAULT, "Interface %!GUID! is in Compartment %u", &pFilter->InterfaceGuid, (ULONG)pFilter->InterfaceCompartmentID);
-    
-    pFilter->NextAlarmTickCount.QuadPart = 0;
-
-    //
-    // Query the current addresses from TCPIP and cache them
-    //
-    if (!NT_SUCCESS(otLwfInitializeAddresses(pFilter)))
-    {
-        NdisStatus = NDIS_STATUS_DEVICE_FAILED;
-        goto error;
-    }
-
-    //
-    // Initialize the radio layer
-    //
-    otLwfRadioInit(pFilter);
-
-    //
-    // Initialize the OpenThread library
-    //
-    pFilter->otCachedRole = kDeviceRoleDisabled;
-    pFilter->otCtx = otInstanceInit(pFilter->otInstanceBuffer, &otCtxSize);
-    NT_ASSERT(pFilter->otCtx);
-    if (pFilter->otCtx == NULL)
-    {
-        LogError(DRIVER_DEFAULT, "otInit failed, otCtxSize = %u bytes", (ULONG)otCtxSize);
-        NdisStatus = NDIS_STATUS_RESOURCES;
-        goto error;
-    }
-
-    //
-    // Register callbacks with OpenThread
-    //
-    otSetStateChangedCallback(pFilter->otCtx, otLwfStateChangedCallback, pFilter);
-    otSetReceiveIp6DatagramCallback(pFilter->otCtx, otLwfReceiveIp6DatagramCallback, pFilter);
-
-    //
-    // Initialize the event processing thread
-    //
-    if (!NT_SUCCESS(otLwfEventProcessingStart(pFilter)))
-    {
-        NdisStatus = NDIS_STATUS_RESOURCES;
-        goto error;
-    }
-
     //
     // Enable the data path
     //
@@ -541,10 +553,8 @@ Return Value:
     // If everything is OK, set the filter in running state.
     //
     pFilter->State = FilterRunning; // when successful
-    otLwfNotifyInterfaceAvailableChange(pFilter, OTLWF_NOTIF_INTERFACE_ARRIVAL);
-    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! arrival.", &pFilter->InterfaceGuid);
-
-error:
+    otLwfNotifyDeviceAvailabilityChange(pFilter, TRUE);
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! arrival, Filter=%p", &pFilter->InterfaceGuid, pFilter);
 
     //
     // Ensure the state is Paused if restart failed.
@@ -552,13 +562,6 @@ error:
     if (NdisStatus != NDIS_STATUS_SUCCESS)
     {
         pFilter->State = FilterPaused;
-
-        if (pFilter->otCtx != NULL)
-        {
-            otDisable(pFilter->otCtx);
-            otInstanceFinalize(pFilter->otCtx);
-            pFilter->otCtx = NULL;
-        }
     }
 
     LogFuncExitNDIS(DRIVER_DEFAULT, NdisStatus);
@@ -617,27 +620,17 @@ N.B.: When the filter is in Pausing state, it can still process OID requests,
     //
     // Make sure we are disconnected from the network
     //
-    otBecomeDetached(pFilter->otCtx); // TODO - This should block or we wait for it to complete
-    otDisable(pFilter->otCtx);
+    // TODO ...
+    //otBecomeDetached(pFilter->otCtx); // TODO - This should block or we wait for it to complete
+    //otDisable(pFilter->otCtx);
     
-    otLwfNotifyInterfaceAvailableChange(pFilter, OTLWF_NOTIF_INTERFACE_REMOVAL);
+    otLwfNotifyDeviceAvailabilityChange(pFilter, FALSE);
     LogInfo(DRIVER_DEFAULT, "Interface %!GUID! removal.", &pFilter->InterfaceGuid);
 
     //
     // Disable the data path
     //
     otLwfDisableDataPath(pFilter);
-
-    //
-    // Stop event processing thread
-    //
-    otLwfEventProcessingStop(pFilter);
-    
-    //
-    // Free OpenThread context memory
-    //
-    otInstanceFinalize(pFilter->otCtx);
-    pFilter->otCtx = NULL;
 
     // Set the state back to Paused now that we are done
     pFilter->State = FilterPaused;
@@ -792,9 +785,33 @@ void otSignalTaskletPending(_In_ otInstance *otCtx)
     otLwfEventProcessingIndicateNewTasklet(pFilter);
 }
 
+// Process a role state change
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+otLwfProcessRoleStateChange(
+    _In_ PMS_FILTER             pFilter
+    )
+{
+    otDeviceRole prevRole = pFilter->otCachedRole;
+    pFilter->otCachedRole = otGetDeviceRole(pFilter->otCtx);
+    if (prevRole == pFilter->otCachedRole) return;
+
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! new role: %!otDeviceRole!", &pFilter->InterfaceGuid, pFilter->otCachedRole);
+
+    if (IsAttached(prevRole) != IsAttached(pFilter->otCachedRole))
+    {
+        // TODO - Update Media Connected state ?
+    }
+}
+
 void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
 {
     PMS_FILTER pFilter = (PMS_FILTER)aContext;
+    PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
+
+    //
+    // Process the notification internally
+    //
 
     if ((aFlags & OT_IP6_ADDRESS_ADDED) != 0)
     {
@@ -811,7 +828,7 @@ void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
     if ((aFlags & OT_NET_ROLE) != 0)
     {
         LogVerbose(DRIVER_DEFAULT, "Filter %p received OT_NET_ROLE", pFilter);
-        otLwfNotifyRoleStateChange(pFilter);
+        otLwfProcessRoleStateChange(pFilter);
     }
 
     if ((aFlags & OT_NET_PARTITION_ID) != 0)
@@ -838,4 +855,74 @@ void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
     {
         LogVerbose(DRIVER_DEFAULT, "Filter %p received OT_IP6_ML_ADDR_CHANGED", pFilter);
     }
+    
+    //
+    // Queue the notification for clients
+    //
+
+    if (NotifEntry)
+    {
+        RtlZeroMemory(NotifEntry, sizeof(FILTER_NOTIFICATION_ENTRY));
+        NotifEntry->Notif.InterfaceGuid = pFilter->InterfaceGuid;
+        NotifEntry->Notif.NotifType = OTLWF_NOTIF_STATE_CHANGE;
+        NotifEntry->Notif.StateChangePayload.Flags = aFlags;
+
+        otLwfIndicateNotification(NotifEntry);
+    }
+}
+
+void otLwfActiveScanCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext)
+{
+    LogFuncEntry(DRIVER_DEFAULT);
+
+    PMS_FILTER pFilter = (PMS_FILTER)aContext;
+    PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
+    if (NotifEntry)
+    {
+        RtlZeroMemory(NotifEntry, sizeof(FILTER_NOTIFICATION_ENTRY));
+        NotifEntry->Notif.InterfaceGuid = pFilter->InterfaceGuid;
+        NotifEntry->Notif.NotifType = OTLWF_NOTIF_ACTIVE_SCAN;
+
+        if (aResult)
+        {
+            NotifEntry->Notif.ActiveScanPayload.Valid = TRUE;
+            NotifEntry->Notif.ActiveScanPayload.Results = *aResult;
+        }
+        else
+        {
+            NotifEntry->Notif.ActiveScanPayload.Valid = FALSE;
+        }
+        
+        otLwfIndicateNotification(NotifEntry);
+    }
+
+    LogFuncExit(DRIVER_DEFAULT);
+}
+
+void otLwfDiscoverCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext)
+{
+    LogFuncEntry(DRIVER_DEFAULT);
+
+    PMS_FILTER pFilter = (PMS_FILTER)aContext;
+    PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
+    if (NotifEntry)
+    {
+        RtlZeroMemory(NotifEntry, sizeof(FILTER_NOTIFICATION_ENTRY));
+        NotifEntry->Notif.InterfaceGuid = pFilter->InterfaceGuid;
+        NotifEntry->Notif.NotifType = OTLWF_NOTIF_DISCOVER;
+
+        if (aResult)
+        {
+            NotifEntry->Notif.DiscoverPayload.Valid = TRUE;
+            NotifEntry->Notif.DiscoverPayload.Results = *aResult;
+        }
+        else
+        {
+            NotifEntry->Notif.DiscoverPayload.Valid = FALSE;
+        }
+        
+        otLwfIndicateNotification(NotifEntry);
+    }
+
+    LogFuncExit(DRIVER_DEFAULT);
 }

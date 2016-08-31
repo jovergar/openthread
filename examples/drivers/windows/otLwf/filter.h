@@ -133,6 +133,8 @@ typedef struct _MS_FILTER
     KEVENT                          EventWorkerThreadProcessTasklets;
     PEX_TIMER                       EventHighPrecisionTimer;
     UCHAR                           EventTimerState;
+    LIST_ENTRY                      EventIrpListHead;
+    KEVENT                          EventWorkerThreadProcessIrp;
 
     //
     // Data Path Synchronization
@@ -173,7 +175,7 @@ typedef struct _MS_FILTER
 
     BOOLEAN                         otPromiscuous;
     uint16_t                        otPanID;
-    uint8_t                         otExtendedAddress[OT_EXT_ADDRESS_SIZE];
+    uint64_t                        otExtendedAddress;
     uint16_t                        otShortAddress;
 
 
@@ -189,12 +191,6 @@ __inline PMS_FILTER otCtxToFilter(_In_ otInstance* otCtx)
 _inline BOOLEAN IsAttached(_In_ otDeviceRole role)
 {
     return role > kDeviceRoleDetached;
-}
-
-// Helper function to indicate OpenThread is ready to process a receive packet
-_inline BOOLEAN IsListeningForPackets(_In_ PMS_FILTER pFilter)
-{
-    return pFilter->otPhyState == kStateReceive;
 }
 
 //
@@ -269,6 +265,13 @@ otLwfEventProcessingTimer(
     _In_opt_ PVOID Context
     );
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfEventProcessingQueueIrp(
+    _In_ PMS_FILTER pFilter,
+    _In_ PIRP       Irp
+    );
+
 //
 // Data Path functions
 //
@@ -291,16 +294,8 @@ otLwfDisableDataPath(
 
 void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext);
 void otLwfReceiveIp6DatagramCallback(_In_ otMessage aMessage, _In_ void *aContext);
-
-//
-// Notify Functions
-//
-
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-otLwfNotifyRoleStateChange(
-    _In_ PMS_FILTER             pFilter
-    );
+void otLwfActiveScanCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext);
+void otLwfDiscoverCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext);
 
 //
 // Address Functions

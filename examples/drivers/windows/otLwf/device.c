@@ -312,6 +312,8 @@ otLwfDeviceIoControl(
     ULONG               OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
     ULONG               IoControlCode = IrpSp->Parameters.DeviceIoControl.IoControlCode;
 
+	ULONG               FuncCode = (IoControlCode >> 2) & 0xFFF;
+
 #if DBG
     ASSERT(((POTLWF_DEVICE_EXTENSION)DeviceObject->DeviceExtension)->Signature == 'FTDR');
 #else
@@ -328,6 +330,13 @@ otLwfDeviceIoControl(
         goto error;
     }
 
+    if (FuncCode >= MIN_OTLWF_IOCTL_FUNC_CODE && FuncCode <= MAX_OTLWF_IOCTL_FUNC_CODE)
+    {
+        CompleteIRP = FALSE;
+        status = otLwfIoCtlOpenThreadControl(Irp);
+        goto error;
+    }
+
     // Check the IoControlCode to determine which IOCTL we are processing
     switch (IoControlCode)
     {
@@ -336,7 +345,7 @@ otLwfDeviceIoControl(
             status = otLwfQueryNextNotification(Irp);
             break;
 
-        case IOCTL_OTLWF_ENUMERATE_INTERFACES:
+        case IOCTL_OTLWF_ENUMERATE_DEVICES:
             status =
                 otLwfIoCtlEnumerateInterfaces(
                     IoBuffer, InputBufferLength,
@@ -344,49 +353,9 @@ otLwfDeviceIoControl(
                     );
             break;
 
-        case IOCTL_OTLWF_CREATE_NETWORK:
+        case IOCTL_OTLWF_QUERY_DEVICE:
             status =
-                otLwfIoCtlCreateNetwork(
-                    IoBuffer, InputBufferLength,
-                    IoBuffer, &OutputBufferLength
-                    );
-            break;
-
-        case IOCTL_OTLWF_JOIN_NETWORK:
-            status =
-                otLwfIoCtlJoinNetwork(
-                    IoBuffer, InputBufferLength,
-                    IoBuffer, &OutputBufferLength
-                    );
-            break;
-
-        case IOCTL_OTLWF_SEND_ROUTER_ID_REQUEST:
-            status =
-                otLwfIoCtlSendRouterIDRequest(
-                    IoBuffer, InputBufferLength,
-                    IoBuffer, &OutputBufferLength
-                    );
-            break;
-
-        case IOCTL_OTLWF_DISCONNECT_NETWORK:
-            status =
-                otLwfIoCtlDisconnectNetwork(
-                    IoBuffer, InputBufferLength,
-                    IoBuffer, &OutputBufferLength
-                    );
-            break;
-
-        case IOCTL_OTLWF_QUERY_NETWORK_ADDRESSES:
-            status =
-                otLwfIoCtlQueryNetworkAddresses(
-                    IoBuffer, InputBufferLength,
-                    IoBuffer, &OutputBufferLength
-                    );
-            break;
-
-        case IOCTL_OTLWF_QUERY_MESH_STATE:
-            status =
-                otLwfIoCtlQueryMeshState(
+                otLwfIoCtlQueryInterface(
                     IoBuffer, InputBufferLength,
                     IoBuffer, &OutputBufferLength
                     );
@@ -420,27 +389,27 @@ otLwfFindAndRefInterface(
     _In_ PGUID  InterfaceGuid
     )
 {
-   PMS_FILTER pOutput = NULL;
+    PMS_FILTER pOutput = NULL;
 
-   NdisAcquireSpinLock(&FilterListLock);
+    NdisAcquireSpinLock(&FilterListLock);
 
-   for (PLIST_ENTRY Link = FilterModuleList.Flink; Link != &FilterModuleList; Link = Link->Flink)
-   {
-       PMS_FILTER pFilter = CONTAINING_RECORD(Link, MS_FILTER, FilterModuleLink);
+    for (PLIST_ENTRY Link = FilterModuleList.Flink; Link != &FilterModuleList; Link = Link->Flink)
+    {
+        PMS_FILTER pFilter = CONTAINING_RECORD(Link, MS_FILTER, FilterModuleLink);
 
-       if (pFilter->State == FilterRunning &&
-           memcmp(InterfaceGuid, &pFilter->InterfaceGuid, sizeof(GUID)) == 0)
-       {
-           // Increment ref count on interface
-           RtlIncrementReferenceCount(&pFilter->IoControlReferences);
-           pOutput = pFilter;
-           break;
-       }
-   }
+        if (pFilter->State == FilterRunning &&
+            memcmp(InterfaceGuid, &pFilter->InterfaceGuid, sizeof(GUID)) == 0)
+        {
+            // Increment ref count on interface
+            RtlIncrementReferenceCount(&pFilter->IoControlReferences);
+            pOutput = pFilter;
+            break;
+        }
+    }
 
-   NdisReleaseSpinLock(&FilterListLock);
+    NdisReleaseSpinLock(&FilterListLock);
 
-   return pOutput;
+    return pOutput;
 }
 
 _Use_decl_annotations_
@@ -469,7 +438,7 @@ otLwfIndicateNotification(
 {
     PIRP IrpToComplete = NULL;
 
-    LogFuncEntry(DRIVER_DEFAULT);
+    LogFuncEntry(DRIVER_IOCTL);
 
     if (FilterDeviceExtension == NULL) goto error;
 
@@ -526,7 +495,7 @@ error:
         NdisFreeMemory(NotifEntry, 0, 0);
     }
 
-    LogFuncExit(DRIVER_DEFAULT);
+    LogFuncExit(DRIVER_IOCTL);
 }
 
 DRIVER_CANCEL otLwfQueryNotificationCancelled;
@@ -540,15 +509,16 @@ otLwfQueryNotificationCancelled(
 {
     UNREFERENCED_PARAMETER(DeviceObject);
 
-    LogFuncEntry(DRIVER_DEFAULT);
+    LogFuncEntry(DRIVER_IOCTL);
 
     FilterDeviceExtension->PendingNotificationIRP = NULL;
     IoReleaseCancelSpinLock(Irp->CancelIrql);
 
     Irp->IoStatus.Status = STATUS_CANCELLED;
+    Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
-    LogFuncExit(DRIVER_DEFAULT);
+    LogFuncExit(DRIVER_IOCTL);
 }
 
 // Queries the next notification
@@ -561,7 +531,7 @@ otLwfQueryNextNotification(
     NTSTATUS status = STATUS_SUCCESS;
     PFILTER_NOTIFICATION_ENTRY NotifEntry = NULL;
 
-    LogFuncEntry(DRIVER_DEFAULT);
+    LogFuncEntry(DRIVER_IOCTL);
 
     PIO_STACK_LOCATION  IrpSp = IoGetCurrentIrpStackLocation(Irp);
     ULONG  OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
@@ -569,6 +539,7 @@ otLwfQueryNextNotification(
     // Validate we have a big enough buffer
     if (OutputBufferLength < sizeof(OTLWF_NOTIFICATION))
     {
+        RtlZeroMemory(Irp->AssociatedIrp.SystemBuffer, OutputBufferLength);
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto error;
     }
@@ -624,7 +595,7 @@ error:
         IoCompleteRequest(Irp, IO_NO_INCREMENT);
     }
 
-    LogFuncExitNT(DRIVER_DEFAULT, status);
+    LogFuncExitNT(DRIVER_IOCTL, status);
 
     return status;
 }

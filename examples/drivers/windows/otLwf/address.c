@@ -33,7 +33,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID 
 otLwfOnAddressAdded(
     _In_ PMS_FILTER pFilter, 
-    _In_ PIN6_ADDR Addr
+    _In_ const otNetifAddress* Addr
     )
 {
     if (pFilter->otCachedAddrCount < OT_MAX_ADDRESSES)
@@ -44,15 +44,19 @@ otLwfOnAddressAdded(
 
         newRow.InterfaceIndex = pFilter->InterfaceIndex;
         newRow.InterfaceLuid = pFilter->InterfaceLuid;
-        newRow.OnLinkPrefixLength = 64; // First half
         newRow.Address.si_family = AF_INET6;
         newRow.Address.Ipv6.sin6_family = AF_INET6;
         
-        newRow.Address.Ipv6.sin6_addr = *Addr;
+        static_assert(sizeof(IN6_ADDR) == sizeof(otIp6Address), "Windows and OpenThread IPv6 Addr Structs must be same size");
+
+        memcpy(&newRow.Address.Ipv6.sin6_addr, &Addr->mAddress, sizeof(IN6_ADDR));
+        newRow.OnLinkPrefixLength = Addr->mPrefixLength;
+        newRow.PreferredLifetime = Addr->mPreferredLifetime;
+        newRow.ValidLifetime = Addr->mValidLifetime;
         newRow.PrefixOrigin = IpPrefixOriginOther;  // Derived from network XPANID
         newRow.SkipAsSource = FALSE;                // Allow automatic binding to this address (default)
 
-        if (IN6_IS_ADDR_LINKLOCAL(Addr))
+        if (IN6_IS_ADDR_LINKLOCAL(&newRow.Address.Ipv6.sin6_addr))
         {
             newRow.SuffixOrigin = IpSuffixOriginLinkLayerAddress;   // Derived from Extended MAC address
         }
@@ -61,7 +65,12 @@ otLwfOnAddressAdded(
             newRow.SuffixOrigin = IpSuffixOriginRandom;             // Was created randomly
         }
 
-        LogInfo(DRIVER_DEFAULT, "Interface %!GUID! adding address: %!IPV6ADDR!", &pFilter->InterfaceGuid, Addr);
+        LogInfo(DRIVER_DEFAULT, "Interface %!GUID! adding address: %!IPV6ADDR! (%u-bit prefix)", 
+            &pFilter->InterfaceGuid, 
+            &newRow.Address.Ipv6.sin6_addr,
+            Addr->mPrefixLength
+            );
+
         status = CreateUnicastIpAddressEntry(&newRow);
         if (!NT_SUCCESS(status))
         {
@@ -72,7 +81,7 @@ otLwfOnAddressAdded(
             memcpy(pFilter->otCachedAddr + pFilter->otCachedAddrCount, Addr, sizeof(IN6_ADDR));
             pFilter->otCachedAddrCount++;
 
-            if (IN6_IS_ADDR_LINKLOCAL(Addr))
+            if (IN6_IS_ADDR_LINKLOCAL(&newRow.Address.Ipv6.sin6_addr))
             {
                 memcpy(&pFilter->otLinkLocalAddr, Addr, sizeof(IN6_ADDR));
             }
@@ -95,7 +104,6 @@ otLwfOnAddressRemoved(
 
     deleteRow.InterfaceIndex = pFilter->InterfaceIndex;
     deleteRow.InterfaceLuid = pFilter->InterfaceLuid;
-    deleteRow.OnLinkPrefixLength = 16;
     deleteRow.Address.si_family = AF_INET6;
 
     deleteRow.Address.Ipv6.sin6_addr = pFilter->otCachedAddr[CachedIndex];
@@ -215,7 +223,7 @@ otLwfAddressesUpdated(
         int index = otLwfFindCachedAddrIndex(pFilter, (PIN6_ADDR)&addr->mAddress);
         if (index == -1)
         {
-            otLwfOnAddressAdded(pFilter, (PIN6_ADDR)&addr->mAddress);
+            otLwfOnAddressAdded(pFilter, addr);
         }
         else
         {

@@ -51,6 +51,22 @@
 #include "openthread.tmh"
 #endif
 
+#if _WIN32
+#define STATIC_ASSERT(e,s) static_assert(e, s)
+#else
+#define STATIC_ASSERT(e,s) typedef char __C_ASSERT__[(e)?1:-1]
+#endif
+
+// Number of aligned bytes required for the instance structure
+const size_t cAlignedInstanceSize = otALIGNED_VAR_SIZE(sizeof(otInstance), uint64_t) * sizeof(uint64_t);
+
+// Number of bytes indicated in the public header file for the instance structure
+const size_t cPublicInstanceSize = OT_INSTANCE_SIZE;
+
+// Ensure we are initializing the public definition of the size of the instance structure correctly
+STATIC_ASSERT(cPublicInstanceSize >= cAlignedInstanceSize,
+              "Public Instance size should be enough to hold internal structure.");
+
 otInstance::otInstance(void) :
     mReceiveIp6DatagramCallback(NULL),
     mReceiveIp6DatagramCallbackContext(NULL),
@@ -864,11 +880,15 @@ void otSetStateChangedCallback(otInstance *aInstance, otStateChangedCallback aCa
 const char *otGetVersionString(void)
 {
     static const char sVersion[] =
-        PACKAGE_NAME "/" PACKAGE_VERSION "; "
+        PACKAGE_NAME "/" PACKAGE_VERSION
 #ifdef  PLATFORM_INFO
-        PLATFORM_INFO "; "
+        "; " PLATFORM_INFO
 #endif
-        __DATE__ " " __TIME__;
+#if !defined(WINDOWS_KERNEL) || defined(DBG)
+        "; " __DATE__ " " __TIME__;
+#else
+        ;
+#endif
 
     return sVersion;
 }
@@ -1269,7 +1289,7 @@ exit:
     return error;
 }
 
-ThreadError otSetActiveDataset(otInstance *aInstance, otOperationalDataset *aDataset)
+ThreadError otSetActiveDataset(otInstance *aInstance, const otOperationalDataset *aDataset)
 {
     ThreadError error;
 
@@ -1293,7 +1313,7 @@ exit:
     return error;
 }
 
-ThreadError otSetPendingDataset(otInstance *aInstance, otOperationalDataset *aDataset)
+ThreadError otSetPendingDataset(otInstance *aInstance, const otOperationalDataset *aDataset)
 {
     ThreadError error;
 

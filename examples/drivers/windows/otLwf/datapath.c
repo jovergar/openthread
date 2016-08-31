@@ -44,6 +44,8 @@ __forceinline CHAR ToHex(CHAR n)
     else       return '0' + n;
 }
 
+const ULONG otLogLineLength = 32;
+
 // Helper to log a buffer
 void
 otLogBuffer(
@@ -54,9 +56,9 @@ otLogBuffer(
     ULONG index = 0;
     while (index < BufferLength)
     {
-        CHAR szBuffer[64] = "  ";
+        CHAR szBuffer[otLogLineLength * 4] = "  ";
         PCHAR buf = szBuffer + 2;
-        for (ULONG i = 0; i < 16 && i + index < BufferLength; i++)
+        for (ULONG i = 0; i < otLogLineLength && i + index < BufferLength; i++)
         {
             buf[0] = ToHex(Buffer[i + index] >> 4);
             buf[1] = ToHex(Buffer[i + index] & 0x0F);
@@ -66,7 +68,7 @@ otLogBuffer(
         buf[0] = 0;
 
         LogVerbose(DRIVER_DATA_PATH, "%s", szBuffer);
-        index += 16;
+        index += otLogLineLength;
     }
 }
 
@@ -152,6 +154,7 @@ Arguments:
     LogFuncEntryMsg(DRIVER_DATA_PATH, "Filter: %p, NBL: %p", FilterModuleContext, NetBufferLists);
 
     NT_ASSERT(NetBufferLists == pFilter->SendNetBufferList);
+    NT_ASSERT(kStateTransmit == pFilter->otPhyState);
     KeSetEvent(&pFilter->SendNetBufferListComplete, 0, FALSE);
     
     LogFuncExit(DRIVER_DATA_PATH);
@@ -341,9 +344,9 @@ N.B.: It is important to check the ReceiveFlags in NDIS_TEST_RECEIVE_CANNOT_PEND
         }
     }
     // Try to grab a ref on the data path first, to make sure we are allowed
-    else if(pFilter->otPhyState <= kStateSleep || !ExAcquireRundownProtection(&pFilter->DataPathRundown))
+    else if(pFilter->otPhyState == kStateDisabled || !ExAcquireRundownProtection(&pFilter->DataPathRundown))
     {
-        LogVerbose(DRIVER_DATA_PATH, "Failing SendNetBufferLists because data path isn't active.");
+        LogVerbose(DRIVER_DATA_PATH, "Failing ReceiveNetBufferLists because data path isn't active.");
 
         // Ignore any NBLs we get if we aren't active (can't get a ref)
         PNET_BUFFER_LIST CurrNbl = NetBufferLists;
@@ -552,6 +555,11 @@ otLwfReceiveIp6DatagramCallback(
 
 #ifdef FORCE_SYNCHRONOUS_RECEIVE
     irql = KfRaiseIrql(DISPATCH_LEVEL);
+
+    if (messageLength == 248) // Magic length used for TAEF test packets
+    {
+        DbgBreakPoint();
+    }
 #endif
 
     // Indicate the NBL up

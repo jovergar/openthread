@@ -325,8 +325,6 @@ copy $(TargetPath) \\nibanks-thread\thread /Y</Command>
     <ClCompile Include="driver.c" />
     <ClCompile Include="eventprocessing.c" />
     <ClCompile Include="iocontrol.c" />
-    <ClCompile Include="logging.c" />
-    <ClCompile Include="notify.c" />
     <ClCompile Include="oid.c" />
     <ClCompile Include="precomp.c">
       <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

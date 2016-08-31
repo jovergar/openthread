@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Nest Labs, Inc.
+ *  Copyright (c) 2016, Microsoft Corporation.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,39 +26,55 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * @file
- * @brief
- *  This file defines the top-level functions for the OpenThread CLI server.
- */
+#include <windows.h>
+#include <stdio.h>
 
-#ifndef CLI_UART_H_
-#define CLI_UART_H_
+#include <openthread.h>
+#include <cli/cli-uart.h>
+#include <platform/uart.h>
 
-#include <openthread-types.h>
+bool skipNextLine = false;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int main(int argc, char *argv[])
+{
+    otCliUartInit();
+    
+    char cmd[1024] = "\n";
+    otPlatUartReceived((uint8_t*)cmd, 1);
+    
+    for (;;)
+    {
+        cmd[0] = 0;
+        if (NULL == fgets(cmd, sizeof(cmd), stdin))
+            continue;
 
-#ifdef OTDLL
-/**
- * Initialize the CLI UART module.
- *
- */
-void otCliUartInit();
-#else
-/**
- * Initialize the CLI UART module.
- *
- * @param[in]  aInstance  The OpenThread instance structure.
- *
- */
-void otCliUartInit(otInstance *aInstance);
-#endif
+        size_t cmdLen = strlen(cmd);
+        if (cmdLen >= sizeof(cmd)) cmdLen = sizeof(cmd);
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
+        if (strncmp(cmd, "exit", 4) == 0) 
+            break;
+        
+        skipNextLine = true;
+        otPlatUartReceived((uint8_t*)cmd, (uint16_t)cmdLen);
+    }
 
-#endif
+    return NO_ERROR;
+}
+
+EXTERN_C ThreadError otPlatUartSend(const uint8_t *aBuf, uint16_t aBufLength)
+{
+    ThreadError error = kThreadError_None;
+
+    if (!skipNextLine)
+    {
+        for (uint16_t i = 0; i < aBufLength; i++)
+            fputc(aBuf[i], stdout);
+    }
+
+    if (aBuf[aBufLength - 1] == '\n')
+        skipNextLine = false;
+    
+    otPlatUartSendDone();
+
+    return error;
+}

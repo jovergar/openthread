@@ -35,14 +35,11 @@
 #ifndef OPENTHREADINSTANCE_H_
 #define OPENTHREADINSTANCE_H_
 
+#include <openthread-core-default-config.h>
 #include <openthread-types.h>
 #include <thread/thread_netif.hpp>
 #include <net/ip6_mpl.hpp>
 #include <net/ip6_routes.hpp>
-
-#ifndef C_ASSERT
-#define C_ASSERT(e) typedef char __C_ASSERT__[(e)?1:-1]
-#endif
 
 /**
  * This type represents all the static / global variables used by OpenThread allocated in one place.
@@ -111,14 +108,5 @@ typedef struct otInstance
     otInstance(void);
 
 } otInstance;
-
-// Number of aligned bytes required for the instance structure
-const size_t cAlignedInstanceSize = otALIGNED_VAR_SIZE(sizeof(otInstance), uint64_t) * sizeof(uint64_t);
-
-// Number of bytes indicated in the public header file for the instance structure
-const size_t cPublicInstanceSize = OT_INSTANCE_SIZE;
-
-// Ensure we are initializing the public definition of the size of the instance structure correctly
-C_ASSERT(cPublicInstanceSize >= cAlignedInstanceSize);
 
 #endif  // OPENTHREADINSTANCE_H_

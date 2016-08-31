@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Nest Labs, Inc.
+ *  Copyright (c) 2016, Microsoft Corporation.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,39 +26,33 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * @file
- * @brief
- *  This file defines the top-level functions for the OpenThread CLI server.
- */
+#include "precomp.h"
+#include "dllmain.tmh"
 
-#ifndef CLI_UART_H_
-#define CLI_UART_H_
+BOOL 
+__stdcall 
+DllMain(
+    HINSTANCE hinstDll, 
+    DWORD dwReason, 
+    LPVOID /* lpvReserved */
+    )
+{
+    switch (dwReason)
+    {
+    case DLL_PROCESS_ATTACH:
+        DisableThreadLibraryCalls(hinstDll);
+        WPP_INIT_TRACING(L"otApi");
+        break;
 
-#include <openthread-types.h>
+    case DLL_PROCESS_DETACH:
+        WPP_CLEANUP();
+        break;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+        break;
+    }
 
-#ifdef OTDLL
-/**
- * Initialize the CLI UART module.
- *
- */
-void otCliUartInit();
-#else
-/**
- * Initialize the CLI UART module.
- *
- * @param[in]  aInstance  The OpenThread instance structure.
- *
- */
-void otCliUartInit(otInstance *aInstance);
-#endif
+    return TRUE;
+}
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#endif

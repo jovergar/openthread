@@ -67,6 +67,8 @@ otLwfEventProcessingStart(
     HANDLE   threadHandle = NULL;
 
     LogFuncEntryMsg(DRIVER_DEFAULT, "Filter: %p, TimeIncrement = %u", pFilter, KeQueryTimeIncrement());
+    
+    pFilter->NextAlarmTickCount.QuadPart = 0;
 
     NT_ASSERT(pFilter->EventWorkerThread == NULL);
     if (pFilter->EventWorkerThread != NULL)
@@ -171,6 +173,31 @@ otLwfEventProcessingStop(
 
     // Reinitialize the list head
     InitializeListHead(&pFilter->NBLsHead);
+    
+    FILTER_ACQUIRE_LOCK(&pFilter->EventsLock, FALSE);
+
+    // Clean up any left over IRPs
+    Link = pFilter->EventIrpListHead.Flink;
+    while (Link != &pFilter->EventIrpListHead)
+    {
+        PIRP Irp = CONTAINING_RECORD(Link, IRP, Tail.Overlay.ListEntry);
+        Link = Link->Flink;
+        
+        // Before we are allowed to complete the pending IRP, we must remove the cancel routine
+        KIRQL irql;
+        IoAcquireCancelSpinLock(&irql); // TODO - Should we do this outside of EventsLock ???
+        IoSetCancelRoutine(Irp, NULL);
+        IoReleaseCancelSpinLock(irql);
+
+        Irp->IoStatus.Status = STATUS_CANCELLED;
+        Irp->IoStatus.Information = 0;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    }
+    
+    // Reinitialize the list head
+    InitializeListHead(&pFilter->EventIrpListHead);
+    
+    FILTER_RELEASE_LOCK(&pFilter->EventsLock, FALSE);
 
     LogFuncExit(DRIVER_DEFAULT);
 }
@@ -362,6 +389,138 @@ otLwfCompleteNBLs(
     }
 }
 
+DRIVER_CANCEL otLwfEventProcessingCancelIrp;
+
+_Use_decl_annotations_
+VOID
+otLwfEventProcessingCancelIrp(
+    _Inout_ PDEVICE_OBJECT DeviceObject,
+    _Inout_ _IRQL_uses_cancel_ struct _IRP *Irp
+)
+{
+    PIRP IrpToCancel = NULL;
+
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    LogFuncEntryMsg(DRIVER_IOCTL, "Irp=%p", Irp);
+
+    IoReleaseCancelSpinLock(Irp->CancelIrql);
+
+    //
+    // Search for a queued up Irp and cancel it if we find it
+    //
+
+    NdisAcquireSpinLock(&FilterListLock);
+
+    // Iterate through each filter instance
+    for (PLIST_ENTRY Link = FilterModuleList.Flink; Link != &FilterModuleList; Link = Link->Flink)
+    {
+        PMS_FILTER pFilter = CONTAINING_RECORD(Link, MS_FILTER, FilterModuleLink);
+            
+        FILTER_ACQUIRE_LOCK(&pFilter->EventsLock, TRUE);
+        
+        // Iterate through all queued IRPs for the filter
+        PLIST_ENTRY IrpLink = pFilter->EventIrpListHead.Flink;
+        while (IrpLink != &pFilter->EventIrpListHead)
+        {
+            PIRP QueuedIrp = CONTAINING_RECORD(IrpLink, IRP, Tail.Overlay.ListEntry);
+            IrpLink = IrpLink->Flink;
+
+            // If we find it, remove from the and prepare to complete it
+            if (QueuedIrp == Irp)
+            {
+                RemoveEntryList(&QueuedIrp->Tail.Overlay.ListEntry);
+                IrpToCancel = QueuedIrp;
+                break;
+            }
+        }
+            
+        FILTER_RELEASE_LOCK(&pFilter->EventsLock, TRUE);
+
+        if (IrpToCancel) break;
+    }
+
+    NdisReleaseSpinLock(&FilterListLock);
+
+    if (IrpToCancel)
+    {
+        IrpToCancel->IoStatus.Status = STATUS_CANCELLED;
+        IrpToCancel->IoStatus.Information = 0;
+        IoCompleteRequest(IrpToCancel, IO_NO_INCREMENT);
+    }
+
+    LogFuncExit(DRIVER_IOCTL);
+}
+
+// Queues an Irp for processing
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfEventProcessingQueueIrp(
+    _In_ PMS_FILTER pFilter,
+    _In_ PIRP       Irp
+    )
+{
+    LogFuncEntryMsg(DRIVER_IOCTL, "Irp=%p", Irp);
+
+    // Mark the Irp as pending
+    IoMarkIrpPending(Irp);
+    
+    FILTER_ACQUIRE_LOCK(&pFilter->EventsLock, FALSE);
+
+    // Set the cancel routine for the Irp
+    IoSetCancelRoutine(Irp, otLwfEventProcessingCancelIrp);
+
+    // Queue the Irp up for processing
+    InsertTailList(&pFilter->EventIrpListHead, &Irp->Tail.Overlay.ListEntry);
+
+    FILTER_RELEASE_LOCK(&pFilter->EventsLock, FALSE);
+    
+    // Set the event to indicate we have an Irp to process
+    KeSetEvent(&pFilter->EventWorkerThreadProcessIrp, 0, FALSE);
+
+    LogFuncExit(DRIVER_IOCTL);
+}
+
+// Processes the next OpenThread IoCtl Irp
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfEventProcessingNextIrp(
+    _In_ PMS_FILTER pFilter
+    )
+{
+    PIRP Irp = NULL;
+
+    LogFuncEntry(DRIVER_IOCTL);
+
+    do
+    {
+        // Reset pointer
+        Irp = NULL;
+
+        // Get the next Irp in the queue
+        FILTER_ACQUIRE_LOCK(&pFilter->EventsLock, FALSE);
+        if (!IsListEmpty(&pFilter->EventIrpListHead))
+        {
+            PLIST_ENTRY Link = RemoveHeadList(&pFilter->EventIrpListHead);
+            Irp = CONTAINING_RECORD(Link, IRP, Tail.Overlay.ListEntry);
+
+            // Clear the cancel routine since we are processing this now
+            KIRQL irql;
+            IoAcquireCancelSpinLock(&irql);
+            IoSetCancelRoutine(Irp, NULL);
+            IoReleaseCancelSpinLock(irql);
+        }
+        FILTER_RELEASE_LOCK(&pFilter->EventsLock, FALSE);
+
+        if (Irp)
+        {    
+            otLwfCompleteOpenThreadIrp(pFilter, Irp);
+        }
+
+    } while (Irp);
+
+    LogFuncExit(DRIVER_IOCTL);
+}
 
 // Helper function to copy data out of a NET_BUFFER
 __forceinline
@@ -435,7 +594,8 @@ otLwfEventWorkerThread(
         &pFilter->EventWorkerThreadProcessNBLs,
         &pFilter->EventWorkerThreadWaitTimeUpdated,
         &pFilter->EventWorkerThreadProcessTasklets,
-        &pFilter->SendNetBufferListComplete
+        &pFilter->SendNetBufferListComplete,
+        &pFilter->EventWorkerThreadProcessIrp
     };
 
     KWAIT_BLOCK WaitBlocks[ARRAYSIZE(WaitEvents)] = { 0 };
@@ -517,34 +677,13 @@ otLwfEventWorkerThread(
             {
                 POTLWF_NBL_EVENT Event = NULL;
                 NdisAcquireSpinLock(&pFilter->EventsLock);
-                
-                if (IsListeningForPackets(pFilter))
-                {
-                    // Just get the first item ('send' or 'recv'), if available
-                    if (!IsListEmpty(&pFilter->NBLsHead))
-                    {
-                        PLIST_ENTRY Link = RemoveHeadList(&pFilter->NBLsHead);
-                        Event = CONTAINING_RECORD(Link, OTLWF_NBL_EVENT, Link);
-                        if (Event->Received) pFilter->CountPendingRecvNBLs--;
-                    }
-                }
-                else
-                {
-                    // Get the next 'send' item to process
-                    PLIST_ENTRY Link = pFilter->NBLsHead.Flink;
-                    while (Link != &pFilter->NBLsHead)
-                    {
-                        POTLWF_NBL_EVENT _Event = CONTAINING_RECORD(Link, OTLWF_NBL_EVENT, Link);
-                        Link = Link->Flink;
 
-                        // Only return it if not 'recv'
-                        if (_Event->Received == FALSE)
-                        {
-                            RemoveEntryList(&_Event->Link);
-                            Event = _Event;
-                            break;
-                        }
-                    }
+                // Just get the first item ('send' or 'recv'), if available
+                if (!IsListEmpty(&pFilter->NBLsHead))
+                {
+                    PLIST_ENTRY Link = RemoveHeadList(&pFilter->NBLsHead);
+                    Event = CONTAINING_RECORD(Link, OTLWF_NBL_EVENT, Link);
+                    if (Event->Received) pFilter->CountPendingRecvNBLs--;
                 }
 
                 NdisReleaseSpinLock(&pFilter->EventsLock);
@@ -683,6 +822,11 @@ otLwfEventWorkerThread(
         {
             // Handle the completion of the NBL send
             otLwfRadioTransmitFrameDone(pFilter);
+        }
+        else if (status == STATUS_WAIT_0 + 5) // EventWorkerThreadProcessIrp fired
+        {
+            // Process any IRPs that were pended
+            otLwfEventProcessingNextIrp(pFilter);
         }
         else
         {

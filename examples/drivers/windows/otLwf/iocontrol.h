@@ -30,7 +30,7 @@
 #define _IOCONTROL_H
 
 //
-// Function prototype for all Io Control functions
+// Function prototype for general Io Control functions
 //
 typedef 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -45,28 +45,112 @@ OTLWF_IOCTL_FUNC(
     );
 
 //
-// Io Control Functions
+// General Io Control Functions
 //
 
 // Handles queries for the current list of Thread interfaces
 OTLWF_IOCTL_FUNC otLwfIoCtlEnumerateInterfaces;
 
-// Handles requests to start a new Thread network
-OTLWF_IOCTL_FUNC otLwfIoCtlCreateNetwork;
+// Handles queries for the details of a specific Thread interface
+OTLWF_IOCTL_FUNC otLwfIoCtlQueryInterface;
 
-// Handles requests to join an existing Thread network
-OTLWF_IOCTL_FUNC otLwfIoCtlJoinNetwork;
+// Handles IOTCLs for OpenThread control
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtlOpenThreadControl(
+    _In_ PIRP Irp
+    );
 
-// Handles requests to force a router ID request to the Thread network
-OTLWF_IOCTL_FUNC otLwfIoCtlSendRouterIDRequest;
+// Handles Irp for IOTCLs for OpenThread control on the OpenThread thread
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfCompleteOpenThreadIrp(
+    _In_ PMS_FILTER     pFilter,
+    _In_ PIRP           Irp
+    );
 
-// Handles requests to disconnect an existing Thread network
-OTLWF_IOCTL_FUNC otLwfIoCtlDisconnectNetwork;
+//
+// Function prototype for OpenThread Io Control functions
+//
+typedef 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+OTLWF_OT_IOCTL_FUNC(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    );
 
-// Handles requests to query the network addresses of an Interface
-OTLWF_IOCTL_FUNC otLwfIoCtlQueryNetworkAddresses;
-
-// Handles requests to query the mesh state of an Interface
-OTLWF_IOCTL_FUNC otLwfIoCtlQueryMeshState;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otEnabled;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otInterface;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otThread;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otActiveScan;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otDiscover;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otChannel;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otChildTimeout;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otExtendedAddress;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otExtendedPanId;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otLeaderRloc;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otLinkMode;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMasterKey;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMeshLocalEid;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMeshLocalPrefix;
+//OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otNetworkDataLeader
+//OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otNetworkDataLocal
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otNetworkName;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otPanId;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRouterRollEnabled;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otShortAddress;
+//OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otUnicastAddresses
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otActiveDataset;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otPendingDataset;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otLocalLeaderWeight;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otAddBorderRouter;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRemoveBorderRouter;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otAddExternalRoute;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRemoveExternalRoute;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSendServerData;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otContextIdReuseDelay;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otKeySequenceCounter;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otNetworkIdTimeout;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRouterUpgradeThreshold;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otReleaseRouterId;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMacWhitelistEnabled;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otAddMacWhitelist;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRemoveMacWhitelist;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMacWhitelistEntry;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otClearMacWhitelist;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otDeviceRole;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otChildInfoById;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otChildInfoByIndex;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otEidCacheEntry;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otLeaderData;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otLeaderRouterId;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otLeaderWeight;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otNetworkDataVersion;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otPartitionId;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRloc16;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRouterIdSequence;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRouterInfo;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otStableNetworkDataVersion;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMacBlacklistEnabled;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otAddMacBlacklist;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRemoveMacBlacklist;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMacBlacklistEntry;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otClearMacBlacklist;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMaxTransmitPower;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otNextOnMeshPrefix;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otPollPeriod;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otLocalLeaderPartitionId;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otAssignLinkQuality;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otPlatformReset;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otParentInfo;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSingleton;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMacCounters;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMaxChildren;
 
 #endif // _IOCONTROL_H
