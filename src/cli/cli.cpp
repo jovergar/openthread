@@ -126,8 +126,6 @@ uint32_t otPlatRandomGet(void)
 }
 #endif
 
-static otNetifAddress sAutoAddresses[8];
-
 #ifdef OTDLL
 Interpreter::Interpreter():
 #else
