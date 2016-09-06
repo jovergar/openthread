@@ -361,20 +361,47 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             break;
         }
     
-        // Register for address changed notifications
-        NtStatus = 
-            NotifyUnicastIpAddressChange(
-                AF_INET6,
-                otLwfAddressChangeCallback,
-                pFilter,
-                FALSE,
-                &pFilter->AddressChangeHandle
-                );
-        if (!NT_SUCCESS(NtStatus))
         {
-            LogError(DRIVER_DEFAULT, "NotifyUnicastIpAddressChange failed, %!STATUS!", NtStatus);
-            Status = NDIS_STATUS_FAILURE;
-            break;
+            COMPARTMENT_ID OriginalCompartmentID;
+            BOOLEAN        MustRevertCompartmentID = FALSE;
+            
+            // Make sure we are in the right compartment
+            OriginalCompartmentID = NdisGetCurrentThreadCompartmentId();
+            if (OriginalCompartmentID != pFilter->InterfaceCompartmentID)
+            {
+                NtStatus = NdisSetCurrentThreadCompartmentId(pFilter->InterfaceCompartmentID);
+                if (NT_SUCCESS(NtStatus))
+                {
+                    MustRevertCompartmentID = TRUE;
+                }
+                else
+                {
+                    LogError(DRIVER_DEFAULT, "NdisSetCurrentThreadCompartmentId failed, %!STATUS!", NtStatus);
+                }
+            }
+
+            // Register for address changed notifications
+            NtStatus = 
+                NotifyUnicastIpAddressChange(
+                    AF_INET6,
+                    otLwfAddressChangeCallback,
+                    pFilter,
+                    FALSE,
+                    &pFilter->AddressChangeHandle
+                    );
+
+            // Revert the compartment, now that we have the table
+            if (MustRevertCompartmentID)
+            {
+                (VOID)NdisSetCurrentThreadCompartmentId(OriginalCompartmentID);
+            }
+
+            if (!NT_SUCCESS(NtStatus))
+            {
+                LogError(DRIVER_DEFAULT, "NotifyUnicastIpAddressChange failed, %!STATUS!", NtStatus);
+                Status = NDIS_STATUS_FAILURE;
+                break;
+            }
         }
 
         // Add Filter to global list of Thread Filters

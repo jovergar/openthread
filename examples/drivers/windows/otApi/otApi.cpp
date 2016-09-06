@@ -1671,6 +1671,20 @@ otAddUnicastAddress(
     const otNetifAddress *aAddress
     )
 {
+    // Put the current thead in the correct compartment
+    bool RevertCompartmentOnExit = false;
+    ULONG OriginalCompartmentID = GetCurrentThreadCompartmentId();
+    if (OriginalCompartmentID != aInstance->CompartmentID)
+    {
+        DWORD dwError = ERROR_SUCCESS;
+        if ((dwError = SetCurrentThreadCompartmentId(aInstance->CompartmentID)) != ERROR_SUCCESS)
+        {
+            otLogCritApi("SetCurrentThreadCompartmentId failed, %!WINERROR!", dwError);
+            return kThreadError_Failed;
+        }
+        RevertCompartmentOnExit = true;
+    }
+
     MIB_UNICASTIPADDRESS_ROW newRow;
     InitializeUnicastIpAddressEntry(&newRow);
 
@@ -1698,6 +1712,13 @@ otAddUnicastAddress(
     }
 
     DWORD dwError = CreateUnicastIpAddressEntry(&newRow);
+
+    // Revert the comparment if necessary
+    if (RevertCompartmentOnExit)
+    {
+        (VOID)SetCurrentThreadCompartmentId(OriginalCompartmentID);
+    }
+
     if (dwError != ERROR_SUCCESS)
     {
         otLogCritApi("CreateUnicastIpAddressEntry failed %!WINERROR!", dwError);
@@ -1714,6 +1735,20 @@ otRemoveUnicastAddress(
     const otIp6Address *aAddress
     )
 {
+    // Put the current thead in the correct compartment
+    bool RevertCompartmentOnExit = false;
+    ULONG OriginalCompartmentID = GetCurrentThreadCompartmentId();
+    if (OriginalCompartmentID != aInstance->CompartmentID)
+    {
+        DWORD dwError = ERROR_SUCCESS;
+        if ((dwError = SetCurrentThreadCompartmentId(aInstance->CompartmentID)) != ERROR_SUCCESS)
+        {
+            otLogCritApi("SetCurrentThreadCompartmentId failed, %!WINERROR!", dwError);
+            return kThreadError_Failed;
+        }
+        RevertCompartmentOnExit = true;
+    }
+
     MIB_UNICASTIPADDRESS_ROW deleteRow;
     InitializeUnicastIpAddressEntry(&deleteRow);
 
@@ -1724,6 +1759,13 @@ otRemoveUnicastAddress(
     memcpy(&deleteRow.Address.Ipv6.sin6_addr, aAddress, sizeof(IN6_ADDR));
     
     DWORD dwError = DeleteUnicastIpAddressEntry(&deleteRow);
+
+    // Revert the comparment if necessary
+    if (RevertCompartmentOnExit)
+    {
+        (VOID)SetCurrentThreadCompartmentId(OriginalCompartmentID);
+    }
+
     if (dwError != ERROR_SUCCESS)
     {
         otLogCritApi("DeleteUnicastIpAddressEntry failed %!WINERROR!", dwError);

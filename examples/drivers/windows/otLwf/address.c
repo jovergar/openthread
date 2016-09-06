@@ -30,7 +30,7 @@
 #include "address.tmh"
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
-VOID 
+BOOLEAN 
 otLwfOnAddressAdded(
     _In_ PMS_FILTER pFilter, 
     _In_ const otNetifAddress* Addr,
@@ -40,7 +40,7 @@ otLwfOnAddressAdded(
     if (pFilter->otCachedAddrCount >= OT_MAX_ADDRESSES)
     {
         LogError(DRIVER_DEFAULT, "Failing to add new address as we have reached our max!");
-        return;
+        return FALSE;
     }
 
     LogInfo(DRIVER_DEFAULT, "Interface %!GUID! adding address: %!IPV6ADDR! (%u-bit prefix)", 
@@ -95,6 +95,8 @@ otLwfOnAddressAdded(
             LogError(DRIVER_DEFAULT, "CreateUnicastIpAddressEntry failed %!STATUS!", status);
         }
     }
+
+    return TRUE;
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
@@ -109,6 +111,9 @@ otLwfOnAddressRemoved(
     IN6_ADDR Addr = pFilter->otCachedAddr[CachedIndex];
 
     LogInfo(DRIVER_DEFAULT, "Interface %!GUID! removing address: %!IPV6ADDR!", &pFilter->InterfaceGuid, &Addr);
+    
+    NT_ASSERT(pFilter->otCachedAddrCount != 0);
+    NT_ASSERT(CachedIndex < pFilter->otCachedAddrCount);
 
     // Remove the cached entry
     if (CachedIndex + 1 != pFilter->otCachedAddrCount)
@@ -123,9 +128,6 @@ otLwfOnAddressRemoved(
     {
         MIB_UNICASTIPADDRESS_ROW deleteRow;
         InitializeUnicastIpAddressEntry(&deleteRow);
-    
-        NT_ASSERT(pFilter->otCachedAddrCount != 0);
-        NT_ASSERT(CachedIndex < pFilter->otCachedAddrCount);
 
         deleteRow.InterfaceIndex = pFilter->InterfaceIndex;
         deleteRow.InterfaceLuid = pFilter->InterfaceLuid;
@@ -261,7 +263,7 @@ otLwfEventProcessingAddressChanged(
     _In_ PIN6_ADDR              pAddr
     )
 {
-    LogFuncEntry(DRIVER_DEFAULT);
+    LogFuncEntryMsg(DRIVER_DEFAULT, "%p (%u)", pFilter, NotificationType);
 
     if (NotificationType == MibAddInstance ||
         NotificationType == MibParameterNotification)
@@ -287,17 +289,47 @@ otLwfEventProcessingAddressChanged(
             otAddr.mPrefixLength = Row.OnLinkPrefixLength;
             otAddr.mValidLifetime = Row.ValidLifetime;
 
-            // Add to the cache if this is a new address
-            if (NotificationType == MibAddInstance)
+            BOOLEAN ShouldDelete = FALSE;
+            BOOLEAN AddedToCache = FALSE;
+            BOOLEAN IsCached = otLwfFindCachedAddrIndex(pFilter, pAddr) != -1;
+
+            // Ignore link local addresses
+            if (IN6_IS_ADDR_LINKLOCAL(pAddr) && !IsCached)
             {
-                otLwfOnAddressAdded(pFilter, &otAddr, FALSE);
+                ShouldDelete = TRUE;
+                goto add_complete;
             }
 
-            // Add (or update) the address to OpenThread
-            ThreadError otError = otAddUnicastAddress(pFilter->otCtx, &otAddr);
-            if (otError != kThreadError_None)
+            // Add to the cache if this is a new address
+            if (NotificationType == MibAddInstance && !IsCached)
             {
-                LogError(DRIVER_DEFAULT, "otAddUnicastAddress failed, %!otError!", otError);
+                AddedToCache = otLwfOnAddressAdded(pFilter, &otAddr, FALSE);
+                if (AddedToCache == FALSE) goto add_complete;
+            }
+
+            // Update OpenThread if we don't have this cached or it is being updated
+            if (!IsCached/* || NotificationType == MibParameterNotification*/)
+            {
+                LogInfo(DRIVER_DEFAULT, "Filter %p trying to add/update address: %!IPV6ADDR!", pFilter, pAddr);
+
+                // Add (or update) the address to OpenThread
+                ThreadError otError = otAddUnicastAddress(pFilter->otCtx, &otAddr);
+                if (otError != kThreadError_None)
+                {
+                    LogError(DRIVER_DEFAULT, "otAddUnicastAddress failed, %!otError!", otError);
+                    ShouldDelete = otError == kThreadError_NoBufs ? TRUE : FALSE;
+                }
+            }
+
+        add_complete:
+
+            // Remove it from TCPIP if necessary
+            if (ShouldDelete)
+            {
+                LogInfo(DRIVER_DEFAULT, "Filter %p deleting recently added address: %!IPV6ADDR!", pFilter, pAddr);
+
+                // Best effort remove address from TCPIP
+                (VOID)DeleteUnicastIpAddressEntry(&Row);
             }
         }
     }
@@ -312,6 +344,8 @@ otLwfEventProcessingAddressChanged(
         {
             // Update our cache
             otLwfOnAddressRemoved(pFilter, (ULONG)index, FALSE);
+            
+            LogInfo(DRIVER_DEFAULT, "Filter %p trying to remove address: %!IPV6ADDR!", pFilter, pAddr);
 
             // Find the correct address from OpenThread to remove (best effort)
             (void)otRemoveUnicastAddress(pFilter->otCtx, (otIp6Address*)pAddr);
