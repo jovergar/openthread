@@ -982,6 +982,8 @@ void Mle::HandleNetifStateChanged(uint32_t aFlags)
         {
             mSendChildUpdateRequest.Post();
         }
+
+        mNetif.GetNetworkDataLocal().SendServerDataNotification();
     }
 }
 
@@ -1234,7 +1236,8 @@ exit:
 
 void Mle::HandleSendChildUpdateRequest(void *aContext)
 {
-    static_cast<Mle *>(aContext)->SendChildUpdateRequest();
+    Mle *obj = reinterpret_cast<Mle *>(aContext);
+    obj->HandleSendChildUpdateRequest();
 }
 
 void Mle::HandleSendChildUpdateRequest(void)

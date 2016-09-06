@@ -237,9 +237,6 @@ otLwfAddressChangeCallback(
     // Ignore notifications that aren't for our interface
     if (Row->InterfaceIndex != pFilter->InterfaceIndex) return;
 
-    // Ignore parameter change notifications
-    if (NotificationType == MibParameterNotification) return;
-
     LogFuncEntryMsg(DRIVER_DEFAULT, "%p (%u)", pFilter, NotificationType);
 
     // Since we don't pass in the initial flag, we shouldn't get this type
@@ -266,7 +263,8 @@ otLwfEventProcessingAddressChanged(
 {
     LogFuncEntry(DRIVER_DEFAULT);
 
-    if (NotificationType == MibAddInstance)
+    if (NotificationType == MibAddInstance ||
+        NotificationType == MibParameterNotification)
     {
         MIB_UNICASTIPADDRESS_ROW Row;
         InitializeUnicastIpAddressEntry(&Row);
@@ -289,15 +287,18 @@ otLwfEventProcessingAddressChanged(
             otAddr.mPrefixLength = Row.OnLinkPrefixLength;
             otAddr.mValidLifetime = Row.ValidLifetime;
 
-            // Update our cache
-            otLwfOnAddressAdded(pFilter, &otAddr, FALSE);
+            // Add to the cache if this is a new address
+            if (NotificationType == MibAddInstance)
+            {
+                otLwfOnAddressAdded(pFilter, &otAddr, FALSE);
+            }
 
-            // Add the address to OpenThread
-            /*ThreadError otError = otAddUnicastAddress(pFilter->otCtx, &otAddr);
+            // Add (or update) the address to OpenThread
+            ThreadError otError = otAddUnicastAddress(pFilter->otCtx, &otAddr);
             if (otError != kThreadError_None)
             {
                 LogError(DRIVER_DEFAULT, "otAddUnicastAddress failed, %!otError!", otError);
-            }*/
+            }
         }
     }
     else if (NotificationType == MibDeleteInstance)
@@ -311,12 +312,9 @@ otLwfEventProcessingAddressChanged(
         {
             // Update our cache
             otLwfOnAddressRemoved(pFilter, (ULONG)index, FALSE);
-            
-            otNetifAddress otAddr = {0};
-            memcpy(&otAddr.mAddress, pAddr, sizeof(IN6_ADDR));
 
             // Find the correct address from OpenThread to remove (best effort)
-            (void)otRemoveUnicastAddress(pFilter->otCtx, &otAddr);
+            (void)otRemoveUnicastAddress(pFilter->otCtx, (otIp6Address*)pAddr);
         }
     }
 

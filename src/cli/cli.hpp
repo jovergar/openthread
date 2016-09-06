@@ -140,7 +140,7 @@ public:
 private:
     enum
     {
-        kMaxArgs = 8,
+        kMaxArgs = 32,
     };
 
     void AppendResult(ThreadError error);
@@ -232,19 +232,18 @@ private:
 #endif
 
     static const struct Command sCommands[];
-    otNetifAddress sAddress;
 
     Server *sServer;
 
 #ifndef OTDLL
-    Ip6::SockAddr sSockAddr;
-    Ip6::IcmpEcho sIcmpEcho;
-    uint8_t sEchoRequest[1500];
+    Ip6::MessageInfo sMessageInfo;
     uint16_t sLength;
     uint16_t sCount;
     uint32_t sInterval;
     Timer sPingTimer;
 #endif
+
+    otNetifAddress sAutoAddresses[8];
 
     otInstance *mInstance;
 

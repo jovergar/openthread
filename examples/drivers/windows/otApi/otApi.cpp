@@ -142,6 +142,7 @@ typedef struct otInstance
 {
     otApiInstance   *ApiHandle;      // Pointer to the Api handle
     NET_IFINDEX      InterfaceIndex; // Interface Index
+    NET_LUID         InterfaceLuid;  // Interface Luid
     GUID             InterfaceGuid;  // Interface guid
     ULONG            CompartmentID;  // Interface Compartment ID
 
@@ -944,9 +945,8 @@ otInstanceInit(
             aInstance->InterfaceGuid = *aDeviceGuid;
             aInstance->CompartmentID = Result.CompartmentID;
 
-            NET_LUID InterfaceLuid;
-            if (ConvertInterfaceGuidToLuid(aDeviceGuid, &InterfaceLuid) != ERROR_SUCCESS ||
-                ConvertInterfaceLuidToIndex(&InterfaceLuid, &aInstance->InterfaceIndex) != ERROR_SUCCESS)
+            if (ConvertInterfaceGuidToLuid(aDeviceGuid, &aInstance->InterfaceLuid) != ERROR_SUCCESS ||
+                ConvertInterfaceLuidToIndex(&aInstance->InterfaceLuid, &aInstance->InterfaceIndex) != ERROR_SUCCESS)
             {
                 otLogCritApi("Failed to convert interface guid to index!");
                 free(aInstance);
@@ -1668,38 +1668,81 @@ OTAPI
 ThreadError
 otAddUnicastAddress(
     _In_ otInstance *aInstance, 
-    _In_ otNetifAddress *aAddress
+    const otNetifAddress *aAddress
     )
 {
-    // TODO
-    UNREFERENCED_PARAMETER(aInstance);
-    UNREFERENCED_PARAMETER(aAddress);
-    return kThreadError_NotImplemented;
+    MIB_UNICASTIPADDRESS_ROW newRow;
+    InitializeUnicastIpAddressEntry(&newRow);
+
+    newRow.InterfaceIndex = aInstance->InterfaceIndex;
+    newRow.InterfaceLuid = aInstance->InterfaceLuid;
+    newRow.Address.si_family = AF_INET6;
+    newRow.Address.Ipv6.sin6_family = AF_INET6;
+        
+    static_assert(sizeof(IN6_ADDR) == sizeof(otIp6Address), "Windows and OpenThread IPv6 Addr Structs must be same size");
+
+    memcpy(&newRow.Address.Ipv6.sin6_addr, &aAddress->mAddress, sizeof(IN6_ADDR));
+    newRow.OnLinkPrefixLength = aAddress->mPrefixLength;
+    newRow.PreferredLifetime = aAddress->mPreferredLifetime;
+    newRow.ValidLifetime = aAddress->mValidLifetime;
+    newRow.PrefixOrigin = IpPrefixOriginOther;  // Derived from network XPANID
+    newRow.SkipAsSource = FALSE;                // Allow automatic binding to this address (default)
+
+    if (IN6_IS_ADDR_LINKLOCAL(&newRow.Address.Ipv6.sin6_addr))
+    {
+        newRow.SuffixOrigin = IpSuffixOriginLinkLayerAddress;   // Derived from Extended MAC address
+    }
+    else
+    {
+        newRow.SuffixOrigin = IpSuffixOriginRandom;             // Was created randomly
+    }
+
+    DWORD dwError = CreateUnicastIpAddressEntry(&newRow);
+    if (dwError != ERROR_SUCCESS)
+    {
+        otLogCritApi("CreateUnicastIpAddressEntry failed %!WINERROR!", dwError);
+        return kThreadError_Failed;
+    }
+
+    return kThreadError_None;
 }
 
 OTAPI
 ThreadError
 otRemoveUnicastAddress(
     _In_ otInstance *aInstance, 
-    _In_ otNetifAddress *aAddress
+    const otIp6Address *aAddress
     )
 {
-    // TODO
-    UNREFERENCED_PARAMETER(aInstance);
-    UNREFERENCED_PARAMETER(aAddress);
-    return kThreadError_NotImplemented;
+    MIB_UNICASTIPADDRESS_ROW deleteRow;
+    InitializeUnicastIpAddressEntry(&deleteRow);
+
+    deleteRow.InterfaceIndex = aInstance->InterfaceIndex;
+    deleteRow.InterfaceLuid = aInstance->InterfaceLuid;
+    deleteRow.Address.si_family = AF_INET6;
+
+    memcpy(&deleteRow.Address.Ipv6.sin6_addr, aAddress, sizeof(IN6_ADDR));
+    
+    DWORD dwError = DeleteUnicastIpAddressEntry(&deleteRow);
+    if (dwError != ERROR_SUCCESS)
+    {
+        otLogCritApi("DeleteUnicastIpAddressEntry failed %!WINERROR!", dwError);
+        return kThreadError_Failed;
+    }
+
+    return kThreadError_None;
 }
 
 OTAPI
 void otSetStateChangedCallback(
     _In_ otInstance *aInstance, 
-    otStateChangedCallback aCallback, 
-    _In_ void *aCallbackContext
+    _In_ otStateChangedCallback aCallback, 
+    _In_ void *aContext
     )
 {
     aInstance->ApiHandle->SetCallback(
         aInstance->ApiHandle->StateChangedCallbacks,
-        make_tuple(aInstance->InterfaceGuid, aCallback, aCallbackContext)
+        make_tuple(aInstance->InterfaceGuid, aCallback, aContext)
         );
 }
 
@@ -1717,7 +1760,7 @@ OTAPI
 ThreadError
 otSetActiveDataset(
     _In_ otInstance *aInstance, 
-    _In_ const otOperationalDataset *aDataset
+    const otOperationalDataset *aDataset
     )
 {
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ACTIVE_DATASET, aDataset));
@@ -1737,10 +1780,70 @@ OTAPI
 ThreadError
 otSetPendingDataset(
     _In_ otInstance *aInstance, 
-    _In_ const otOperationalDataset *aDataset
+    const otOperationalDataset *aDataset
     )
 {
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_PENDING_DATASET, aDataset));
+}
+
+OTAPI 
+ThreadError 
+otSendActiveGet(
+    _In_ otInstance *aInstance, 
+    const uint8_t *aTlvTypes, 
+    uint8_t aLength
+    )
+{
+    UNREFERENCED_PARAMETER(aInstance);
+    UNREFERENCED_PARAMETER(aTlvTypes);
+    UNREFERENCED_PARAMETER(aLength);
+    return kThreadError_NotImplemented;
+}
+
+OTAPI 
+ThreadError 
+otSendActiveSet(
+    _In_ otInstance *aInstance, 
+    const otOperationalDataset *aDataset, 
+    const uint8_t *aTlvs,
+    uint8_t aLength
+    )
+{
+    UNREFERENCED_PARAMETER(aInstance);
+    UNREFERENCED_PARAMETER(aDataset);
+    UNREFERENCED_PARAMETER(aTlvs);
+    UNREFERENCED_PARAMETER(aLength);
+    return kThreadError_NotImplemented;
+}
+
+OTAPI 
+ThreadError 
+otSendPendingGet(
+    _In_ otInstance *aInstance, 
+    const uint8_t *aTlvTypes, 
+    uint8_t aLength
+    )
+{
+    UNREFERENCED_PARAMETER(aInstance);
+    UNREFERENCED_PARAMETER(aTlvTypes);
+    UNREFERENCED_PARAMETER(aLength);
+    return kThreadError_NotImplemented;
+}
+
+OTAPI 
+ThreadError 
+otSendPendingSet(
+    _In_ otInstance *aInstance, 
+    const otOperationalDataset *aDataset, 
+    const uint8_t *aTlvs,
+    uint8_t aLength
+    )
+{
+    UNREFERENCED_PARAMETER(aInstance);
+    UNREFERENCED_PARAMETER(aDataset);
+    UNREFERENCED_PARAMETER(aTlvs);
+    UNREFERENCED_PARAMETER(aLength);
+    return kThreadError_NotImplemented;
 }
 
 OTAPI 
