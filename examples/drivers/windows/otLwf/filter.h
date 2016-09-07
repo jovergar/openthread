@@ -108,6 +108,7 @@ typedef struct _MS_FILTER
     // Miniport Capabilities
     //
     OT_CAPABILITIES                 MiniportCapabilities;
+    NDIS_LINK_STATE                 MiniportLinkState;  
     
     //
     // Pending OID Handling
@@ -215,6 +216,14 @@ FILTER_RETURN_NET_BUFFER_LISTS FilterReturnNetBufferLists;
 FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
 FILTER_RECEIVE_NET_BUFFER_LISTS FilterReceiveNetBufferLists;
 FILTER_CANCEL_SEND_NET_BUFFER_LISTS FilterCancelSendNetBufferLists;
+
+// Indicate a change of the link state
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+otLwfIndicateLinkState(
+    _In_ PMS_FILTER                 pFilter,
+    _In_ NDIS_MEDIA_CONNECT_STATE   MediaState
+    );
 
 //
 // Event Processing Functions

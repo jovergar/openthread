@@ -655,6 +655,9 @@ otLwfEventWorkerThread(
     // Query the current addresses from TCPIP and cache them
     (void)otLwfInitializeAddresses(pFilter);
 
+    // Initialze media connect state to disconnected
+    otLwfIndicateLinkState(pFilter, MediaConnectStateDisconnected);
+
     for (;;)
     {
         NTSTATUS status = STATUS_SUCCESS;

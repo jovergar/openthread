@@ -304,7 +304,11 @@ otLwfEventProcessingAddressChanged(
             if (NotificationType == MibAddInstance && !IsCached)
             {
                 AddedToCache = otLwfOnAddressAdded(pFilter, &otAddr, FALSE);
-                if (AddedToCache == FALSE) goto add_complete;
+                if (AddedToCache == FALSE)
+                {
+                    ShouldDelete = TRUE;
+                    goto add_complete;
+                }
             }
 
             // Update OpenThread if we don't have this cached or it is being updated

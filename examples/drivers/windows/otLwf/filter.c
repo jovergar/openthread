@@ -719,9 +719,51 @@ NOTE: called at <= DISPATCH_LEVEL
 
     LogFuncEntryMsg(DRIVER_DEFAULT, "Filter: %p, IndicateStatus: %8x", FilterModuleContext, StatusIndication->StatusCode);
 
+    if (StatusIndication->StatusCode == NDIS_STATUS_LINK_STATE)
+    {
+        PNDIS_LINK_STATE LinkState = (PNDIS_LINK_STATE)StatusIndication->StatusBuffer;
+
+        LogInfo(DRIVER_DEFAULT, "Filter: %p, MediaConnectState: %u", FilterModuleContext, LinkState->MediaConnectState);
+
+        // Cache the link state from the miniport
+        memcpy(&pFilter->MiniportLinkState, LinkState, sizeof(NDIS_LINK_STATE));
+    }
+
     NdisFIndicateStatus(pFilter->FilterHandle, StatusIndication);
     
     LogFuncExit(DRIVER_DEFAULT);
+}
+
+// Indicate a change of the link state
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+otLwfIndicateLinkState(
+    _In_ PMS_FILTER                 pFilter,
+    _In_ NDIS_MEDIA_CONNECT_STATE   MediaState
+    )
+{
+    // If we are already in the correct state, just return
+    if (pFilter->MiniportLinkState.MediaConnectState == MediaState)
+    {
+        return;
+    }
+
+    NDIS_STATUS_INDICATION StatusIndication = {0};
+  
+    StatusIndication.Header.Type = NDIS_OBJECT_TYPE_STATUS_INDICATION;  
+    StatusIndication.Header.Revision = NDIS_STATUS_INDICATION_REVISION_1;  
+    StatusIndication.Header.Size = sizeof(NDIS_STATUS_INDICATION);  
+    StatusIndication.SourceHandle = pFilter->FilterHandle;  
+      
+    StatusIndication.StatusCode = NDIS_STATUS_LINK_STATE;  
+    StatusIndication.StatusBuffer = &pFilter->MiniportLinkState;  
+    StatusIndication.StatusBufferSize = sizeof(pFilter->MiniportLinkState);  
+      
+    pFilter->MiniportLinkState.MediaConnectState = MediaState;
+    
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! new media state: %u", &pFilter->InterfaceGuid, MediaState);
+  
+    NdisFIndicateStatus(pFilter->FilterHandle, &StatusIndication);  
 }
 
 _Use_decl_annotations_
@@ -850,10 +892,12 @@ otLwfProcessRoleStateChange(
 
     LogInfo(DRIVER_DEFAULT, "Interface %!GUID! new role: %!otDeviceRole!", &pFilter->InterfaceGuid, pFilter->otCachedRole);
 
-    if (IsAttached(prevRole) != IsAttached(pFilter->otCachedRole))
-    {
-        // TODO - Update Media Connected state ?
-    }
+    // Make sure we are in the correct media connect state
+    otLwfIndicateLinkState(
+        pFilter, 
+        IsAttached(pFilter->otCachedRole) ? 
+            MediaConnectStateConnected : 
+            MediaConnectStateDisconnected);
 }
 
 void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
