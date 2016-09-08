@@ -429,6 +429,18 @@ otLwfReleaseInterface(
 // Notification Functions
 //
 
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+otLwfReleaseNotification(
+    _In_ PFILTER_NOTIFICATION_ENTRY NotifEntry
+    )
+{
+    if (RtlDecrementReferenceCount(&NotifEntry->RefCount))
+    {
+        NdisFreeMemory(NotifEntry, 0, 0);
+    }
+}
+
 // Indicates a new notification
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
@@ -439,6 +451,9 @@ otLwfIndicateNotification(
     PIRP IrpToComplete = NULL;
 
     LogFuncEntry(DRIVER_IOCTL);
+
+    // Initialize with a local ref
+    NotifEntry->RefCount = 1;
 
     if (FilterDeviceExtension == NULL) goto error;
 
@@ -456,8 +471,8 @@ otLwfIndicateNotification(
             // Just insert into the list. It will eventually be drained
             InsertTailList(&FilterDeviceExtension->PendingNotificationList, &NotifEntry->Link);
             
-            // Set the pointer to NULL so we don't free it at the end
-            NotifEntry = NULL;
+            // Add additional ref to the notif
+            RtlIncrementReferenceCount(&NotifEntry->RefCount);
         }
         else
         {
@@ -488,12 +503,9 @@ otLwfIndicateNotification(
     }
 
 error:
-
-    // Free the notification if not cleared already
-    if (NotifEntry)
-    {
-        NdisFreeMemory(NotifEntry, 0, 0);
-    }
+    
+    // Release local ref on the notification
+    otLwfReleaseNotification(NotifEntry);
 
     LogFuncExit(DRIVER_IOCTL);
 }
@@ -533,8 +545,8 @@ otLwfQueryNextNotification(
 
     LogFuncEntry(DRIVER_IOCTL);
 
-    PIO_STACK_LOCATION  IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    ULONG  OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    ULONG OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
 
     // Validate we have a big enough buffer
     if (OutputBufferLength < sizeof(OTLWF_NOTIFICATION))
@@ -578,7 +590,7 @@ otLwfQueryNextNotification(
         Irp->IoStatus.Information = sizeof(OTLWF_NOTIFICATION);
 
         // Free the notification
-        NdisFreeMemory(NotifEntry, 0, 0);
+        otLwfReleaseNotification(NotifEntry);
     }
     else
     {
