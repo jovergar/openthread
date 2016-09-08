@@ -96,6 +96,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
     PNET_BUFFER             SendNetBuffer;
     ULONG                   bytesProcessed = 0;
     size_t                  otInstanceSize = sizeof(pFilter->otInstanceBuffer);
+    COMPARTMENT_ID          OriginalCompartmentID;
 
     LogFuncEntry(DRIVER_DEFAULT);
 
@@ -361,47 +362,27 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             break;
         }
     
+        // Make sure we are in the right compartment
+        (VOID)otLwfSetCompartment(pFilter, &OriginalCompartmentID);
+
+        // Register for address changed notifications
+        NtStatus = 
+            NotifyUnicastIpAddressChange(
+                AF_INET6,
+                otLwfAddressChangeCallback,
+                pFilter,
+                FALSE,
+                &pFilter->AddressChangeHandle
+                );
+
+        // Revert the compartment, now that we have the table
+        otLwfRevertCompartment(OriginalCompartmentID);
+
+        if (!NT_SUCCESS(NtStatus))
         {
-            COMPARTMENT_ID OriginalCompartmentID;
-            BOOLEAN        MustRevertCompartmentID = FALSE;
-            
-            // Make sure we are in the right compartment
-            OriginalCompartmentID = NdisGetCurrentThreadCompartmentId();
-            if (OriginalCompartmentID != pFilter->InterfaceCompartmentID)
-            {
-                NtStatus = NdisSetCurrentThreadCompartmentId(pFilter->InterfaceCompartmentID);
-                if (NT_SUCCESS(NtStatus))
-                {
-                    MustRevertCompartmentID = TRUE;
-                }
-                else
-                {
-                    LogError(DRIVER_DEFAULT, "NdisSetCurrentThreadCompartmentId failed, %!STATUS!", NtStatus);
-                }
-            }
-
-            // Register for address changed notifications
-            NtStatus = 
-                NotifyUnicastIpAddressChange(
-                    AF_INET6,
-                    otLwfAddressChangeCallback,
-                    pFilter,
-                    FALSE,
-                    &pFilter->AddressChangeHandle
-                    );
-
-            // Revert the compartment, now that we have the table
-            if (MustRevertCompartmentID)
-            {
-                (VOID)NdisSetCurrentThreadCompartmentId(OriginalCompartmentID);
-            }
-
-            if (!NT_SUCCESS(NtStatus))
-            {
-                LogError(DRIVER_DEFAULT, "NotifyUnicastIpAddressChange failed, %!STATUS!", NtStatus);
-                Status = NDIS_STATUS_FAILURE;
-                break;
-            }
+            LogError(DRIVER_DEFAULT, "NotifyUnicastIpAddressChange failed, %!STATUS!", NtStatus);
+            Status = NDIS_STATUS_FAILURE;
+            break;
         }
 
         // Add Filter to global list of Thread Filters
@@ -864,6 +845,47 @@ NOTE: called at PASSIVE_LEVEL
     Status = NdisFNetPnPEvent(pFilter->FilterHandle, NetPnPEventNotification);
 
     return Status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfSetCompartment(
+    _In_  PMS_FILTER                pFilter,
+    _Out_ COMPARTMENT_ID*           pOriginalCompartment
+    )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    // Make sure we are in the right compartment
+    *pOriginalCompartment = NdisGetCurrentThreadCompartmentId();
+    if (*pOriginalCompartment != pFilter->InterfaceCompartmentID)
+    {
+        status = NdisSetCurrentThreadCompartmentId(pFilter->InterfaceCompartmentID);
+        if (!NT_SUCCESS(status))
+        {
+            LogError(DRIVER_DEFAULT, "NdisSetCurrentThreadCompartmentId failed, %!STATUS!", status);
+            *pOriginalCompartment = 0;
+        }
+    }
+    else
+    {
+        *pOriginalCompartment = 0;
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfRevertCompartment(
+    _In_ COMPARTMENT_ID             OriginalCompartment
+    )
+{
+    // Revert the compartment if it is set
+    if (OriginalCompartment != 0)
+    {
+        (VOID)NdisSetCurrentThreadCompartmentId(OriginalCompartment);
+    }
 }
 
 uint32_t otPlatRandomGet()

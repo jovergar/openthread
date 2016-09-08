@@ -232,7 +232,8 @@ ThreadError otPlatRadioSleep(_In_ otInstance *otCtx)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);
     
-    NT_ASSERT(pFilter->otPhyState == kStateSleep || pFilter->otPhyState == kStateReceive);
+    NT_ASSERT(pFilter->otPhyState != kStateDisabled);
+    //NT_ASSERT(pFilter->otPhyState == kStateSleep || pFilter->otPhyState == kStateReceive);
     if (pFilter->otPhyState != kStateSleep && pFilter->otPhyState != kStateReceive) 
         return kThreadError_Busy;
 

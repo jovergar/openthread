@@ -64,7 +64,10 @@ otLwfOnAddressAdded(
     {
         NTSTATUS status;
         MIB_UNICASTIPADDRESS_ROW newRow;
+        MIB_IPFORWARD_ROW2 newRouteRow;
+        COMPARTMENT_ID OriginalCompartmentID;
         InitializeUnicastIpAddressEntry(&newRow);
+        InitializeIpForwardEntry(&newRouteRow); 
 
         newRow.InterfaceIndex = pFilter->InterfaceIndex;
         newRow.InterfaceLuid = pFilter->InterfaceLuid;
@@ -89,11 +92,28 @@ otLwfOnAddressAdded(
             newRow.SuffixOrigin = IpSuffixOriginRandom;             // Was created randomly
         }
 
+        // Make sure we are in the right compartment
+        (VOID)otLwfSetCompartment(pFilter, &OriginalCompartmentID);
+
         status = CreateUnicastIpAddressEntry(&newRow);
         if (!NT_SUCCESS(status))
         {
             LogError(DRIVER_DEFAULT, "CreateUnicastIpAddressEntry failed %!STATUS!", status);
         }
+
+        newRouteRow.InterfaceIndex = pFilter->InterfaceIndex;
+        newRouteRow.InterfaceLuid = pFilter->InterfaceLuid;
+        newRouteRow.DestinationPrefix.Prefix.si_family = AF_INET6;
+        newRouteRow.DestinationPrefix.PrefixLength = 0;
+
+        status = CreateIpForwardEntry2(&newRouteRow);
+        if (!NT_SUCCESS(status))
+        {
+            LogVerbose(DRIVER_DEFAULT, "CreateIpForwardEntry2 failed %!STATUS!", status);
+        }
+
+        // Revert back to original compartment
+        otLwfRevertCompartment(OriginalCompartmentID);
     }
 
     return TRUE;
@@ -127,6 +147,7 @@ otLwfOnAddressRemoved(
     if (UpdateWindows)
     {
         MIB_UNICASTIPADDRESS_ROW deleteRow;
+        COMPARTMENT_ID OriginalCompartmentID;
         InitializeUnicastIpAddressEntry(&deleteRow);
 
         deleteRow.InterfaceIndex = pFilter->InterfaceIndex;
@@ -134,9 +155,15 @@ otLwfOnAddressRemoved(
         deleteRow.Address.si_family = AF_INET6;
 
         deleteRow.Address.Ipv6.sin6_addr = Addr;
+
+        // Make sure we are in the right compartment
+        (VOID)otLwfSetCompartment(pFilter, &OriginalCompartmentID);
     
         // Best effort remove address from TCPIP
         (VOID)DeleteUnicastIpAddressEntry(&deleteRow);
+
+        // Revert back to original compartment
+        otLwfRevertCompartment(OriginalCompartmentID);
     }
 }
 
@@ -162,35 +189,19 @@ otLwfInitializeAddresses(
     
     PMIB_UNICASTIPADDRESS_TABLE pMibUnicastAddressTable = NULL;
     COMPARTMENT_ID              OriginalCompartmentID;
-    BOOLEAN                     MustRevertCompartmentID = FALSE;
 
     LogFuncEntry(DRIVER_DEFAULT);
     
     pFilter->otCachedAddrCount = 0;
 
     // Make sure we are in the right compartment
-    OriginalCompartmentID = NdisGetCurrentThreadCompartmentId();
-    if (OriginalCompartmentID != pFilter->InterfaceCompartmentID)
-    {
-        status = NdisSetCurrentThreadCompartmentId(pFilter->InterfaceCompartmentID);
-        if (NT_SUCCESS(status))
-        {
-            MustRevertCompartmentID = TRUE;
-        }
-        else
-        {
-            LogError(DRIVER_DEFAULT, "NdisSetCurrentThreadCompartmentId failed, %!STATUS!", status);
-        }
-    }
+    (VOID)otLwfSetCompartment(pFilter, &OriginalCompartmentID);
 
     // Query the table for the current compartment
     status = GetUnicastIpAddressTable(AF_INET6, &pMibUnicastAddressTable);
 
     // Revert the compartment, now that we have the table
-    if (MustRevertCompartmentID)
-    {
-        (VOID)NdisSetCurrentThreadCompartmentId(OriginalCompartmentID);
-    }
+    otLwfRevertCompartment(OriginalCompartmentID);
 
     if (!NT_SUCCESS(status))
     {

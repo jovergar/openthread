@@ -217,12 +217,28 @@ FILTER_SEND_NET_BUFFER_LISTS_COMPLETE FilterSendNetBufferListsComplete;
 FILTER_RECEIVE_NET_BUFFER_LISTS FilterReceiveNetBufferLists;
 FILTER_CANCEL_SEND_NET_BUFFER_LISTS FilterCancelSendNetBufferLists;
 
-// Indicate a change of the link state
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 otLwfIndicateLinkState(
     _In_ PMS_FILTER                 pFilter,
     _In_ NDIS_MEDIA_CONNECT_STATE   MediaState
+    );
+
+//
+// Compartment Functions
+//
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfSetCompartment(
+    _In_  PMS_FILTER                pFilter,
+    _Out_ COMPARTMENT_ID*           pOriginalCompartment
+    );
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+VOID
+otLwfRevertCompartment(
+    _In_ COMPARTMENT_ID             OriginalCompartment
     );
 
 //
