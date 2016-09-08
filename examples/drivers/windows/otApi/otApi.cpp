@@ -40,9 +40,68 @@ const DWORD c_MaxOverlappedWaitTimeMS = 10 * 1000;
 // Version string returned by the API
 const char c_Version[] = "Windows"; // TODO - What should we really put here?
 
-typedef tuple<otDeviceAvailabilityChangedCallback,PVOID> otApiDeviceAvailabilityCallback;
-typedef tuple<GUID,otHandleActiveScanResult,PVOID> otApiActiveScanCallback;
-typedef tuple<GUID,otStateChangedCallback,PVOID> otApiStateChangeCallback;
+template<class CallbackT>
+class otCallback
+{
+public:
+    RTL_REFERENCE_COUNT CallbackRefCount;
+    HANDLE              CallbackCompleteEvent;
+    GUID                InterfaceGuid;
+    CallbackT           Callback;
+    PVOID               CallbackContext;
+
+    otCallback(
+        CallbackT _Callback,
+        PVOID _CallbackContext
+        ) : 
+        CallbackRefCount(1),
+        CallbackCompleteEvent(CreateEvent(nullptr, FALSE, FALSE, nullptr)),
+        Callback(_Callback),
+        CallbackContext(_CallbackContext)
+    {
+    }
+
+    otCallback(
+        const GUID& _InterfaceGuid,
+        CallbackT _Callback,
+        PVOID _CallbackContext
+        ) : 
+        CallbackRefCount(1),
+        CallbackCompleteEvent(CreateEvent(nullptr, FALSE, FALSE, nullptr)),
+        InterfaceGuid(_InterfaceGuid),
+        Callback(_Callback),
+        CallbackContext(_CallbackContext)
+    {
+    }
+
+    ~otCallback()
+    {
+        if (CallbackCompleteEvent) CloseHandle(CallbackCompleteEvent);
+    }
+
+    void AddRef()
+    {
+        RtlIncrementReferenceCount(&CallbackRefCount);
+    }
+
+    void Release(bool waitForShutdown = false)
+    {
+        if (RtlDecrementReferenceCount(&CallbackRefCount))
+        {
+            // Set completion event if there are no more refs
+            SetEvent(CallbackCompleteEvent);
+        }
+
+        if (waitForShutdown)
+        {
+            WaitForSingleObject(CallbackCompleteEvent, INFINITE);
+        }
+    }
+};
+
+typedef otCallback<otDeviceAvailabilityChangedCallback> otApiDeviceAvailabilityCallback;
+typedef otCallback<otHandleActiveScanResult> otApiActiveScanCallback;
+typedef otCallback<otStateChangedCallback> otApiStateChangeCallback;
 
 typedef struct otApiInstance
 {
@@ -55,27 +114,21 @@ typedef struct otApiInstance
 
     // Notification variables
     CRITICAL_SECTION            CallbackLock;
-    RTL_REFERENCE_COUNT         CallbackRefCount;
-    HANDLE                      CallbackCompleteEvent;
     OTLWF_NOTIFICATION          NotificationBuffer;
 
     // Callbacks
-    otApiDeviceAvailabilityCallback    DeviceAvailabilityCallbacks;
-    vector<otApiActiveScanCallback>    ActiveScanCallbacks;
-    vector<otApiActiveScanCallback>    DiscoverCallbacks;
-    vector<otApiStateChangeCallback>   StateChangedCallbacks;
+    otApiDeviceAvailabilityCallback*    DeviceAvailabilityCallbacks;
+    vector<otApiActiveScanCallback*>    ActiveScanCallbacks;
+    vector<otApiActiveScanCallback*>    DiscoverCallbacks;
+    vector<otApiStateChangeCallback*>   StateChangedCallbacks;
 
     // Constructor
     otApiInstance() : 
         DeviceHandle(INVALID_HANDLE_VALUE),
         Overlapped({0}),
-        ThreadpoolWait(nullptr),
-        CallbackRefCount(0),
-        CallbackCompleteEvent(nullptr),
-        DeviceAvailabilityCallbacks((otDeviceAvailabilityChangedCallback)nullptr, (PVOID)nullptr)
+        ThreadpoolWait(nullptr)
     { 
         InitializeCriticalSection(&CallbackLock);
-        RtlInitializeReferenceCount(&CallbackRefCount);
     }
 
     ~otApiInstance()
@@ -85,21 +138,27 @@ typedef struct otApiInstance
 
     // Helper function to set a callback
     template<class CallbackT>
-    bool SetCallback(vector<tuple<GUID,CallbackT,PVOID>> &Callbacks, const tuple<GUID,CallbackT,PVOID>& Callback)
+    bool 
+    SetCallback(
+        vector<otCallback<CallbackT>*> &Callbacks, 
+        const GUID& InterfaceGuid,
+        CallbackT Callback,
+        PVOID CallbackContext
+        )
     {
         bool alreadyExists = false;
-        bool releaseRef = false;
+        otCallback<CallbackT>* CallbackToRelease = nullptr;
 
         EnterCriticalSection(&CallbackLock);
 
-        if (get<1>(Callback) == nullptr)
+        if (Callback == nullptr)
         {
             for (size_t i = 0; i < Callbacks.size(); i++)
             {
-                if (get<0>(Callbacks[i]) == get<0>(Callback))
+                if (Callbacks[i]->InterfaceGuid == InterfaceGuid)
                 {
+                    CallbackToRelease = Callbacks[i];
                     Callbacks.erase(Callbacks.begin() + i);
-                    releaseRef = true;
                     break;
                 }
             }
@@ -108,7 +167,7 @@ typedef struct otApiInstance
         {
             for (size_t i = 0; i < Callbacks.size(); i++)
             {
-                if (get<0>(Callbacks[i]) == get<0>(Callback))
+                if (Callbacks[i]->InterfaceGuid == InterfaceGuid)
                 {
                     alreadyExists = true;
                     break;
@@ -117,20 +176,16 @@ typedef struct otApiInstance
 
             if (!alreadyExists)
             {
-                RtlIncrementReferenceCount(&CallbackRefCount);
-                Callbacks.push_back(Callback);
+                Callbacks.push_back(new otCallback<CallbackT>(InterfaceGuid, Callback, CallbackContext));
             }
         }
 
         LeaveCriticalSection(&CallbackLock);
 
-        if (releaseRef)
+        if (CallbackToRelease)
         {
-            if (RtlDecrementReferenceCount(&CallbackRefCount))
-            {
-                // Set completion event if there are no more refs
-                SetEvent(CallbackCompleteEvent);
-            }
+            CallbackToRelease->Release(true);
+            delete CallbackToRelease;
         }
 
         return !alreadyExists;
@@ -190,15 +245,6 @@ otApiInit(
     {
         dwError = GetLastError();
         otLogCritApi("CreateFile failed, %!WINERROR!", dwError);
-        goto error;
-    }
-
-    // Create event for completion of callback cleanup
-    aApitInstance->CallbackCompleteEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-    if (aApitInstance->CallbackCompleteEvent == nullptr)
-    {
-        dwError = GetLastError();
-        otLogCritApi("CreateEvent (CallbackCompleteEvent) failed, %!WINERROR!", dwError);
         goto error;
     }
 
@@ -274,89 +320,88 @@ otApiFinalize(
     otLogFuncEntry();
 
     // If we never got the handle, nothing left to clean up
-    if (aApitInstance->DeviceHandle == INVALID_HANDLE_VALUE) goto exit;
-
-    //
-    // Make sure we unregister callbacks
-    //
-
-    EnterCriticalSection(&aApitInstance->CallbackLock);
-
-    // Clear all callbacks
-    if (get<0>(aApitInstance->DeviceAvailabilityCallbacks))
+    if (aApitInstance->DeviceHandle != INVALID_HANDLE_VALUE)
     {
-        aApitInstance->DeviceAvailabilityCallbacks = make_tuple((otDeviceAvailabilityChangedCallback)nullptr, (PVOID)nullptr);
-        RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount);
-    }
-    for (size_t i = 0; i < aApitInstance->ActiveScanCallbacks.size(); i++)
-    {
-        RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount);
-    }
-    for (size_t i = 0; i < aApitInstance->DiscoverCallbacks.size(); i++)
-    {
-        RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount);
-    }
-    for (size_t i = 0; i < aApitInstance->StateChangedCallbacks.size(); i++)
-    {
-        RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount);
-    }
-    aApitInstance->ActiveScanCallbacks.clear();
-    aApitInstance->DiscoverCallbacks.clear();
-    aApitInstance->StateChangedCallbacks.clear();
+        //
+        // Make sure we unregister callbacks
+        //
 
-#ifdef DEBUG_ASYNC_IO
-    otLogDebgApi("Clearing Threadpool Wait");
-#endif
+        EnterCriticalSection(&aApitInstance->CallbackLock);
 
-    // Clear the threadpool wait to prevent further waits from being scheduled
-    PTP_WAIT tpWait = aApitInstance->ThreadpoolWait;
-    aApitInstance->ThreadpoolWait = nullptr;
+        otApiDeviceAvailabilityCallback* DeviceAvailabilityCallbacks = aApitInstance->DeviceAvailabilityCallbacks;
+        aApitInstance->DeviceAvailabilityCallbacks = nullptr;
 
-    LeaveCriticalSection(&aApitInstance->CallbackLock);
-    
-    // Release last ref and wait for any pending callback to complete, if necessary
-    if (!RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
-    {
-        WaitForSingleObject(aApitInstance->CallbackCompleteEvent, INFINITE);
-    }
+        vector<otApiActiveScanCallback*> ActiveScanCallbacks(aApitInstance->ActiveScanCallbacks);
+        aApitInstance->ActiveScanCallbacks.clear();
+
+        vector<otApiActiveScanCallback*> DiscoverCallbacks(aApitInstance->DiscoverCallbacks);
+        aApitInstance->DiscoverCallbacks.clear();
+
+        vector<otApiStateChangeCallback*> StateChangedCallbacks(aApitInstance->StateChangedCallbacks);
+        aApitInstance->StateChangedCallbacks.clear();
+
+        #ifdef DEBUG_ASYNC_IO
+        otLogDebgApi("Clearing Threadpool Wait");
+        #endif
+
+        // Clear the threadpool wait to prevent further waits from being scheduled
+        PTP_WAIT tpWait = aApitInstance->ThreadpoolWait;
+        aApitInstance->ThreadpoolWait = nullptr;
+
+        LeaveCriticalSection(&aApitInstance->CallbackLock);
+
+        // Clear all callbacks
+        if (DeviceAvailabilityCallbacks)
+        {
+            DeviceAvailabilityCallbacks->Release(true);
+            delete DeviceAvailabilityCallbacks;
+        }
+        for (size_t i = 0; i < ActiveScanCallbacks.size(); i++)
+        {
+            ActiveScanCallbacks[i]->Release(true);
+            delete ActiveScanCallbacks[i];
+        }
+        for (size_t i = 0; i < DiscoverCallbacks.size(); i++)
+        {
+            DiscoverCallbacks[i]->Release(true);
+            delete DiscoverCallbacks[i];
+        }
+        for (size_t i = 0; i < StateChangedCallbacks.size(); i++)
+        {
+            StateChangedCallbacks[i]->Release(true);
+            delete StateChangedCallbacks[i];
+        }
         
-    // Clean up threadpool wait
-    if (tpWait)
-    {
-#ifdef DEBUG_ASYNC_IO
-        otLogDebgApi("Waiting for outstanding threadpool callbacks to compelte");
-#endif
+        // Clean up threadpool wait
+        if (tpWait)
+        {
+            #ifdef DEBUG_ASYNC_IO
+            otLogDebgApi("Waiting for outstanding threadpool callbacks to compelte");
+            #endif
 
-        // Cancel any queued waits and wait for any outstanding calls to compelte
-        WaitForThreadpoolWaitCallbacks(tpWait, TRUE);
+            // Cancel any queued waits and wait for any outstanding calls to compelte
+            WaitForThreadpoolWaitCallbacks(tpWait, TRUE);
         
-#ifdef DEBUG_ASYNC_IO
-        otLogDebgApi("Cancelling any pending IO");
-#endif
+            #ifdef DEBUG_ASYNC_IO
+            otLogDebgApi("Cancelling any pending IO");
+            #endif
 
-        // Cancel any async IO
-        CancelIoEx(aApitInstance->DeviceHandle, &aApitInstance->Overlapped);
+            // Cancel any async IO
+            CancelIoEx(aApitInstance->DeviceHandle, &aApitInstance->Overlapped);
 
-        // Free the threadpool wait
-        CloseThreadpoolWait(tpWait);
-    }
+            // Free the threadpool wait
+            CloseThreadpoolWait(tpWait);
+        }
 
-    // Clean up overlapped event
-    if (aApitInstance->Overlapped.hEvent)
-    {
-        CloseHandle(aApitInstance->Overlapped.hEvent);
-    }
-
-    // Clean up callback complete event
-    if (aApitInstance->CallbackCompleteEvent)
-    {
-        CloseHandle(aApitInstance->CallbackCompleteEvent);
-    }
+        // Clean up overlapped event
+        if (aApitInstance->Overlapped.hEvent)
+        {
+            CloseHandle(aApitInstance->Overlapped.hEvent);
+        }
     
-    // Close the device handle
-    CloseHandle(aApitInstance->DeviceHandle);
-
-exit:
+        // Close the device handle
+        CloseHandle(aApitInstance->DeviceHandle);
+    }
 
     delete aApitInstance;
     
@@ -381,159 +426,111 @@ ProcessNotification(
 {
     if (Notif->NotifType == OTLWF_NOTIF_DEVICE_AVAILABILITY)
     {
-        otDeviceAvailabilityChangedCallback Callback = nullptr;
-        PVOID                               CallbackContext = nullptr;
+        otCallback<otDeviceAvailabilityChangedCallback>* Callback = nullptr;
         
         EnterCriticalSection(&aApitInstance->CallbackLock);
 
-        if (get<0>(aApitInstance->DeviceAvailabilityCallbacks) != nullptr)
+        if (aApitInstance->DeviceAvailabilityCallbacks != nullptr)
         {
-            // Add Ref
-            RtlIncrementReferenceCount(&aApitInstance->CallbackRefCount);
-
-            // Set callback
-            Callback = get<0>(aApitInstance->DeviceAvailabilityCallbacks);
-            CallbackContext = get<1>(aApitInstance->DeviceAvailabilityCallbacks);
+            aApitInstance->DeviceAvailabilityCallbacks->AddRef();
+            Callback = aApitInstance->DeviceAvailabilityCallbacks;
         }
 
         LeaveCriticalSection(&aApitInstance->CallbackLock);
 
-        // Invoke the callback outside the lock
+        // Invoke the callback outside the lock and release ref when done
         if (Callback)
         {
-            Callback(Notif->DeviceAvailabilityPayload.Available != FALSE, &Notif->InterfaceGuid, CallbackContext);
+            Callback->Callback(
+                Notif->DeviceAvailabilityPayload.Available != FALSE, 
+                &Notif->InterfaceGuid, 
+                Callback->CallbackContext);
 
-            // Release ref
-            if (RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
-            {
-                // Set completion event if there are no more refs
-                SetEvent(aApitInstance->CallbackCompleteEvent);
-            }
+            Callback->Release();
         }
     }
     else if (Notif->NotifType == OTLWF_NOTIF_STATE_CHANGE)
     {
-        otStateChangedCallback  Callback = nullptr;
-        PVOID                   CallbackContext = nullptr;
+        otCallback<otStateChangedCallback>* Callback = nullptr;
 
         EnterCriticalSection(&aApitInstance->CallbackLock);
 
-        // Set the callback
         for (size_t i = 0; i < aApitInstance->StateChangedCallbacks.size(); i++)
         {
-            if (get<0>(aApitInstance->StateChangedCallbacks[i]) == Notif->InterfaceGuid)
+            if (aApitInstance->StateChangedCallbacks[i]->InterfaceGuid == Notif->InterfaceGuid)
             {
-                // Add Ref
-                RtlIncrementReferenceCount(&aApitInstance->CallbackRefCount);
-
-                // Set callback
-                Callback = get<1>(aApitInstance->StateChangedCallbacks[i]);
-                CallbackContext = get<2>(aApitInstance->StateChangedCallbacks[i]);
+                aApitInstance->StateChangedCallbacks[i]->AddRef();
+                Callback = aApitInstance->StateChangedCallbacks[i];
                 break;
             }
         }
 
         LeaveCriticalSection(&aApitInstance->CallbackLock);
-
-        // Invoke the callback outside the lock
+        
+        // Invoke the callback outside the lock and release ref when done
         if (Callback)
         {
-            Callback(Notif->StateChangePayload.Flags, CallbackContext);
+            Callback->Callback(
+                Notif->StateChangePayload.Flags, 
+                Callback->CallbackContext);
 
-            // Release ref
-            if (RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
-            {
-                // Set completion event if there are no more refs
-                SetEvent(aApitInstance->CallbackCompleteEvent);
-            }
+            Callback->Release();
         }
     }
     else if (Notif->NotifType == OTLWF_NOTIF_DISCOVER)
     {
-        otHandleActiveScanResult Callback = nullptr;
-        PVOID                    CallbackContext = nullptr;
+        otCallback<otHandleActiveScanResult>* Callback = nullptr;
 
         EnterCriticalSection(&aApitInstance->CallbackLock);
 
-        // Set the callback
         for (size_t i = 0; i < aApitInstance->DiscoverCallbacks.size(); i++)
         {
-            if (get<0>(aApitInstance->DiscoverCallbacks[i]) == Notif->InterfaceGuid)
+            if (aApitInstance->DiscoverCallbacks[i]->InterfaceGuid == Notif->InterfaceGuid)
             {
-                // Add Ref
-                RtlIncrementReferenceCount(&aApitInstance->CallbackRefCount);
-
-                // Set callback
-                Callback = get<1>(aApitInstance->DiscoverCallbacks[i]);
-                CallbackContext = get<2>(aApitInstance->DiscoverCallbacks[i]);
+                aApitInstance->DiscoverCallbacks[i]->AddRef();
+                Callback = aApitInstance->DiscoverCallbacks[i];
                 break;
             }
         }
 
         LeaveCriticalSection(&aApitInstance->CallbackLock);
-
-        // Invoke the callback outside the lock
+        
+        // Invoke the callback outside the lock and release ref when done
         if (Callback)
         {
-            if (Notif->DiscoverPayload.Valid)
-            {
-                Callback(&Notif->DiscoverPayload.Results, CallbackContext);
-            }
-            else
-            {
-                Callback(nullptr, CallbackContext);
-            }
+            Callback->Callback(
+                Notif->DiscoverPayload.Valid ? &Notif->DiscoverPayload.Results : nullptr, 
+                Callback->CallbackContext);
 
-            // Release ref
-            if (RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
-            {
-                // Set completion event if there are no more refs
-                SetEvent(aApitInstance->CallbackCompleteEvent);
-            }
+            Callback->Release();
         }
     }
     else if (Notif->NotifType == OTLWF_NOTIF_ACTIVE_SCAN)
     {
-        otHandleActiveScanResult Callback = nullptr;
-        PVOID                    CallbackContext = nullptr;
+        otCallback<otHandleActiveScanResult>* Callback = nullptr;
 
         EnterCriticalSection(&aApitInstance->CallbackLock);
 
-        // Set the callback
         for (size_t i = 0; i < aApitInstance->ActiveScanCallbacks.size(); i++)
         {
-            if (get<0>(aApitInstance->ActiveScanCallbacks[i]) == Notif->InterfaceGuid)
+            if (aApitInstance->ActiveScanCallbacks[i]->InterfaceGuid == Notif->InterfaceGuid)
             {
-                // Add Ref
-                RtlIncrementReferenceCount(&aApitInstance->CallbackRefCount);
-
-                // Set callback
-                Callback = get<1>(aApitInstance->ActiveScanCallbacks[i]);
-                CallbackContext = get<2>(aApitInstance->ActiveScanCallbacks[i]);
+                aApitInstance->ActiveScanCallbacks[i]->AddRef();
+                Callback = aApitInstance->ActiveScanCallbacks[i];
                 break;
             }
         }
 
         LeaveCriticalSection(&aApitInstance->CallbackLock);
-
-        // Invoke the callback outside the lock
+        
+        // Invoke the callback outside the lock and release ref when done
         if (Callback)
         {
-            if (Notif->ActiveScanPayload.Valid)
-            {
-                Callback(&Notif->ActiveScanPayload.Results, CallbackContext);
-            }
-            else
-            {
-                Callback(nullptr, CallbackContext);
-            }
+            Callback->Callback(
+                Notif->ActiveScanPayload.Valid ? &Notif->ActiveScanPayload.Results : nullptr, 
+                Callback->CallbackContext);
 
-            // Release ref
-            if (RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
-            {
-                // Set completion event if there are no more refs
-                SetEvent(aApitInstance->CallbackCompleteEvent);
-            }
+            Callback->Release();
         }
     }
     else
@@ -777,36 +774,28 @@ otSetDeviceAvailabilityChangedCallback(
     _In_ void *aCallbackContext
     )
 {
-    bool releaseRef = false;
+    otApiDeviceAvailabilityCallback* CallbackToRelease = nullptr;
 
     EnterCriticalSection(&aApitInstance->CallbackLock);
 
-    if (aCallback == nullptr)
+    if (aApitInstance->DeviceAvailabilityCallbacks != nullptr)
     {
-        if (get<0>(aApitInstance->DeviceAvailabilityCallbacks) != nullptr)
-        {
-            releaseRef = true;
-            aApitInstance->DeviceAvailabilityCallbacks = make_tuple(aCallback, aCallbackContext);
-        }
+        CallbackToRelease = aApitInstance->DeviceAvailabilityCallbacks;
+        aApitInstance->DeviceAvailabilityCallbacks = nullptr;
     }
-    else
+
+    if (aCallback != nullptr)
     {
-        if (get<0>(aApitInstance->DeviceAvailabilityCallbacks) == nullptr)
-        {
-            RtlIncrementReferenceCount(&aApitInstance->CallbackRefCount);
-            aApitInstance->DeviceAvailabilityCallbacks = make_tuple(aCallback, aCallbackContext);
-        }
+        aApitInstance->DeviceAvailabilityCallbacks = 
+            new otApiDeviceAvailabilityCallback(aCallback, aCallbackContext);
     }
     
     LeaveCriticalSection(&aApitInstance->CallbackLock);
 
-    if (releaseRef)
+    if (CallbackToRelease)
     {
-        if (RtlDecrementReferenceCount(&aApitInstance->CallbackRefCount))
-        {
-            // Set completion event if there are no more refs
-            SetEvent(aApitInstance->CallbackCompleteEvent);
-        }
+        CallbackToRelease->Release(true);
+        delete CallbackToRelease;
     }
 }
 
@@ -1085,7 +1074,7 @@ otActiveScan(
 {
     aInstance->ApiHandle->SetCallback(
         aInstance->ApiHandle->ActiveScanCallbacks,
-        make_tuple(aInstance->InterfaceGuid, aCallback, aCallbackContext)
+        aInstance->InterfaceGuid, aCallback, aCallbackContext
         );
 
     BYTE Buffer[sizeof(GUID) + sizeof(uint32_t) + sizeof(uint16_t)];
@@ -1120,7 +1109,7 @@ otDiscover(
 {
     aInstance->ApiHandle->SetCallback(
         aInstance->ApiHandle->DiscoverCallbacks,
-        make_tuple(aInstance->InterfaceGuid, aCallback, aCallbackContext)
+        aInstance->InterfaceGuid, aCallback, aCallbackContext
         );
 
     BYTE Buffer[sizeof(GUID) + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint16_t)];
@@ -1784,7 +1773,7 @@ void otSetStateChangedCallback(
 {
     aInstance->ApiHandle->SetCallback(
         aInstance->ApiHandle->StateChangedCallbacks,
-        make_tuple(aInstance->InterfaceGuid, aCallback, aContext)
+        aInstance->InterfaceGuid, aCallback, aContext
         );
 }
 
