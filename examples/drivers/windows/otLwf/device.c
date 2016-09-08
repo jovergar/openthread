@@ -108,7 +108,7 @@ otLwfRegisterDevice(
             FilterDeviceExtension->Handle = FilterDriverHandle;
 
             NdisAllocateSpinLock(&FilterDeviceExtension->Lock);
-            InitializeListHead(&FilterDeviceExtension->PendingNotificationList);
+            InitializeListHead(&FilterDeviceExtension->ClientList);
 
             FilterDriverObject->MajorFunction[IRP_MJ_CREATE] = otLwfDispatch;
             FilterDriverObject->MajorFunction[IRP_MJ_CLEANUP] = otLwfDispatch;
@@ -154,6 +154,33 @@ otLwfRegisterDevice(
     return (NDIS_STATUS)Status;
 }
 
+PIRP
+otLwfDeviceClientCleanup(
+    POTLWF_DEVICE_CLIENT DeviceClient
+    )
+{
+    PIRP IrpToCancel = NULL;
+
+    // Clean the FileObject context
+    DeviceClient->FileObject->FsContext2 = NULL;
+
+    // Release pending IRP
+    if (DeviceClient->PendingNotificationIRP)
+    {
+        IrpToCancel = DeviceClient->PendingNotificationIRP;
+        DeviceClient->PendingNotificationIRP = NULL;
+    }
+
+    // Free all pending notifications
+    for (UCHAR i = 0; i < DeviceClient->NotificationSize; i++)
+    {
+        UCHAR index = (DeviceClient->NotificationOffset + i) % OTLWF_MAX_PENDING_NOTIFICATIONS_PER_CLIENT;
+        otLwfReleaseNotification(DeviceClient->PendingNotifications[index]);
+    }
+
+    return IrpToCancel;
+}
+
 _No_competing_thread_
 _IRQL_requires_max_(PASSIVE_LEVEL)
 VOID
@@ -167,32 +194,39 @@ otLwfDeregisterDevice(
     {
         NT_ASSERT(FilterDeviceExtension);
         NdisFreeSpinLock(&FilterDeviceExtension->Lock);
-
-        // Complete the pending IRP since we are shutting down
-        if (FilterDeviceExtension->PendingNotificationIRP)
+        
+        // Clean up all pending clients
+        PLIST_ENTRY Link = FilterDeviceExtension->ClientList.Flink;
+        while (Link != &FilterDeviceExtension->ClientList)
         {
-            // Before we are allowed to complete the pending IRP, we must remove the cancel routine
-            KIRQL irql;
-            IoAcquireCancelSpinLock(&irql);
-            IoSetCancelRoutine(FilterDeviceExtension->PendingNotificationIRP, NULL);
-            IoReleaseCancelSpinLock(irql);
-
-            FilterDeviceExtension->PendingNotificationIRP->IoStatus.Status = STATUS_CANCELLED;
-            FilterDeviceExtension->PendingNotificationIRP->IoStatus.Information = 0;
-            IoCompleteRequest(FilterDeviceExtension->PendingNotificationIRP, IO_NO_INCREMENT);
-        }
-
-        // Free all pending notifications
-        PLIST_ENTRY Link = FilterDeviceExtension->PendingNotificationList.Flink;
-        while (Link != &FilterDeviceExtension->PendingNotificationList)
-        {
-            PFILTER_NOTIFICATION_ENTRY pNotification = CONTAINING_RECORD(Link, FILTER_NOTIFICATION_ENTRY, Link);
+            POTLWF_DEVICE_CLIENT DeviceClient = CONTAINING_RECORD(Link, OTLWF_DEVICE_CLIENT, Link);
+            PIRP IrpToCancel = NULL;
 
             // Set next link
             Link = Link->Flink;
+            
+            // Make sure to clean up any left overs from the device client
+            IrpToCancel = otLwfDeviceClientCleanup(DeviceClient);
 
-            // Free the memory
-            NdisFreeMemory(pNotification, 0, 0);
+            // Complete the pending IRP since we are shutting down
+            if (IrpToCancel)
+            {
+                // Before we are allowed to complete the pending IRP, we must remove the cancel routine
+                KIRQL irql;
+                IoAcquireCancelSpinLock(&irql);
+                IoSetCancelRoutine(IrpToCancel, NULL);
+                IoReleaseCancelSpinLock(irql);
+
+                IrpToCancel->IoStatus.Status = STATUS_CANCELLED;
+                IrpToCancel->IoStatus.Information = 0;
+                IoCompleteRequest(IrpToCancel, IO_NO_INCREMENT);
+            }
+
+            // Remove the device client from the list
+            RemoveEntryList(&DeviceClient->Link);
+
+            // Delete the device client
+            NdisFreeMemory(DeviceClient, 0, 0);
         }
 
         IoDeleteDevice(IoDeviceObject);
@@ -213,7 +247,7 @@ otLwfDispatch(
     PIO_STACK_LOCATION      IrpStack;
     NTSTATUS                Status = STATUS_SUCCESS;
     PIRP                    IrpToCancel = NULL;
-    PLIST_ENTRY             Link = NULL;
+    POTLWF_DEVICE_CLIENT    DeviceClient = NULL;
 
     UNREFERENCED_PARAMETER(DeviceObject);
 
@@ -226,48 +260,52 @@ otLwfDispatch(
     switch (IrpStack->MajorFunction)
     {
         case IRP_MJ_CREATE:
-            if (FilterDeviceExtension->HasClient)
+            LogInfo(DRIVER_IOCTL, "Client %p attached.", IrpStack->FileObject);
+
+            if (FilterDeviceExtension->ClientListSize >= OTLWF_MAX_CLIENTS)
             {
-                LogInfo(DRIVER_IOCTL, "Failing Client attached since we already have 1 client.");
-                Status = STATUS_DEVICE_ALREADY_ATTACHED;
+                LogError(DRIVER_IOCTL, "Already have max clients!");
+                Status = STATUS_TOO_MANY_SESSIONS;
+                break;
+            }
+
+            DeviceClient = FILTER_ALLOC_DEVICE_CLIENT();
+            if (DeviceClient)
+            {
+                RtlZeroMemory(DeviceClient, sizeof(OTLWF_DEVICE_CLIENT));
+                DeviceClient->FileObject = IrpStack->FileObject;
+
+                NT_ASSERT(IrpStack->FileObject->FsContext2 == NULL);
+                IrpStack->FileObject->FsContext2 = DeviceClient;
+                
+                // Insert into the client list
+                InsertTailList(&FilterDeviceExtension->ClientList, &DeviceClient->Link);
+                FilterDeviceExtension->ClientListSize++;
             }
             else
             {
-                LogInfo(DRIVER_IOCTL, "Client attached.");
-                FilterDeviceExtension->HasClient = TRUE;
+                Status = STATUS_INSUFFICIENT_RESOURCES;
             }
             break;
 
         case IRP_MJ_CLEANUP:
-            LogInfo(DRIVER_IOCTL, "Client cleaning up.");
+            LogInfo(DRIVER_IOCTL, "Client %p cleaning up.", IrpStack->FileObject);
 
-            // Release pending IRP
-            if (FilterDeviceExtension->PendingNotificationIRP)
-            {
-                IrpToCancel = FilterDeviceExtension->PendingNotificationIRP;
-                FilterDeviceExtension->PendingNotificationIRP = NULL;
-            }
+            DeviceClient = (POTLWF_DEVICE_CLIENT)IrpStack->FileObject->FsContext2;
 
-            // Free all pending notifications
-            Link = FilterDeviceExtension->PendingNotificationList.Flink;
-            while (Link != &FilterDeviceExtension->PendingNotificationList)
-            {
-                PFILTER_NOTIFICATION_ENTRY pNotification = CONTAINING_RECORD(Link, FILTER_NOTIFICATION_ENTRY, Link);
+            // Make sure to clean up any left overs from the device client
+            IrpToCancel = otLwfDeviceClientCleanup(DeviceClient);
 
-                // Set next link
-                Link = Link->Flink;
+            // Remove the device client from the list
+            RemoveEntryList(&DeviceClient->Link);
+            FilterDeviceExtension->ClientListSize--;
 
-                // Free the memory
-                NdisFreeMemory(pNotification, 0, 0);
-            }
-            InitializeListHead(&FilterDeviceExtension->PendingNotificationList);
-
-            // Clear client flag so we don't pend more notifications.
-            FilterDeviceExtension->HasClient = FALSE;
+            // Delete the device client
+            NdisFreeMemory(DeviceClient, 0, 0);
             break;
 
         case IRP_MJ_CLOSE:
-            LogInfo(DRIVER_IOCTL, "Client detatched.");
+            LogInfo(DRIVER_IOCTL, "Client %p detatched.", IrpStack->FileObject);
             break;
 
         default:
@@ -303,8 +341,6 @@ otLwfDeviceIoControl(
     NTSTATUS status = STATUS_SUCCESS;
     BOOLEAN CompleteIRP = TRUE;
 
-    LogFuncEntry(DRIVER_IOCTL);
-
     PVOID               IoBuffer = Irp->AssociatedIrp.SystemBuffer;
 
     PIO_STACK_LOCATION  IrpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -313,6 +349,8 @@ otLwfDeviceIoControl(
     ULONG               IoControlCode = IrpSp->Parameters.DeviceIoControl.IoControlCode;
 
 	ULONG               FuncCode = (IoControlCode >> 2) & 0xFFF;
+
+    LogFuncEntryMsg(DRIVER_IOCTL, "%p", IrpSp->FileObject);
 
 #if DBG
     ASSERT(((POTLWF_DEVICE_EXTENSION)DeviceObject->DeviceExtension)->Signature == 'FTDR');
@@ -448,7 +486,8 @@ otLwfIndicateNotification(
     _In_ PFILTER_NOTIFICATION_ENTRY NotifEntry
     )
 {
-    PIRP IrpToComplete = NULL;
+    PIRP IrpsToComplete[OTLWF_MAX_CLIENTS] = {0};
+    UCHAR IrpOffset = 0;
 
     LogFuncEntry(DRIVER_IOCTL);
 
@@ -459,33 +498,54 @@ otLwfIndicateNotification(
 
     NdisAcquireSpinLock(&FilterDeviceExtension->Lock);
 
-    // Only do anything with notifications if we have a current client
-    if (FilterDeviceExtension->HasClient)
+    // Pend the notification for each client
+    PLIST_ENTRY Link = FilterDeviceExtension->ClientList.Flink;
+    while (Link != &FilterDeviceExtension->ClientList)
     {
+        POTLWF_DEVICE_CLIENT DeviceClient = CONTAINING_RECORD(Link, OTLWF_DEVICE_CLIENT, Link);
+
+        // Set next link
+        Link = Link->Flink;
+
         // If there are other pending notifications or we don't have a pending IRP saved
         // then just go ahead and add the notification to the list
-        if (!IsListEmpty(&FilterDeviceExtension->PendingNotificationList) ||
-            FilterDeviceExtension->PendingNotificationIRP == NULL
+        if (DeviceClient->NotificationSize != 0 ||
+            DeviceClient->PendingNotificationIRP == NULL
             )
         {
-            // Just insert into the list. It will eventually be drained
-            InsertTailList(&FilterDeviceExtension->PendingNotificationList, &NotifEntry->Link);
-            
+            // Calculate the next index
+            UCHAR Index = (DeviceClient->NotificationOffset + DeviceClient->NotificationSize) % OTLWF_MAX_PENDING_NOTIFICATIONS_PER_CLIENT;
+
             // Add additional ref to the notif
             RtlIncrementReferenceCount(&NotifEntry->RefCount);
+
+            // If we are at the max already, release the oldest
+            if (DeviceClient->NotificationSize == OTLWF_MAX_PENDING_NOTIFICATIONS_PER_CLIENT)
+            {
+                LogWarning(DRIVER_IOCTL, "Dropping old notification!");
+                otLwfReleaseNotification(DeviceClient->PendingNotifications[DeviceClient->NotificationOffset]);
+            }
+
+            // Copy the notification to the next space
+            DeviceClient->PendingNotifications[Index] = NotifEntry;
+            DeviceClient->NotificationSize++;
         }
         else
         {
-            IrpToComplete = FilterDeviceExtension->PendingNotificationIRP;
-            FilterDeviceExtension->PendingNotificationIRP = NULL;
+            IrpsToComplete[IrpOffset] = DeviceClient->PendingNotificationIRP;
+            IrpOffset++;
+
+            DeviceClient->PendingNotificationIRP = NULL;
         }
     }
 
     NdisReleaseSpinLock(&FilterDeviceExtension->Lock);
 
-    // If we got the IRP, complete it with the notification now
-    if (IrpToComplete)
+    // Complete any IRPs now, outside the lock
+    for (UCHAR i = 0; i < IrpOffset; i++)
     {
+        PIRP IrpToComplete = IrpsToComplete[IrpOffset];
+
         // Before we are allowed to complete the pending IRP, we must remove the cancel routine
         KIRQL irql;
         IoAcquireCancelSpinLock(&irql);
@@ -522,8 +582,15 @@ otLwfQueryNotificationCancelled(
     UNREFERENCED_PARAMETER(DeviceObject);
 
     LogFuncEntry(DRIVER_IOCTL);
+    
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    POTLWF_DEVICE_CLIENT DeviceClient = (POTLWF_DEVICE_CLIENT)IrpSp->FileObject->FsContext2;
 
-    FilterDeviceExtension->PendingNotificationIRP = NULL;
+    if (DeviceClient)
+    {
+        DeviceClient->PendingNotificationIRP = NULL;
+    }
+
     IoReleaseCancelSpinLock(Irp->CancelIrql);
 
     Irp->IoStatus.Status = STATUS_CANCELLED;
@@ -541,6 +608,7 @@ otLwfQueryNextNotification(
     )
 {
     NTSTATUS status = STATUS_SUCCESS;
+    POTLWF_DEVICE_CLIENT DeviceClient = NULL;
     PFILTER_NOTIFICATION_ENTRY NotifEntry = NULL;
 
     LogFuncEntry(DRIVER_IOCTL);
@@ -555,11 +623,18 @@ otLwfQueryNextNotification(
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto error;
     }
+    
+    DeviceClient = (POTLWF_DEVICE_CLIENT)IrpSp->FileObject->FsContext2;
+    if (DeviceClient == NULL)
+    {
+        status = STATUS_DEVICE_NOT_READY;
+        goto error;
+    }
 
     NdisAcquireSpinLock(&FilterDeviceExtension->Lock);
 
     // Check to see if there are any notifications available
-    if (IsListEmpty(&FilterDeviceExtension->PendingNotificationList))
+    if (DeviceClient->NotificationSize == 0)
     {
         // Set the cancel routine
         IoSetCancelRoutine(Irp, otLwfQueryNotificationCancelled);
@@ -568,15 +643,17 @@ otLwfQueryNextNotification(
         IoMarkIrpPending(Irp);
 
         // Save the IRP to complete later, when we have a notification
-        FilterDeviceExtension->PendingNotificationIRP = Irp;
+        DeviceClient->PendingNotificationIRP = Irp;
     }
     else
     {
-        // Grab the head of the list
-        PLIST_ENTRY Link = RemoveHeadList(&FilterDeviceExtension->PendingNotificationList);
-
         // Get the notification
-        NotifEntry = CONTAINING_RECORD(Link, FILTER_NOTIFICATION_ENTRY, Link);
+        NotifEntry = DeviceClient->PendingNotifications[DeviceClient->NotificationOffset];
+        DeviceClient->PendingNotifications[DeviceClient->NotificationOffset] = NULL;
+
+        // Increment the offset and decrement the size
+        DeviceClient->NotificationOffset = (DeviceClient->NotificationOffset + 1) % OTLWF_MAX_PENDING_NOTIFICATIONS_PER_CLIENT;
+        DeviceClient->NotificationSize--;
     }
 
     NdisReleaseSpinLock(&FilterDeviceExtension->Lock);

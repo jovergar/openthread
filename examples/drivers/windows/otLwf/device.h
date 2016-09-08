@@ -41,6 +41,12 @@
 #define LINKNAME_STRING             L"\\DosDevices\\otLwf"
 #define NTDEVICE_STRING             L"\\Device\\otLwf"
 
+// The maximum number of simultaneous clients supported
+#define OTLWF_MAX_CLIENTS   10
+
+// The maximum number of notifications allowed to be pended, per client
+#define OTLWF_MAX_PENDING_NOTIFICATIONS_PER_CLIENT  100
+
 // Context for IO Device Control callbacks
 typedef struct _OTLWF_DEVICE_EXTENSION
 {
@@ -49,13 +55,46 @@ typedef struct _OTLWF_DEVICE_EXTENSION
 
     NDIS_SPIN_LOCK  Lock;
     _Guarded_by_(Lock)
-    BOOLEAN         HasClient;
-    _Guarded_by_(Lock)
-    LIST_ENTRY      PendingNotificationList;
-    _Guarded_by_(Lock)
-    PIRP            PendingNotificationIRP;
+    LIST_ENTRY      ClientList;
+    ULONG           ClientListSize;
 
 } OTLWF_DEVICE_EXTENSION, *POTLWF_DEVICE_EXTENSION;
+
+// Notification structure
+typedef struct _FILTER_NOTIFICATION_ENTRY
+{
+    RTL_REFERENCE_COUNT RefCount;
+    OTLWF_NOTIFICATION  Notif;
+
+} FILTER_NOTIFICATION_ENTRY, *PFILTER_NOTIFICATION_ENTRY;
+
+// Tag for allocating notification structures 'TNtf
+#define FILTER_NOTIF_ALLOC_TAG 'ftNT'
+
+// Helper to allocate a new notification entry
+#define FILTER_ALLOC_NOTIF(_pFilter) \
+    (PFILTER_NOTIFICATION_ENTRY)NdisAllocateMemoryWithTagPriority(_pFilter->FilterHandle, sizeof(FILTER_NOTIFICATION_ENTRY), FILTER_NOTIF_ALLOC_TAG, NormalPoolPriority)
+
+// Context for IO Device Control clients
+typedef struct _OTLWF_DEVICE_CLIENT
+{
+    LIST_ENTRY                  Link;
+    PFILE_OBJECT                FileObject;
+    PIRP                        PendingNotificationIRP;
+    PFILTER_NOTIFICATION_ENTRY  PendingNotifications[OTLWF_MAX_PENDING_NOTIFICATIONS_PER_CLIENT];
+    UCHAR                       NotificationOffset;
+    UCHAR                       NotificationSize;
+
+} OTLWF_DEVICE_CLIENT, *POTLWF_DEVICE_CLIENT;
+
+// Helper to allocate a new Device Control client
+#define FILTER_ALLOC_DEVICE_CLIENT() \
+    (POTLWF_DEVICE_CLIENT)NdisAllocateMemoryWithTagPriority(FilterDeviceExtension->Handle, sizeof(OTLWF_DEVICE_CLIENT), FILTER_NOTIF_ALLOC_TAG, NormalPoolPriority)
+
+static_assert(
+    (1 << (sizeof(UCHAR) * 8)) > OTLWF_MAX_PENDING_NOTIFICATIONS_PER_CLIENT, 
+    "Type of NotificationOffset must be big enough for OTLWF_MAX_PENDING_NOTIFICATIONS_PER_CLIENT"
+    );
 
 // Global context for device control callbacks
 extern POTLWF_DEVICE_EXTENSION FilterDeviceExtension;
@@ -105,21 +144,6 @@ otLwfReleaseInterface(
 // Notification Type and Functions
 //
 
-// Notification structure
-typedef struct _FILTER_NOTIFICATION_ENTRY
-{
-    LIST_ENTRY          Link;
-    OTLWF_NOTIFICATION  Notif;
-
-} FILTER_NOTIFICATION_ENTRY, *PFILTER_NOTIFICATION_ENTRY;
-
-// Tag for allocating notification structures 'TNtf
-#define FILTER_NOTIF_ALLOC_TAG 'ftNT'
-
-// Helper to allocate a new notification entry
-#define FILTER_ALLOC_NOTIF(_pFilter) \
-    (PFILTER_NOTIFICATION_ENTRY)NdisAllocateMemoryWithTagPriority(_pFilter->FilterHandle, sizeof(FILTER_NOTIFICATION_ENTRY), FILTER_NOTIF_ALLOC_TAG, NormalPoolPriority)
-
 // Indicates a new notification
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
@@ -132,6 +156,13 @@ _IRQL_requires_max_(DISPATCH_LEVEL)
 NTSTATUS
 otLwfQueryNextNotification(
     _In_ PIRP Irp
+    );
+
+// Release a ref on the notification
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+otLwfReleaseNotification(
+    _In_ PFILTER_NOTIFICATION_ENTRY NotifEntry
     );
 
 #endif // _DEVICE_H
