@@ -153,12 +153,6 @@ typedef struct _MS_FILTER
     KEVENT                          SendNetBufferListComplete;
 
     //
-    // OpenThread context buffer
-    //
-    UCHAR                           otInstanceBuffer[OT_INSTANCE_SIZE];
-    otInstance*                     otCtx;
-
-    //
     // OpenThread state management
     //
     otDeviceRole                    otCachedRole;
@@ -184,6 +178,12 @@ typedef struct _MS_FILTER
     uint16_t                        otPanID;
     uint64_t                        otExtendedAddress;
     uint16_t                        otShortAddress;
+
+    //
+    // OpenThread context buffer
+    //
+    otInstance*                     otCtx;
+    UCHAR                           otInstanceBuffer[OT_INSTANCE_SIZE];
 
 
 } MS_FILTER, * PMS_FILTER;

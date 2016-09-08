@@ -544,7 +544,7 @@ otLwfIndicateNotification(
     // Complete any IRPs now, outside the lock
     for (UCHAR i = 0; i < IrpOffset; i++)
     {
-        PIRP IrpToComplete = IrpsToComplete[IrpOffset];
+        PIRP IrpToComplete = IrpsToComplete[i];
 
         // Before we are allowed to complete the pending IRP, we must remove the cancel routine
         KIRQL irql;
