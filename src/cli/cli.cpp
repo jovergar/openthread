@@ -39,12 +39,15 @@
 #include <openthreadinstance.h>
 #include <openthread-config.h>
 #include <openthread-diag.h>
+#include <commissioning/commissioner.h>
+#include <commissioning/joiner.h>
 
 #include "cli.hpp"
 #include "cli_dataset.hpp"
 #include "cli_uart.hpp"
 #include <common/encoding.hpp>
 #include <common/new.hpp>
+#include <net/ip6.hpp>
 #include <platform/random.h>
 #include <platform/uart.h>
 
@@ -52,6 +55,7 @@ using Thread::Encoding::BigEndian::HostSwap16;
 using Thread::Encoding::BigEndian::HostSwap32;
 
 namespace Thread {
+
 namespace Cli {
 
 const struct Command Interpreter::sCommands[] =
@@ -62,15 +66,27 @@ const struct Command Interpreter::sCommands[] =
     { "child", &Interpreter::ProcessChild },
     { "childmax", &Interpreter::ProcessChildMax },
     { "childtimeout", &Interpreter::ProcessChildTimeout },
+#if OPENTHREAD_ENABLE_COMMISSIONER
+    { "commissioner", &Interpreter::ProcessCommissioner },
+#endif
     { "contextreusedelay", &Interpreter::ProcessContextIdReuseDelay },
     { "counter", &Interpreter::ProcessCounters },
     { "dataset", &Interpreter::ProcessDataset },
+#if OPENTHREAD_ENABLE_DIAG
+    { "diag", &Interpreter::ProcessDiag },
+#endif
     { "discover", &Interpreter::ProcessDiscover },
     { "eidcache", &Interpreter::ProcessEidCache },
+#ifdef OPENTHREAD_EXAMPLES_POSIX
+    { "exit", &Interpreter::ProcessExit },
+#endif
     { "extaddr", &Interpreter::ProcessExtAddress },
     { "extpanid", &Interpreter::ProcessExtPanId },
     { "ifconfig", &Interpreter::ProcessIfconfig },
     { "ipaddr", &Interpreter::ProcessIpAddr },
+#if OPENTHREAD_ENABLE_JOINER
+    { "joiner", &Interpreter::ProcessJoiner },
+#endif
     { "keysequence", &Interpreter::ProcessKeySequence },
     { "leaderdata", &Interpreter::ProcessLeaderData },
     { "leaderpartitionid", &Interpreter::ProcessLeaderPartitionId },
@@ -100,21 +116,16 @@ const struct Command Interpreter::sCommands[] =
     { "thread", &Interpreter::ProcessThread },
     { "version", &Interpreter::ProcessVersion },
     { "whitelist", &Interpreter::ProcessWhitelist },
-#if OPENTHREAD_ENABLE_DIAG
-    { "diag", &Interpreter::ProcessDiag },
-#endif
 };
 
-static otNetifAddress sAutoAddresses[8];
-
 Interpreter::Interpreter(otInstance *aInstance):
-    sIcmpEcho(aInstance, &Interpreter::s_HandleEchoResponse, this),
     sLength(8),
     sCount(1),
     sInterval(1000),
-    sPingTimer(aInstance, &Interpreter::s_HandlePingTimer, this),
+    sPingTimer(aInstance->mIp6.mTimerScheduler, &Interpreter::s_HandlePingTimer, this),
     mInstance(aInstance)
 {
+    mInstance->mIp6.mIcmp.SetEchoReplyHandler(&s_HandleEchoResponse, this);
     otSetStateChangedCallback(mInstance, &Interpreter::s_HandleNetifStateChanged, this);
 }
 
@@ -488,7 +499,7 @@ void Interpreter::ProcessDiscover(int argc, char *argv[])
     }
 
     SuccessOrExit(error = otDiscover(mInstance, scanChannels, 0, OT_PANID_BROADCAST,
-                                     &Interpreter::s_HandleActiveScanResult, NULL));
+                                     &Interpreter::s_HandleActiveScanResult, this));
     sServer->OutputFormat("| J | Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |\r\n");
     sServer->OutputFormat("+---+------------------+------------------+------+------------------+----+-----+-----+\r\n");
 
@@ -551,6 +562,15 @@ exit:
     AppendResult(error);
 }
 
+#ifdef OPENTHREAD_EXAMPLES_POSIX
+void Interpreter::ProcessExit(int argc, char *argv[])
+{
+    exit(0);
+    (void)argc;
+    (void)argv;
+}
+#endif
+
 void Interpreter::ProcessExtPanId(int argc, char *argv[])
 {
     ThreadError error = kThreadError_None;
@@ -604,14 +624,15 @@ exit:
 ThreadError Interpreter::ProcessIpAddrAdd(int argc, char *argv[])
 {
     ThreadError error;
+    otNetifAddress aAddress;
 
     VerifyOrExit(argc > 0, error = kThreadError_Parse);
 
-    SuccessOrExit(error = otIp6AddressFromString(argv[0], &sAddress.mAddress));
-    sAddress.mPrefixLength = 64;
-    sAddress.mPreferredLifetime = 0xffffffff;
-    sAddress.mValidLifetime = 0xffffffff;
-    error = otAddUnicastAddress(mInstance, &sAddress);
+    SuccessOrExit(error = otIp6AddressFromString(argv[0], &aAddress.mAddress));
+    aAddress.mPrefixLength = 64;
+    aAddress.mPreferredLifetime = 0xffffffff;
+    aAddress.mValidLifetime = 0xffffffff;
+    error = otAddUnicastAddress(mInstance, &aAddress);
 
 exit:
     return error;
@@ -625,8 +646,7 @@ ThreadError Interpreter::ProcessIpAddrDel(int argc, char *argv[])
     VerifyOrExit(argc > 0, error = kThreadError_Parse);
 
     SuccessOrExit(error = otIp6AddressFromString(argv[0], &address));
-    VerifyOrExit(otIsIp6AddressEqual(&address, &sAddress.mAddress), error = kThreadError_Parse);
-    error = otRemoveUnicastAddress(mInstance, &sAddress);
+    error = otRemoveUnicastAddress(mInstance, &address);
 
 exit:
     return error;
@@ -787,9 +807,9 @@ void Interpreter::ProcessMasterKey(int argc, char *argv[])
     else
     {
         int keyLength;
-        uint8_t key[16];
+        uint8_t key[OT_MASTER_KEY_SIZE];
 
-        VerifyOrExit((keyLength = Hex2Bin(argv[0], key, sizeof(key))) >= 0, error = kThreadError_Parse);
+        VerifyOrExit((keyLength = Hex2Bin(argv[0], key, sizeof(key))) == OT_MASTER_KEY_SIZE, error = kThreadError_Parse);
         SuccessOrExit(error = otSetMasterKey(mInstance, key, static_cast<uint8_t>(keyLength)));
     }
 
@@ -955,7 +975,7 @@ exit:
 
 void Interpreter::s_HandleEchoResponse(void *aContext, Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
 {
-    reinterpret_cast<Interpreter *>(aContext)->HandleEchoResponse(aMessage, aMessageInfo);
+    static_cast<Interpreter *>(aContext)->HandleEchoResponse(aMessage, aMessageInfo);
 }
 
 void Interpreter::HandleEchoResponse(Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
@@ -995,9 +1015,9 @@ void Interpreter::ProcessPing(int argc, char *argv[])
     VerifyOrExit(argc > 0, error = kThreadError_Parse);
     VerifyOrExit(!sPingTimer.IsRunning(), error = kThreadError_Busy);
 
-    memset(&sSockAddr, 0, sizeof(sSockAddr));
-    SuccessOrExit(error = sSockAddr.GetAddress().FromString(argv[0]));
-    sSockAddr.mScopeId = 1;
+    memset(&sMessageInfo, 0, sizeof(sMessageInfo));
+    SuccessOrExit(error = sMessageInfo.GetPeerAddr().FromString(argv[0]));
+    sMessageInfo.mInterfaceId = 1;
 
     sLength = 8;
     sCount = 1;
@@ -1039,16 +1059,28 @@ exit:
 
 void Interpreter::s_HandlePingTimer(void *aContext)
 {
-    reinterpret_cast<Interpreter *>(aContext)->HandlePingTimer();
+    static_cast<Interpreter *>(aContext)->HandlePingTimer();
 }
 
 void Interpreter::HandlePingTimer()
 {
+    ThreadError error = kThreadError_None;
     uint32_t timestamp = HostSwap32(Timer::GetNow());
+    Message *message;
 
-    memcpy(sEchoRequest, &timestamp, sizeof(timestamp));
-    sIcmpEcho.SendEchoRequest(mInstance, sSockAddr, sEchoRequest, sLength);
+    VerifyOrExit((message = mInstance->mIp6.mIcmp.NewMessage(0)) != NULL, error = kThreadError_NoBufs);
+    SuccessOrExit(error = message->Append(&timestamp, sizeof(timestamp)));
+    SuccessOrExit(error = message->SetLength(sLength));
+
+    SuccessOrExit(error = mInstance->mIp6.mIcmp.SendEchoRequest(*message, sMessageInfo));
     sCount--;
+
+exit:
+
+    if (error != kThreadError_None && message != NULL)
+    {
+        message->Free();
+    }
 
     if (sCount)
     {
@@ -1110,7 +1142,7 @@ exit:
 
 void Interpreter::s_HandleLinkPcapReceive(const RadioPacket *aFrame, void *aContext)
 {
-    reinterpret_cast<Interpreter *>(aContext)->HandleLinkPcapReceive(aFrame);
+    static_cast<Interpreter *>(aContext)->HandleLinkPcapReceive(aFrame);
 }
 
 void Interpreter::HandleLinkPcapReceive(const RadioPacket *aFrame)
@@ -1664,7 +1696,7 @@ void Interpreter::ProcessScan(int argc, char *argv[])
         scanChannels = 1 << value;
     }
 
-    SuccessOrExit(error = otActiveScan(mInstance, scanChannels, 0, &Interpreter::s_HandleActiveScanResult, NULL));
+    SuccessOrExit(error = otActiveScan(mInstance, scanChannels, 0, &Interpreter::s_HandleActiveScanResult, this));
     sServer->OutputFormat("| J | Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |\r\n");
     sServer->OutputFormat("+---+------------------+------------------+------+------------------+----+-----+-----+\r\n");
 
@@ -1676,7 +1708,7 @@ exit:
 
 void Interpreter::s_HandleActiveScanResult(otActiveScanResult *aResult, void *aContext)
 {
-    reinterpret_cast<Interpreter *>(aContext)->HandleActiveScanResult(aResult);
+    static_cast<Interpreter *>(aContext)->HandleActiveScanResult(aResult);
 }
 
 void Interpreter::HandleActiveScanResult(otActiveScanResult *aResult)
@@ -1809,6 +1841,54 @@ void Interpreter::ProcessVersion(int argc, char *argv[])
     (void)argc;
     (void)argv;
 }
+
+#if OPENTHREAD_ENABLE_COMMISSIONER
+
+void Interpreter::ProcessCommissioner(int argc, char *argv[])
+{
+    ThreadError error = kThreadError_None;
+
+    VerifyOrExit(argc > 0, error = kThreadError_Parse);
+
+    if (strcmp(argv[0], "start") == 0)
+    {
+        VerifyOrExit(argc > 1, error = kThreadError_Parse);
+        otCommissionerStart(mInstance, argv[1]);
+    }
+    else if (strcmp(argv[0], "stop") == 0)
+    {
+        otCommissionerStop(mInstance);
+    }
+
+exit:
+    AppendResult(error);
+}
+
+#endif  // OPENTHREAD_ENABLE_COMMISSIONER
+
+#if OPENTHREAD_ENABLE_JOINER
+
+void Interpreter::ProcessJoiner(int argc, char *argv[])
+{
+    ThreadError error = kThreadError_None;
+
+    VerifyOrExit(argc > 0, error = kThreadError_Parse);
+
+    if (strcmp(argv[0], "start") == 0)
+    {
+        VerifyOrExit(argc > 1, error = kThreadError_Parse);
+        otJoinerStart(mInstance, argv[1]);
+    }
+    else if (strcmp(argv[0], "stop") == 0)
+    {
+        otJoinerStop(mInstance);
+    }
+
+exit:
+    AppendResult(error);
+}
+
+#endif // OPENTHREAD_ENABLE_JOINER
 
 void Interpreter::ProcessWhitelist(int argc, char *argv[])
 {
@@ -1948,7 +2028,7 @@ exit:
 
 void Interpreter::s_HandleNetifStateChanged(uint32_t aFlags, void *aContext)
 {
-    reinterpret_cast<Interpreter *>(aContext)->HandleNetifStateChanged(aFlags);
+    static_cast<Interpreter *>(aContext)->HandleNetifStateChanged(aFlags);
 }
 
 void Interpreter::HandleNetifStateChanged(uint32_t aFlags)
@@ -1988,7 +2068,7 @@ void Interpreter::HandleNetifStateChanged(uint32_t aFlags)
 
         if (!found)
         {
-            otRemoveUnicastAddress(mInstance, address);
+            otRemoveUnicastAddress(mInstance, &address->mAddress);
             address->mValidLifetime = 0;
         }
     }

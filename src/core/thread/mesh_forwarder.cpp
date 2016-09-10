@@ -51,16 +51,12 @@ using Thread::Encoding::BigEndian::HostSwap16;
 namespace Thread {
 
 MeshForwarder::MeshForwarder(ThreadNetif &aThreadNetif):
-    mInstance(aThreadNetif.GetInstance()),
     mMacReceiver(&MeshForwarder::HandleReceivedFrame, this),
     mMacSender(&MeshForwarder::HandleFrameRequest, &MeshForwarder::HandleSentFrame, this),
-    mDiscoverTimer(aThreadNetif.GetInstance(), &MeshForwarder::HandleDiscoverTimer, this),
-    mPollTimer(aThreadNetif.GetInstance(), &MeshForwarder::HandlePollTimer, this),
-    mReassemblyTimer(aThreadNetif.GetInstance(), &MeshForwarder::HandleReassemblyTimer, this),
-    mSendQueue(aThreadNetif.GetInstance()),
-    mReassemblyList(aThreadNetif.GetInstance()),
-    mResolvingQueue(aThreadNetif.GetInstance()),
-    mScheduleTransmissionTask(aThreadNetif.GetInstance(), ScheduleTransmissionTask, this),
+    mDiscoverTimer(aThreadNetif.GetIp6().mTimerScheduler, &MeshForwarder::HandleDiscoverTimer, this),
+    mPollTimer(aThreadNetif.GetIp6().mTimerScheduler, &MeshForwarder::HandlePollTimer, this),
+    mReassemblyTimer(aThreadNetif.GetIp6().mTimerScheduler, &MeshForwarder::HandleReassemblyTimer, this),
+    mScheduleTransmissionTask(aThreadNetif.GetIp6().mTaskletScheduler, ScheduleTransmissionTask, this),
     mNetif(aThreadNetif),
     mAddressResolver(aThreadNetif.GetAddressResolver()),
     mLowpan(aThreadNetif.GetLowpan()),
@@ -117,13 +113,13 @@ ThreadError MeshForwarder::Stop()
     while ((message = mSendQueue.GetHead()) != NULL)
     {
         mSendQueue.Dequeue(*message);
-        Message::Free(*message);
+        message->Free();
     }
 
     while ((message = mReassemblyList.GetHead()) != NULL)
     {
         mReassemblyList.Dequeue(*message);
-        Message::Free(*message);
+        message->Free();
     }
 
     mEnabled = false;
@@ -161,7 +157,7 @@ void MeshForwarder::HandleResolved(const Ip6::Address &aEid, ThreadError aError)
             }
             else
             {
-                Message::Free(*cur);
+                cur->Free();
             }
         }
     }
@@ -351,7 +347,7 @@ Message *MeshForwarder::GetDirectTransmission()
         case kThreadError_Drop:
         case kThreadError_NoBufs:
             mSendQueue.Dequeue(*curMessage);
-            Message::Free(*curMessage);
+            curMessage->Free();
             continue;
 
         default:
@@ -624,7 +620,7 @@ void MeshForwarder::HandlePollTimer()
 {
     Message *message;
 
-    if ((message = Message::New(mInstance, Message::kTypeMacDataPoll, 0)) != NULL)
+    if ((message = mNetif.GetIp6().mMessagePool.New(Message::kTypeMacDataPoll, 0)) != NULL)
     {
         SendMessage(*message);
         otLogInfoMac("Sent poll\n");
@@ -824,6 +820,7 @@ ThreadError MeshForwarder::SendFragment(Message &aMessage, Mac::Frame &aFrame)
     int hcLength;
     uint16_t fragmentLength;
     uint16_t dstpan;
+    uint8_t secCtl = Mac::Frame::kSecNone;
 
     if (mAddMeshHeader)
     {
@@ -852,6 +849,8 @@ ThreadError MeshForwarder::SendFragment(Message &aMessage, Mac::Frame &aFrame)
     if (aMessage.IsLinkSecurityEnabled())
     {
         fcf |= Mac::Frame::kFcfSecurityEnabled;
+        secCtl = aMessage.IsJoinerEntrust() ? Mac::Frame::kKeyIdMode0 : Mac::Frame::kKeyIdMode1;
+        secCtl |= Mac::Frame::kSecEncMic32;
     }
 
     if (aMessage.IsMleDiscoverRequest() || aMessage.IsMleDiscoverResponse())
@@ -868,7 +867,7 @@ ThreadError MeshForwarder::SendFragment(Message &aMessage, Mac::Frame &aFrame)
         fcf |= Mac::Frame::kFcfPanidCompression;
     }
 
-    aFrame.InitMacHeader(fcf, Mac::Frame::kKeyIdMode1 | Mac::Frame::kSecEncMic32);
+    aFrame.InitMacHeader(fcf, secCtl);
     aFrame.SetDstPanId(dstpan);
     aFrame.SetSrcPanId(mMac.GetPanId());
 
@@ -1052,7 +1051,7 @@ void MeshForwarder::HandleSentFrame(Mac::Frame &aFrame)
     if (mSendMessage->GetDirectTransmission() == false && mSendMessage->IsChildPending() == false)
     {
         mSendQueue.Dequeue(*mSendMessage);
-        Message::Free(*mSendMessage);
+        mSendMessage->Free();
     }
 
     mScheduleTransmissionTask.Post();
@@ -1083,7 +1082,7 @@ void MeshForwarder::HandleDiscoverTimer(void)
         if (mScanChannel > kPhyMaxChannel)
         {
             mSendQueue.Dequeue(*mSendMessage);
-            Message::Free(*mSendMessage);
+            mSendMessage->Free();
             mMac.SetChannel(mRestoreChannel);
             mScanning = false;
             mMle.HandleDiscoverComplete();
@@ -1239,7 +1238,8 @@ void MeshForwarder::HandleMesh(uint8_t *aFrame, uint8_t aFrameLength, const Thre
 
         meshHeader->SetHopsLeft(meshHeader->GetHopsLeft() - 1);
 
-        VerifyOrExit((message = Message::New(mInstance, Message::kType6lowpan, 0)) != NULL, error = kThreadError_Drop);
+        VerifyOrExit((message = mNetif.GetIp6().mMessagePool.New(Message::kType6lowpan, 0)) != NULL,
+                     error = kThreadError_Drop);
         SuccessOrExit(error = message->SetLength(aFrameLength));
         message->Write(0, aFrameLength, aFrame);
         message->SetLinkSecurityEnabled(aMessageInfo.mLinkSecurity);
@@ -1252,7 +1252,7 @@ exit:
 
     if (error != kThreadError_None && message != NULL)
     {
-        Message::Free(*message);
+        message->Free();
     }
 }
 
@@ -1300,14 +1300,12 @@ void MeshForwarder::HandleFragment(uint8_t *aFrame, uint8_t aFrameLength,
         aFrame += fragmentHeader->GetHeaderLength();
         aFrameLength -= fragmentHeader->GetHeaderLength();
 
-        VerifyOrExit((message = Message::New(mInstance, Message::kTypeIp6, 0)) != NULL, error = kThreadError_NoBufs);
+        VerifyOrExit((message = mNetif.GetIp6().mMessagePool.New(Message::kTypeIp6, 0)) != NULL,
+                     error = kThreadError_NoBufs);
         message->SetLinkSecurityEnabled(aMessageInfo.mLinkSecurity);
         message->SetPanId(aMessageInfo.mPanId);
         headerLength = mLowpan.Decompress(*message, aMacSource, aMacDest, aFrame, aFrameLength, datagramLength);
         VerifyOrExit(headerLength > 0, error = kThreadError_NoBufs);
-
-        // Security Check
-        VerifyOrExit(mNetif.GetIp6Filter().Accept(*message), error = kThreadError_Drop);
 
         aFrame += headerLength;
         aFrameLength -= headerLength;
@@ -1317,6 +1315,13 @@ void MeshForwarder::HandleFragment(uint8_t *aFrame, uint8_t aFrameLength,
         message->Write(Ip6::Header::GetPayloadLengthOffset(), sizeof(datagramLength), &datagramLength);
         message->SetDatagramTag(datagramTag);
         message->SetTimeout(kReassemblyTimeout);
+
+        // copy Fragment
+        message->Write(message->GetOffset(), aFrameLength, aFrame);
+        message->MoveOffset(aFrameLength);
+
+        // Security Check
+        VerifyOrExit(mNetif.GetIp6Filter().Accept(*message), error = kThreadError_Drop);
 
         mReassemblyList.Enqueue(*message);
 
@@ -1343,13 +1348,11 @@ void MeshForwarder::HandleFragment(uint8_t *aFrame, uint8_t aFrameLength,
         }
 
         VerifyOrExit(message != NULL, error = kThreadError_Drop);
+
+        // copy Fragment
+        message->Write(message->GetOffset(), aFrameLength, aFrame);
+        message->MoveOffset(aFrameLength);
     }
-
-    assert(message != NULL);
-
-    // copy Fragment
-    message->Write(message->GetOffset(), aFrameLength, aFrame);
-    message->MoveOffset(aFrameLength);
 
 exit:
 
@@ -1363,7 +1366,7 @@ exit:
     }
     else if (message != NULL)
     {
-        Message::Free(*message);
+        message->Free();
     }
 }
 
@@ -1390,7 +1393,7 @@ void MeshForwarder::HandleReassemblyTimer()
         else
         {
             mReassemblyList.Dequeue(*message);
-            Message::Free(*message);
+            message->Free();
         }
     }
 
@@ -1409,15 +1412,13 @@ void MeshForwarder::HandleLowpanHC(uint8_t *aFrame, uint8_t aFrameLength,
     int headerLength;
     uint16_t ip6PayloadLength;
 
-    VerifyOrExit((message = Message::New(mInstance, Message::kTypeIp6, 0)) != NULL, error = kThreadError_NoBufs);
+    VerifyOrExit((message = mNetif.GetIp6().mMessagePool.New(Message::kTypeIp6, 0)) != NULL,
+                 error = kThreadError_NoBufs);
     message->SetLinkSecurityEnabled(aMessageInfo.mLinkSecurity);
     message->SetPanId(aMessageInfo.mPanId);
 
     headerLength = mLowpan.Decompress(*message, aMacSource, aMacDest, aFrame, aFrameLength, 0);
     VerifyOrExit(headerLength > 0, error = kThreadError_Drop);
-
-    // Security Check
-    VerifyOrExit(mNetif.GetIp6Filter().Accept(*message), error = kThreadError_Drop);
 
     aFrame += headerLength;
     aFrameLength -= headerLength;
@@ -1429,6 +1430,9 @@ void MeshForwarder::HandleLowpanHC(uint8_t *aFrame, uint8_t aFrameLength,
 
     message->Write(message->GetOffset(), aFrameLength, aFrame);
 
+    // Security Check
+    VerifyOrExit(mNetif.GetIp6Filter().Accept(*message), error = kThreadError_Drop);
+
 exit:
 
     if (error == kThreadError_None)
@@ -1437,13 +1441,13 @@ exit:
     }
     else if (message != NULL)
     {
-        Message::Free(*message);
+        message->Free();
     }
 }
 
 ThreadError MeshForwarder::HandleDatagram(Message &aMessage, const ThreadMessageInfo &aMessageInfo)
 {
-    return Ip6::Ip6::HandleDatagram(aMessage, &mNetif, mNetif.GetInterfaceId(), &aMessageInfo, false);
+    return mNetif.GetIp6().HandleDatagram(aMessage, &mNetif, mNetif.GetInterfaceId(), &aMessageInfo, false);
 }
 
 void MeshForwarder::UpdateFramePending()

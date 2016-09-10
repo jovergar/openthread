@@ -36,10 +36,11 @@
 
 #include <stdarg.h>
 
+#include <openthread-config.h>
+
 #include <cli/cli_server.hpp>
 #include <net/icmp6.hpp>
 #include <common/timer.hpp>
-#include <openthread-config.h>
 
 namespace Thread {
 
@@ -125,7 +126,7 @@ public:
 private:
     enum
     {
-        kMaxArgs = 8,
+        kMaxArgs = 32,
     };
 
     void AppendResult(ThreadError error);
@@ -137,17 +138,29 @@ private:
     void ProcessChild(int argc, char *argv[]);
     void ProcessChildTimeout(int argc, char *argv[]);
     void ProcessChildMax(int argc, char *argv[]);
+#if OPENTHREAD_ENABLE_COMMISSIONER
+    void ProcessCommissioner(int argc, char *argv[]);
+#endif  // OPENTHREAD_ENABLE_COMMISSIONER
     void ProcessContextIdReuseDelay(int argc, char *argv[]);
     void ProcessCounters(int argc, char *argv[]);
     void ProcessDataset(int argc, char *argv[]);
+#if OPENTHREAD_ENABLE_DIAG
+    void ProcessDiag(int argc, char *argv[]);
+#endif  // OPENTHREAD_ENABLE_DIAG
     void ProcessDiscover(int argc, char *argv[]);
     void ProcessEidCache(int argc, char *argv[]);
+#ifdef OPENTHREAD_EXAMPLES_POSIX
+    void ProcessExit(int argc, char *argv[]);
+#endif
     void ProcessExtAddress(int argc, char *argv[]);
     void ProcessExtPanId(int argc, char *argv[]);
     void ProcessIfconfig(int argc, char *argv[]);
     void ProcessIpAddr(int argc, char *argv[]);
     ThreadError ProcessIpAddrAdd(int argc, char *argv[]);
     ThreadError ProcessIpAddrDel(int argc, char *argv[]);
+#if OPENTHREAD_ENABLE_JOINER
+    void ProcessJoiner(int argc, char *argv[]);
+#endif  // OPENTHREAD_ENABLE_JOINER
     void ProcessKeySequence(int argc, char *argv[]);
     void ProcessLeaderData(int argc, char *argv[]);
     void ProcessLeaderPartitionId(int argc, char *argv[]);
@@ -183,10 +196,6 @@ private:
     void ProcessVersion(int argc, char *argv[]);
     void ProcessWhitelist(int argc, char *argv[]);
 
-#if OPENTHREAD_ENABLE_DIAG
-    void ProcessDiag(int argc, char *argv[]);
-#endif
-
     static void s_HandleEchoResponse(void *aContext, Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     static void s_HandlePingTimer(void *aContext);
     static void s_HandleActiveScanResult(otActiveScanResult *aResult, void *aContext);
@@ -200,16 +209,15 @@ private:
     void HandleLinkPcapReceive(const RadioPacket *aFrame);
 
     static const struct Command sCommands[];
-    otNetifAddress sAddress;
 
-    Ip6::SockAddr sSockAddr;
-    Ip6::IcmpEcho sIcmpEcho;
+    Ip6::MessageInfo sMessageInfo;
     Server *sServer;
-    uint8_t sEchoRequest[1500];
     uint16_t sLength;
     uint16_t sCount;
     uint32_t sInterval;
     Timer sPingTimer;
+
+    otNetifAddress sAutoAddresses[8];
 
     otInstance *mInstance;
 };
