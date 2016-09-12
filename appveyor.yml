@@ -1,0 +1,6 @@
+
+version: 1.0.{build}
+
+build:
+  project: openthread.sln
+  verbosity: normal
