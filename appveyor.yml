@@ -8,11 +8,19 @@ build:
 test_script:
 - cmd: >-
     .\.bin\x64\Release\exe\aes.exe
+
     .\.bin\x64\Release\exe\hmac_sha256.exe
+
     .\.bin\x64\Release\exe\link_quality.exe
+
     .\.bin\x64\Release\exe\lowpan.exe
+
     .\.bin\x64\Release\exe\mac_frame.exe
+
     .\.bin\x64\Release\exe\message.exe
+
     .\.bin\x64\Release\exe\ncp_buffer.exe
+
     .\.bin\x64\Release\exe\timer.exe
+
     .\.bin\x64\Release\exe\toolchain.exe
