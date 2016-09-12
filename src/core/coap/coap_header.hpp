@@ -161,7 +161,7 @@ public:
      * @param[in]  aCode  The Code value.
      *
      */
-    void SetCode(Code aCode) { mCode = aCode; }
+    void SetCode(Code aCode) { mCode = static_cast<uint8_t>(aCode); }
 
     /**
      * This method returns the Message ID value.
