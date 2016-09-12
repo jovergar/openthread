@@ -91,6 +91,7 @@ void Joiner::HandleDiscoverResult(otActiveScanResult *aResult)
 {
     if (aResult != NULL)
     {
+        mJoinerRouterChannel = aResult->mChannel;
         memcpy(&mJoinerRouter, &aResult->mExtAddress, sizeof(mJoinerRouter));
     }
     else
@@ -101,6 +102,7 @@ void Joiner::HandleDiscoverResult(otActiveScanResult *aResult)
         mSocket.Open(& Joiner::HandleUdpReceive, this);
         mSocket.Bind(sockaddr);
 
+        mNetif.GetMac().SetChannel(mJoinerRouterChannel);
         mNetif.GetIp6Filter().AddUnsecurePort(sockaddr.mPort);
 
         mNetif.GetDtls().Start(true, HandleDtlsReceive, HandleDtlsSend, this);

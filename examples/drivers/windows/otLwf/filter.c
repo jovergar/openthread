@@ -420,7 +420,6 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
                 // Stop event processing thread
                 otLwfEventProcessingStop(pFilter);
 
-                otDisable(pFilter->otCtx);
                 otInstanceFinalize(pFilter->otCtx);
                 pFilter->otCtx = NULL;
             }

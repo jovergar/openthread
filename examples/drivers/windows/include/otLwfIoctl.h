@@ -123,11 +123,12 @@ typedef enum _OTLWF_NOTIF_TYPE
 // Proxies to ot* APIs in otLwf.sys
 //
 
+/* REMOVED
 #define IOCTL_OTLWF_OT_ENABLED \
     OTLWF_CTL_CODE(100, METHOD_BUFFERED, FILE_WRITE_DATA)
     // GUID - InterfaceGuid
     // BOOLEAN - aEnabled
-    
+*/
 #define IOCTL_OTLWF_OT_INTERFACE \
     OTLWF_CTL_CODE(101, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
     // GUID - InterfaceGuid

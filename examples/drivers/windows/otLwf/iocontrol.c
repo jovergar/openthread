@@ -267,6 +267,13 @@ const char* IoCtlStrings[] =
     "IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY",
     "IOCTL_OTLWF_OT_PLATFORM_RESET",
     "IOCTL_OTLWF_OT_PARENT_INFO",
+    "IOCTL_OTLWF_OT_SINGLETON"
+    "IOCTL_OTLWF_OT_MAC_COUNTERS",
+    "IOCTL_OTLWF_OT_MAX_CHILDREN",
+    "IOCTL_OTLWF_OT_COMMISIONER_START",
+    "IOCTL_OTLWF_OT_COMMISIONER_STOP",
+    "IOCTL_OTLWF_OT_JOINER_START",
+    "IOCTL_OTLWF_OT_JOINER_STOP",
 };
 
 const char*
@@ -304,9 +311,6 @@ otLwfCompleteOpenThreadIrp(
 
     switch (IoControlCode)
     {
-    case IOCTL_OTLWF_OT_ENABLED:
-        status = otLwfIoCtl_otEnabled(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
-        break;
     case IOCTL_OTLWF_OT_INTERFACE:
         status = otLwfIoCtl_otInterface(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
         break;
@@ -535,39 +539,6 @@ otLwfCompleteOpenThreadIrp(
 	Irp->IoStatus.Information = OutBufferLength;
     Irp->IoStatus.Status = status;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-}
-
-_IRQL_requires_max_(PASSIVE_LEVEL)
-NTSTATUS
-otLwfIoCtl_otEnabled(
-    _In_ PMS_FILTER         pFilter,
-    _In_reads_bytes_(InBufferLength)
-            PUCHAR          InBuffer,
-    _In_    ULONG           InBufferLength,
-    _Out_writes_bytes_opt_(*OutBufferLength)
-            PVOID           OutBuffer,
-    _Inout_ PULONG          OutBufferLength
-    )
-{
-    NTSTATUS status = STATUS_INVALID_PARAMETER;
-    
-    *OutBufferLength = 0;
-    UNREFERENCED_PARAMETER(OutBuffer);
-
-    if (InBufferLength >= sizeof(BOOLEAN))
-    {
-        BOOLEAN IsEnabled = *(BOOLEAN*)InBuffer;
-        if (IsEnabled)
-        {
-            status = ThreadErrorToNtstatus(otEnable(pFilter->otCtx));
-        }
-        else
-        {
-            status = ThreadErrorToNtstatus(otDisable(pFilter->otCtx));
-        }
-    }
-
-    return status;
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL)

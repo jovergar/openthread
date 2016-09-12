@@ -988,24 +988,6 @@ otGetVersionString()
 
 OTAPI 
 ThreadError 
-otEnable(
-    _In_ otInstance *aInstance
-    )
-{
-    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ENABLED, (BOOLEAN)TRUE));
-}
-
-OTAPI 
-ThreadError 
-otDisable(
-    _In_ otInstance *aInstance
-    )
-{
-    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ENABLED, (BOOLEAN)FALSE));
-}
-
-OTAPI 
-ThreadError 
 otInterfaceUp(
     _In_ otInstance *aInstance
     )

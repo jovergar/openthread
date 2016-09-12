@@ -85,7 +85,6 @@ OTLWF_OT_IOCTL_FUNC(
     _Inout_ PULONG          OutBufferLength
     );
 
-OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otEnabled;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otInterface;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otThread;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otActiveScan;
