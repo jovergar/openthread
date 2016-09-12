@@ -184,7 +184,7 @@ int Dtls::HandleMbedtlsTransmit(void *aContext, const unsigned char *aBuf, size_
 int Dtls::HandleMbedtlsTransmit(const unsigned char *aBuf, size_t aLength)
 {
     ThreadError error;
-    int rval;
+    int rval = 0;
 
     otLogInfoMeshCoP("Dtls::HandleMbedtlsTransmit\r\n");
 
