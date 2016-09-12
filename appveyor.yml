@@ -1,8 +1,7 @@
-
 version: 1.0.{build}
-
 image: Previous Visual Studio 2015
-
+configuration: Release
+platform: x64
 build:
   project: openthread.sln
   verbosity: normal
