@@ -917,7 +917,7 @@ otInstance *otInstanceInit()
     sInstance = new(&sInstanceRaw)otInstance();
 
 exit:
-    
+
     otLogFuncExit();
     return sInstance;
 }
