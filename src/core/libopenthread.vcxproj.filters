@@ -43,6 +43,12 @@
     <Filter Include="Header Files\thread">
       <UniqueIdentifier>{702145f9-0e66-4e45-b3d4-d43f2cf17e10}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\meshcop">
+      <UniqueIdentifier>{0e7f4f58-a115-4ce8-8e3b-1094fb79af52}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\meshcop">
+      <UniqueIdentifier>{635aaabf-80f0-40e2-9218-22ff75bc0e32}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="coap\coap_header.cpp">
@@ -152,6 +158,33 @@
     </ClCompile>
     <ClCompile Include="mac\mac_blacklist.cpp">
       <Filter>Source Files\mac</Filter>
+    </ClCompile>
+    <ClCompile Include="meshcop\commissioner.cpp">
+      <Filter>Source Files\meshcop</Filter>
+    </ClCompile>
+    <ClCompile Include="meshcop\dtls.cpp">
+      <Filter>Source Files\meshcop</Filter>
+    </ClCompile>
+    <ClCompile Include="meshcop\joiner.cpp">
+      <Filter>Source Files\meshcop</Filter>
+    </ClCompile>
+    <ClCompile Include="meshcop\joiner_router.cpp">
+      <Filter>Source Files\meshcop</Filter>
+    </ClCompile>
+    <ClCompile Include="meshcop\leader.cpp">
+      <Filter>Source Files\meshcop</Filter>
+    </ClCompile>
+    <ClCompile Include="crypto\aes_ecb.cpp">
+      <Filter>Source Files\crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="crypto\hmac_sha256.cpp">
+      <Filter>Source Files\crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="crypto\mbedtls.cpp">
+      <Filter>Source Files\crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="crypto\sha256.cpp">
+      <Filter>Source Files\crypto</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -292,6 +325,33 @@
     </ClInclude>
     <ClInclude Include="mac\mac_blacklist.hpp">
       <Filter>Header Files\mac</Filter>
+    </ClInclude>
+    <ClInclude Include="meshcop\commissioner.hpp">
+      <Filter>Header Files\meshcop</Filter>
+    </ClInclude>
+    <ClInclude Include="meshcop\dtls.hpp">
+      <Filter>Header Files\meshcop</Filter>
+    </ClInclude>
+    <ClInclude Include="meshcop\joiner.hpp">
+      <Filter>Header Files\meshcop</Filter>
+    </ClInclude>
+    <ClInclude Include="meshcop\joiner_router.hpp">
+      <Filter>Header Files\meshcop</Filter>
+    </ClInclude>
+    <ClInclude Include="meshcop\leader.hpp">
+      <Filter>Header Files\meshcop</Filter>
+    </ClInclude>
+    <ClInclude Include="crypto\aes_ecb.hpp">
+      <Filter>Header Files\crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="crypto\hmac_sha256.hpp">
+      <Filter>Header Files\crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="crypto\mbedtls.hpp">
+      <Filter>Header Files\crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="crypto\sha256.hpp">
+      <Filter>Header Files\crypto</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

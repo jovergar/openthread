@@ -31,8 +31,8 @@
  *   This file implements the top-level interface to the OpenThread stack.
  */
 
+#include OPENTHREAD_CONFIG_FILE
 #include <openthread.h>
-#include <openthread-config.h>
 #include <common/code_utils.hpp>
 #include <common/debug.hpp>
 #include <common/logging.hpp>
@@ -40,6 +40,7 @@
 #include <common/new.hpp>
 #include <common/tasklet.hpp>
 #include <common/timer.hpp>
+#include <crypto/mbedtls.hpp>
 #include <net/icmp6.hpp>
 #include <net/ip6.hpp>
 #include <platform/random.h>
@@ -52,52 +53,24 @@
 #include "openthread.tmh"
 #endif
 
-#if _WIN32
-#define STATIC_ASSERT(e,s) static_assert(e, s)
-#else
-#define STATIC_ASSERT(e,s) typedef char __C_ASSERT__[(e)?1:-1]
+#ifndef OPENTHREAD_MULTIPLE_INSTANCE
+static otDEFINE_ALIGNED_VAR(sInstanceRaw, sizeof(otInstance), uint64_t);
+otInstance *sInstance = NULL;
 #endif
 
-// Number of aligned bytes required for the instance structure
-const size_t cAlignedInstanceSize = otALIGNED_VAR_SIZE(sizeof(otInstance), uint64_t) * sizeof(uint64_t);
-
-// Number of bytes indicated in the public header file for the instance structure
-const size_t cPublicInstanceSize = OT_INSTANCE_SIZE;
-
-// Ensure we are initializing the public definition of the size of the instance structure correctly
-STATIC_ASSERT(cPublicInstanceSize >= cAlignedInstanceSize,
-              "Public Instance size should be enough to hold internal structure.");
-
 otInstance::otInstance(void) :
+    mEnabled(false),
     mReceiveIp6DatagramCallback(NULL),
     mReceiveIp6DatagramCallbackContext(NULL),
     mActiveScanCallback(NULL),
     mActiveScanCallbackContext(NULL),
     mDiscoverCallback(NULL),
     mDiscoverCallbackContext(NULL),
-    mEphemeralPort(Thread::Ip6::Udp::kDynamicPortMin),
-    mIcmpHandlers(NULL),
-    mEchoSequence(1),
-    mEchoReplyHandler(NULL),
-    mEchoReplyContext(NULL),
-    mIsEchoEnabled(true),
-    mRoutes(NULL),
-    mNetifListHead(NULL),
-    mNextInterfaceId(1),
-    mMac(NULL),
-    mTimerHead(NULL),
-    mTimerTail(NULL),
-    mTaskletHead(NULL),
-    mTaskletTail(NULL),
-    mUdpSockets(NULL),
-    mEnabled(false),
-    mThreadNetif(this),
-    mMpl(this)
+    mMbedTls(),
+    mIp6(),
+    mThreadNetif(mIp6)
 {
-    mCryptoContext.mIsInitialized = false;
-    Thread::Message::Init(this);
     mEnabled = true;
-    mForwardingEnabled = false;
 }
 
 namespace Thread {
@@ -112,13 +85,13 @@ static void HandleMleDiscover(otActiveScanResult *aResult, void *aContext);
 void otProcessNextTasklet(otInstance *aInstance)
 {
     otLogFuncEntry();
-    TaskletScheduler::RunNextTasklet(aInstance);
+    aInstance->mIp6.mTaskletScheduler.RunNextTasklet();
     otLogFuncExit();
 }
 
 bool otAreTaskletsPending(otInstance *aInstance)
 {
-    return TaskletScheduler::AreTaskletsPending(aInstance);
+    return aInstance->mIp6.mTaskletScheduler.AreTaskletsPending();
 }
 
 uint8_t otGetChannel(otInstance *aInstance)
@@ -905,6 +878,8 @@ void otSetPollPeriod(otInstance *aInstance, uint32_t aPollPeriod)
     aInstance->mThreadNetif.GetMeshForwarder().SetAssignPollPeriod(aPollPeriod);
 }
 
+#ifdef OPENTHREAD_MULTIPLE_INSTANCE
+
 otInstance *otInstanceInit(void *aInstanceBuffer, uint64_t *aInstanceBufferSize)
 {
     otInstance *aInstance = NULL;
@@ -912,10 +887,12 @@ otInstance *otInstanceInit(void *aInstanceBuffer, uint64_t *aInstanceBufferSize)
     otLogFuncEntry();
     otLogInfoApi("otInstanceInit\n");
 
-    VerifyOrExit(aInstanceBuffer != NULL, ;);
+    VerifyOrExit(aInstanceBufferSize != NULL, ;);
 
     // Make sure the input buffer is big enough
-    VerifyOrExit(cAlignedInstanceSize <= *aInstanceBufferSize, *aInstanceBufferSize = cAlignedInstanceSize);
+    VerifyOrExit(sizeof(otInstance) <= *aInstanceBufferSize, *aInstanceBufferSize = sizeof(otInstance));
+
+    VerifyOrExit(aInstanceBuffer != NULL, ;);
 
     // Construct the context
     aInstance = new(aInstanceBuffer)otInstance();
@@ -926,6 +903,27 @@ exit:
     return aInstance;
 }
 
+#else
+
+otInstance *otInstanceInit()
+{
+    otLogFuncEntry();
+
+    otLogInfoApi("otInstanceInit\n");
+
+    VerifyOrExit(sInstance == NULL, ;);
+
+    // Construct the context
+    sInstance = new(&sInstanceRaw)otInstance();
+
+exit:
+    
+    otLogFuncExit();
+    return sInstance;
+}
+
+#endif
+
 void otInstanceFinalize(otInstance *aInstance)
 {
     otLogFuncEntry();
@@ -934,6 +932,10 @@ void otInstanceFinalize(otInstance *aInstance)
     (void)otDisable(aInstance);
 
     // Nothing to actually free, since the caller supplied the buffer
+
+#ifndef OPENTHREAD_MULTIPLE_INSTANCE
+    sInstance = NULL;
+#endif
     otLogFuncExit();
 }
 
@@ -966,6 +968,7 @@ ThreadError otDisable(otInstance *aInstance)
 
     otThreadStop(aInstance);
     otInterfaceDown(aInstance);
+
     aInstance->mEnabled = false;
 
 exit:
@@ -1064,7 +1067,7 @@ bool otIsActiveScanInProgress(otInstance *aInstance)
 
 void HandleActiveScanResult(void *aContext, Mac::Frame *aFrame)
 {
-    otInstance *aInstance = reinterpret_cast<otInstance *>(aContext);
+    otInstance *aInstance = static_cast<otInstance *>(aContext);
     otActiveScanResult result;
     Mac::Address address;
     Mac::Beacon *beacon;
@@ -1147,29 +1150,36 @@ void HandleMleDiscover(otActiveScanResult *aResult, void *aContext)
 void otSetReceiveIp6DatagramCallback(otInstance *aInstance, otReceiveIp6DatagramCallback aCallback,
                                      void *aCallbackContext)
 {
-    Ip6::Ip6::SetReceiveDatagramCallback(aInstance, aCallback, aCallbackContext);
-}
-
-otMessage otNewIPv6Message(otInstance *aInstance, uint16_t aLength)
-{
-    return Ip6::Ip6::NewPrepopulatedMessage(aInstance, aLength);
+    aInstance->mIp6.SetReceiveDatagramCallback(aCallback, aCallbackContext);
 }
 
 bool otIsReceiveIp6DatagramFilterEnabled(otInstance *aInstance)
 {
-    return Ip6::Ip6::IsReceiveIp6FilterEnabled(aInstance);
+    return aInstance->mIp6.IsReceiveIp6FilterEnabled();
 }
 
 void otSetReceiveIp6DatagramFilterEnabled(otInstance *aInstance, bool aEnabled)
 {
-    Ip6::Ip6::SetReceiveIp6FilterEnabled(aInstance, aEnabled);
+    aInstance->mIp6.SetReceiveIp6FilterEnabled(aEnabled);
+}
+
+otMessage otNewIPv6Message(otInstance *aInstance, bool aLinkSecurityEnabled)
+{
+    Message *message = aInstance->mIp6.mMessagePool.New(Message::kTypeIp6, 0);
+
+    if (message)
+    {
+        message->SetLinkSecurityEnabled(aLinkSecurityEnabled);
+    }
+
+    return message;
 }
 
 ThreadError otSendIp6Datagram(otInstance *aInstance, otMessage aMessage)
 {
     otLogFuncEntry();
     ThreadError error =
-        Ip6::Ip6::HandleDatagram(
+        aInstance->mIp6.HandleDatagram(
             *static_cast<Message *>(aMessage),
             NULL,
             aInstance->mThreadNetif.GetInterfaceId(),
@@ -1182,12 +1192,12 @@ ThreadError otSendIp6Datagram(otInstance *aInstance, otMessage aMessage)
 
 otMessage otNewUdpMessage(otInstance *aInstance)
 {
-    return Ip6::Udp::NewMessage(aInstance, 0);
+    return aInstance->mIp6.mUdp.NewMessage(0);
 }
 
 ThreadError otFreeMessage(otMessage aMessage)
 {
-    return Message::Free(*static_cast<Message *>(aMessage));
+    return static_cast<Message *>(aMessage)->Free();
 }
 
 uint16_t otGetMessageLength(otMessage aMessage)
@@ -1214,7 +1224,7 @@ ThreadError otSetMessageOffset(otMessage aMessage, uint16_t aOffset)
     return message->SetOffset(aOffset);
 }
 
-int otAppendMessage(otMessage aMessage, const void *aBuf, uint16_t aLength)
+ThreadError otAppendMessage(otMessage aMessage, const void *aBuf, uint16_t aLength)
 {
     Message *message = static_cast<Message *>(aMessage);
     return message->Append(aBuf, aLength);
@@ -1232,16 +1242,17 @@ int otWriteMessage(otMessage aMessage, uint16_t aOffset, const void *aBuf, uint1
     return message->Write(aOffset, aLength, aBuf);
 }
 
-ThreadError otOpenUdpSocket(otInstance *aInstance, otUdpSocket *aSocket, otUdpReceive aCallback, void *aCallbackContext)
+ThreadError otOpenUdpSocket(otInstance *, otUdpSocket *aSocket, otUdpReceive aCallback, void *aCallbackContext)
 {
+    // TODO - Do we not need otInstance?
     Ip6::UdpSocket *socket = reinterpret_cast<Ip6::UdpSocket *>(aSocket);
-    return socket->Open(aInstance, aCallback, aCallbackContext);
+    return socket->Open(aCallback, aCallbackContext);
 }
 
-ThreadError otCloseUdpSocket(otInstance *aInstance, otUdpSocket *aSocket)
+ThreadError otCloseUdpSocket(otUdpSocket *aSocket)
 {
     Ip6::UdpSocket *socket = reinterpret_cast<Ip6::UdpSocket *>(aSocket);
-    return socket->Close(aInstance);
+    return socket->Close();
 }
 
 ThreadError otBindUdpSocket(otUdpSocket *aSocket, otSockAddr *aSockName)
@@ -1259,12 +1270,12 @@ ThreadError otSendUdp(otUdpSocket *aSocket, otMessage aMessage, const otMessageI
 
 bool otIsIcmpEchoEnabled(otInstance *aInstance)
 {
-    return Ip6::Icmp::IsEchoEnabled(aInstance);
+    return aInstance->mIp6.mIcmp.IsEchoEnabled();
 }
 
 void otSetIcmpEchoEnabled(otInstance *aInstance, bool aEnabled)
 {
-    Ip6::Icmp::SetEchoEnabled(aInstance, aEnabled);
+    aInstance->mIp6.mIcmp.SetEchoEnabled(aEnabled);
 }
 
 uint8_t otIp6PrefixMatch(const otIp6Address *aFirst, const otIp6Address *aSecond)
@@ -1348,6 +1359,30 @@ ThreadError otSendPendingSet(otInstance *aInstance, const otOperationalDataset *
 {
     return aInstance->mThreadNetif.GetPendingDataset().SendSetRequest(*aDataset, aTlvs, aLength);
 }
+
+#if OPENTHREAD_ENABLE_COMMISSIONER
+ThreadError otCommissionerStart(otInstance *aInstance, const char *aPSKd)
+{
+    return aInstance->mThreadNetif.GetCommissioner().Start(aPSKd);
+}
+
+ThreadError otCommissionerStop(otInstance *aInstance)
+{
+    return aInstance->mThreadNetif.GetCommissioner().Stop();
+}
+#endif  // OPENTHREAD_ENABLE_COMMISSIONER
+
+#if OPENTHREAD_ENABLE_JOINER
+ThreadError otJoinerStart(otInstance *aInstance, const char *aPSKd)
+{
+    return aInstance->mThreadNetif.GetJoiner().Start(aPSKd);
+}
+
+ThreadError otJoinerStop(otInstance *aInstance)
+{
+    return aInstance->mThreadNetif.GetJoiner().Stop();
+}
+#endif  // OPENTHREAD_ENABLE_JOINER
 
 #ifdef __cplusplus
 }  // extern "C"

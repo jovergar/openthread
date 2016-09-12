@@ -801,22 +801,18 @@ otLwfEventWorkerThread(
                                     ThreadError error = kThreadError_None;
 
                                     // Create a new message
-                                    otMessage message = otNewIPv6Message(pFilter->otCtx, (uint16_t)NET_BUFFER_DATA_LENGTH(CurrNb));
+                                    otMessage message = otNewIPv6Message(pFilter->otCtx, TRUE);
                                     if (message)
                                     {
-                                        error = otSetMessageLength(message, (uint16_t)NET_BUFFER_DATA_LENGTH(CurrNb));
+                                        // Write to the message
+                                        error = otAppendMessage(message, MessageBuffer, (uint16_t)NET_BUFFER_DATA_LENGTH(CurrNb));
                                         if (error != kThreadError_None)
                                         {
-                                            LogError(DRIVER_DATA_PATH, "otSetMessageLength failed with %!otError!", error);
+                                            LogError(DRIVER_DATA_PATH, "otAppendMessage failed with %!otError!", error);
                                             otFreeMessage(message);
                                         }
                                         else
                                         {
-                                            // Write to the message
-                                            int bytesWritten = otWriteMessage(message, 0, MessageBuffer, (uint16_t)NET_BUFFER_DATA_LENGTH(CurrNb));
-                                            NT_ASSERT(bytesWritten == (int)NET_BUFFER_DATA_LENGTH(CurrNb));
-                                            UNREFERENCED_PARAMETER(bytesWritten);
-
                                             IPV6_HEADER* v6Header = (IPV6_HEADER*)MessageBuffer;
                                             
                                             LogVerbose(DRIVER_DATA_PATH, "Filter: %p, SEND: %p : %!IPV6ADDR! => %!IPV6ADDR! (%u bytes)", 

@@ -95,7 +95,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
     ULONG                   Size;
     PNET_BUFFER             SendNetBuffer;
     ULONG                   bytesProcessed = 0;
-    size_t                  otInstanceSize = sizeof(pFilter->otInstanceBuffer);
+    size_t                  otInstanceSize = 0;
     COMPARTMENT_ID          OriginalCompartmentID;
 
     LogFuncEntry(DRIVER_DEFAULT);
@@ -340,6 +340,17 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
         // Initialize the radio layer
         otLwfRadioInit(pFilter);
 
+        // Calculate the size of the otInstance and allocate it
+        (VOID)otInstanceInit(NULL, &otInstanceSize);
+        NT_ASSERT(otInstanceSize != 0);
+        pFilter->otInstanceBuffer = (PUCHAR)FILTER_ALLOC_MEM(NdisFilterHandle, (ULONG)otInstanceSize);
+        if (pFilter == NULL)
+        {
+            LogWarning(DRIVER_DEFAULT, "Failed to allocate otInstance buffer, 0x%x bytes", (ULONG)otInstanceSize);
+            Status = NDIS_STATUS_RESOURCES;
+            break;
+        }
+
         // Initialize the OpenThread library
         pFilter->otCachedRole = kDeviceRoleDisabled;
         pFilter->otCtx = otInstanceInit(pFilter->otInstanceBuffer, &otInstanceSize);
@@ -414,6 +425,11 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
                 pFilter->otCtx = NULL;
             }
 
+            if (pFilter->otInstanceBuffer != NULL)
+            {
+                NdisFreeMemory(pFilter->otInstanceBuffer, 0, 0);
+            }
+
             if (pFilter->EventHighPrecisionTimer) ExDeleteTimer(pFilter->EventHighPrecisionTimer, TRUE, FALSE, NULL);
             NdisFreeMemory(pFilter, 0, 0);
         }
@@ -485,6 +501,8 @@ NOTE: Called at PASSIVE_LEVEL and the filter is in paused state
     // Free OpenThread context memory
     otInstanceFinalize(pFilter->otCtx);
     pFilter->otCtx = NULL;
+    NdisFreeMemory(pFilter->otInstanceBuffer, 0, 0);
+    pFilter->otInstanceBuffer = NULL;
 
     // Free NBL & Pools
     NdisAdvanceNetBufferDataStart(NET_BUFFER_LIST_FIRST_NB(pFilter->SendNetBufferList), kMaxPHYPacketSize, TRUE, NULL);

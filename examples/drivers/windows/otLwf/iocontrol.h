@@ -152,5 +152,9 @@ OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otParentInfo;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSingleton;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMacCounters;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otMaxChildren;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerStart;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerStop;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otJoinerStart;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otJoinerStop;
 
 #endif // _IOCONTROL_H

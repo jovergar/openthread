@@ -19,80 +19,29 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="mbedcrypto.c" />
     <ClCompile Include="repo\library\aes.c" />
-    <ClCompile Include="repo\library\aesni.c" />
-    <ClCompile Include="repo\library\arc4.c" />
-    <ClCompile Include="repo\library\asn1parse.c" />
-    <ClCompile Include="repo\library\asn1write.c" />
-    <ClCompile Include="repo\library\base64.c" />
     <ClCompile Include="repo\library\bignum.c" />
-    <ClCompile Include="repo\library\blowfish.c" />
-    <ClCompile Include="repo\library\camellia.c" />
     <ClCompile Include="repo\library\ccm.c" />
-    <ClCompile Include="repo\library\certs.c" />
     <ClCompile Include="repo\library\cipher.c" />
     <ClCompile Include="repo\library\cipher_wrap.c" />
     <ClCompile Include="repo\library\ctr_drbg.c" />
     <ClCompile Include="repo\library\debug.c" />
-    <ClCompile Include="repo\library\des.c" />
-    <ClCompile Include="repo\library\dhm.c" />
-    <ClCompile Include="repo\library\ecdh.c" />
-    <ClCompile Include="repo\library\ecdsa.c" />
     <ClCompile Include="repo\library\ecjpake.c" />
     <ClCompile Include="repo\library\ecp.c" />
     <ClCompile Include="repo\library\ecp_curves.c" />
     <ClCompile Include="repo\library\entropy.c" />
     <ClCompile Include="repo\library\entropy_poll.c" />
-    <ClCompile Include="repo\library\error.c" />
-    <ClCompile Include="repo\library\gcm.c" />
-    <ClCompile Include="repo\library\havege.c" />
-    <ClCompile Include="repo\library\hmac_drbg.c" />
     <ClCompile Include="repo\library\md.c" />
-    <ClCompile Include="repo\library\md2.c" />
-    <ClCompile Include="repo\library\md4.c" />
-    <ClCompile Include="repo\library\md5.c" />
     <ClCompile Include="repo\library\md_wrap.c" />
     <ClCompile Include="repo\library\memory_buffer_alloc.c" />
-    <ClCompile Include="repo\library\net.c" />
-    <ClCompile Include="repo\library\oid.c" />
-    <ClCompile Include="repo\library\padlock.c" />
-    <ClCompile Include="repo\library\pem.c" />
-    <ClCompile Include="repo\library\pk.c" />
-    <ClCompile Include="repo\library\pkcs11.c" />
-    <ClCompile Include="repo\library\pkcs12.c" />
-    <ClCompile Include="repo\library\pkcs5.c" />
-    <ClCompile Include="repo\library\pkparse.c" />
-    <ClCompile Include="repo\library\pkwrite.c" />
-    <ClCompile Include="repo\library\pk_wrap.c" />
     <ClCompile Include="repo\library\platform.c" />
-    <ClCompile Include="repo\library\ripemd160.c" />
-    <ClCompile Include="repo\library\rsa.c" />
-    <ClCompile Include="repo\library\sha1.c" />
     <ClCompile Include="repo\library\sha256.c" />
-    <ClCompile Include="repo\library\sha512.c" />
-    <ClCompile Include="repo\library\ssl_cache.c" />
     <ClCompile Include="repo\library\ssl_ciphersuites.c" />
     <ClCompile Include="repo\library\ssl_cli.c" />
     <ClCompile Include="repo\library\ssl_cookie.c" />
     <ClCompile Include="repo\library\ssl_srv.c" />
     <ClCompile Include="repo\library\ssl_ticket.c" />
     <ClCompile Include="repo\library\ssl_tls.c" />
-    <ClCompile Include="repo\library\threading.c" />
-    <ClCompile Include="repo\library\timing.c" />
-    <ClCompile Include="repo\library\version.c" />
-    <ClCompile Include="repo\library\version_features.c" />
-    <ClCompile Include="repo\library\x509.c" />
-    <ClCompile Include="repo\library\x509write_crt.c" />
-    <ClCompile Include="repo\library\x509write_csr.c" />
-    <ClCompile Include="repo\library\x509_create.c" />
-    <ClCompile Include="repo\library\x509_crl.c" />
-    <ClCompile Include="repo\library\x509_crt.c" />
-    <ClCompile Include="repo\library\x509_csr.c" />
-    <ClCompile Include="repo\library\xtea.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="repo\library\Makefile" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{4111C8BB-D354-4348-AD3C-EB6832E84831}</ProjectGuid>

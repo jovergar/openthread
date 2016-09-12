@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Nest Labs, Inc.
+ *  Copyright (c) 2016, Microsoft Corporation.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,70 +26,41 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * @file
- * @brief
- *   This file includes the platform abstraction for HMAC SHA-256 computations.
- */
+/* Define to 1 to enable the commissioner role. */
+#define OPENTHREAD_ENABLE_COMMISSIONER 1
 
-#ifndef HMAC_SHA256_H_
-#define HMAC_SHA256_H_
+/* Define to 1 if you want to use diagnostics module */
+#define OPENTHREAD_ENABLE_DIAG 0
 
-#include <openthread-std-types.h>
-#include <cryptocontext.h>
+/* Define to 1 to enable dtls support. */
+#define OPENTHREAD_ENABLE_DTLS 1
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* Define to 1 to enable the joiner role. */
+#define OPENTHREAD_ENABLE_JOINER 1
 
-/**
- * @addtogroup core-security
- *
- * @{
- *
- */
+/* Name of package */
+#define PACKAGE "openthread"
 
-enum
-{
-    otCryptoSha256Size = 32,  ///< SHA-256 hash size (bytes)
-};
+/* Define to the address where bug reports for this package should be sent. */
+#define PACKAGE_BUGREPORT "openthread-devel@googlegroups.com"
 
-/**
- * This method sets the key.
- *
- * @param[in]  aCryptoContext  The crypto context used.
- * @param[in]  aKey            A pointer to the key.
- * @param[in]  aKeyLength      The key length in bytes.
- *
- */
-void otCryptoHmacSha256Start(otCryptoContext *aCryptoContext, const void *aKey, uint16_t aKeyLength);
+/* Define to the full name of this package. */
+#define PACKAGE_NAME "OPENTHREAD"
 
-/**
- * This method inputs bytes into the HMAC computation.
- *
- * @param[in]  aCryptoContext  The crypto context used.
- * @param[in]  aBuf            A pointer to the input buffer.
- * @param[in]  aBufLength      The length of @p aBuf in bytes.
- *
- */
-void otCryptoHmacSha256Update(otCryptoContext *aCryptoContext, const void *aBuf, uint16_t aBufLength);
+/* Define to the full name and version of this package. */
+#define PACKAGE_STRING "OPENTHREAD 0.01.00"
 
-/**
- * This method finalizes the hash computation.
- *
- * @param[in]   aCryptoContext  The crypto context used.
- * @param[out]  aHash  A pointer to the output buffer.
- *
- */
-void otCryptoHmacSha256Finish(otCryptoContext *aCryptoContext, uint8_t aHash[otCryptoSha256Size]);
+/* Define to the one symbol short name of this package. */
+#define PACKAGE_TARNAME "openthread"
 
-/**
- * @}
- *
- */
+/* Define to the home page for this package. */
+#define PACKAGE_URL "http://github.com/openthread/openthread"
 
-#ifdef __cplusplus
-}  // end of extern "C"
-#endif
+/* Define to the version of this package. */
+#define PACKAGE_VERSION "0.01.00"
 
-#endif  // HMAC_SHA256_H_
+/* Version number of package */
+#define VERSION "0.01.00"
+
+/* Platform version information */
+#define PLATFORM_INFO "Windows"

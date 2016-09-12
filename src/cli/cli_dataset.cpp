@@ -35,10 +35,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <openthread.h>
 #ifndef OTDLL
-#include <openthread-config.h>
+#include OPENTHREAD_CONFIG_FILE
 #endif
+#include <openthread.h>
 
 #include "cli.hpp"
 #include "cli_dataset.hpp"
@@ -533,7 +533,7 @@ ThreadError Dataset::ProcessMgmtGetCommand(otInstance *aInstance, int argc, char
         }
         else if (strcmp(argv[index], "localprefix") == 0)
         {
-            tlvs[length++] = OT_MESHCOP_TLV_LOCALPREFIX;
+            tlvs[length++] = OT_MESHCOP_TLV_MESHLOCALPREFIX;
         }
         else if (strcmp(argv[index], "delaytimer") == 0)
         {

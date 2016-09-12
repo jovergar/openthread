@@ -29,7 +29,7 @@
 /**
  * @file
  * @brief
- *   This file includes platform abstractions for miscelaneous behaviors.
+ *   This file includes platform abstractions for miscellaneous behaviors.
  */
 
 #ifndef OT_PLATFORM_MISC_H
@@ -53,8 +53,6 @@ void otPlatReset(otInstance *aInstance);
  * Enumeration of possible reset reason codes.
  *
  * These are in the same order as the Spinel reset reason codes.
- *
- * @param[in] aInstance  The OpenThread instance structure.
  *
  */
 typedef enum

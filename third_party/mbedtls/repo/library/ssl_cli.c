@@ -43,7 +43,7 @@
 
 #include <string.h>
 
-#include <stdint.h>
+#include <openthread-std-types.h>
 
 #if defined(MBEDTLS_HAVE_TIME)
 #include <time.h>
@@ -453,7 +453,7 @@ static void ssl_write_max_fragment_length_ext( mbedtls_ssl_context *ssl,
     *p++ = 0x00;
     *p++ = 1;
 
-    *p++ = ssl->conf->mfl_code;
+    *p++ = (unsigned char)ssl->conf->mfl_code;
 
     *olen = 5;
 }

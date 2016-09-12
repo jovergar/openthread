@@ -20,6 +20,8 @@
 #define OTAPI EXTERN_C __declspec(dllexport)
 
 #include <openthread.h>
+#include <commissioning/commissioner.h>
+#include <commissioning/joiner.h>
 #include <platform/logging-windows.h>
 
 #include <winioctl.h>

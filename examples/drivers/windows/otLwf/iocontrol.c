@@ -505,6 +505,18 @@ otLwfCompleteOpenThreadIrp(
     case IOCTL_OTLWF_OT_MAX_CHILDREN:
         status = otLwfIoCtl_otMaxChildren(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
         break;
+    case IOCTL_OTLWF_OT_COMMISIONER_START:
+        status = otLwfIoCtl_otCommissionerStart(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_COMMISIONER_STOP:
+        status = otLwfIoCtl_otCommissionerStop(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_JOINER_START:
+        status = otLwfIoCtl_otJoinerStart(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
+    case IOCTL_OTLWF_OT_JOINER_STOP:
+        status = otLwfIoCtl_otJoinerStop(pFilter, InBuffer, InBufferLength, OutBuffer, &OutBufferLength);
+        break;
     default:
         status = STATUS_NOT_IMPLEMENTED;
         OutBufferLength = 0;
@@ -2622,6 +2634,106 @@ otLwfIoCtl_otMaxChildren(
     {
         *OutBufferLength = 0;
     }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otCommissionerStart(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    
+    UNREFERENCED_PARAMETER(OutBuffer);
+    *OutBufferLength = 0;
+    
+    if (InBufferLength >= sizeof(otPSKd))
+    {
+        otPSKd *aPSKd = (otPSKd*)InBuffer;
+        status = ThreadErrorToNtstatus(otCommissionerStart(pFilter->otCtx, (const char*)aPSKd->buffer));
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otCommissionerStop(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    UNREFERENCED_PARAMETER(InBuffer);
+    UNREFERENCED_PARAMETER(InBufferLength);
+    UNREFERENCED_PARAMETER(OutBuffer);
+    *OutBufferLength = 0;
+    
+    status = ThreadErrorToNtstatus(otCommissionerStop(pFilter->otCtx));
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otJoinerStart(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    
+    UNREFERENCED_PARAMETER(OutBuffer);
+    *OutBufferLength = 0;
+    
+    if (InBufferLength >= sizeof(otPSKd))
+    {
+        otPSKd *aPSKd = (otPSKd*)InBuffer;
+        status = ThreadErrorToNtstatus(otJoinerStart(pFilter->otCtx, (const char*)aPSKd->buffer));
+    }
+
+    return status;
+}
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+NTSTATUS
+otLwfIoCtl_otJoinerStop(
+    _In_ PMS_FILTER         pFilter,
+    _In_reads_bytes_(InBufferLength)
+            PUCHAR          InBuffer,
+    _In_    ULONG           InBufferLength,
+    _Out_writes_bytes_opt_(*OutBufferLength)
+            PVOID           OutBuffer,
+    _Inout_ PULONG          OutBufferLength
+    )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    UNREFERENCED_PARAMETER(InBuffer);
+    UNREFERENCED_PARAMETER(InBufferLength);
+    UNREFERENCED_PARAMETER(OutBuffer);
+    *OutBufferLength = 0;
+    
+    status = ThreadErrorToNtstatus(otJoinerStop(pFilter->otCtx));
 
     return status;
 }

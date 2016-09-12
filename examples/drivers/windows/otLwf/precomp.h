@@ -57,6 +57,8 @@ RtlCopyBufferToMdl(
 
 #include <openthread-core-config.h>
 #include <openthread.h>
+#include <commissioning/commissioner.h>
+#include <commissioning/joiner.h>
 #include <common/code_utils.hpp>
 #include <platform/logging.h>
 #include <platform/logging-windows.h>

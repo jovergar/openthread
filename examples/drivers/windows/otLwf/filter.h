@@ -183,7 +183,7 @@ typedef struct _MS_FILTER
     // OpenThread context buffer
     //
     otInstance*                     otCtx;
-    UCHAR                           otInstanceBuffer[OT_INSTANCE_SIZE];
+    PUCHAR                          otInstanceBuffer;
 
 
 } MS_FILTER, * PMS_FILTER;

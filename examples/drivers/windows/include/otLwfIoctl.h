@@ -470,8 +470,32 @@ typedef enum _OTLWF_NOTIF_TYPE
     // GUID - InterfaceGuid
     // uint8_t - aMaxChildren
 
+#define OPENTHREAD_PSK_MAX_LENGTH 32
+typedef struct otPSKd
+{
+    uint8_t buffer[OPENTHREAD_PSK_MAX_LENGTH + 1];
+} otPSKd;
+    
+#define IOCTL_OTLWF_OT_COMMISIONER_START \
+    OTLWF_CTL_CODE(167, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otPSKd - aPSKd
+    
+#define IOCTL_OTLWF_OT_COMMISIONER_STOP \
+    OTLWF_CTL_CODE(168, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    
+#define IOCTL_OTLWF_OT_JOINER_START \
+    OTLWF_CTL_CODE(169, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otPSKd - aPSKd
+    
+#define IOCTL_OTLWF_OT_JOINER_STOP \
+    OTLWF_CTL_CODE(170, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+
 // OpenThread function IOCTL codes
 #define MIN_OTLWF_IOCTL_FUNC_CODE 100
-#define MAX_OTLWF_IOCTL_FUNC_CODE 166
+#define MAX_OTLWF_IOCTL_FUNC_CODE 170
 
 #endif //__OTLWFIOCTL_H__

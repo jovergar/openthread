@@ -274,6 +274,7 @@ OTAPI uint32_t otGetCompartmentId(otInstance *aInstance);
 
 #else
 
+#ifdef OPENTHREAD_MULTIPLE_INSTANCE
 /**
  * This function initializes the OpenThread library.
  *
@@ -290,6 +291,18 @@ OTAPI uint32_t otGetCompartmentId(otInstance *aInstance);
  *
  */
 otInstance *otInstanceInit(void *aInstanceBuffer, uint64_t *aInstanceBufferSize);
+#else
+/**
+ * This function initializes the static instance of the OpenThread library.
+ *
+ * This function initializes OpenThread and prepares it for subsequent OpenThread API calls.  This function must be
+ * called before any other calls to OpenThread. By default, OpenThread is initialized in the 'enabled' state.
+ *
+ * @retval otInstance*  The new OpenThread instance structure.
+ *
+ */
+otInstance *otInstanceInit();
+#endif
 
 /**
  * This function disables the OpenThread library.
@@ -405,7 +418,7 @@ OTAPI bool otIsSingleton(otInstance *aInstance);
  * the scan completes.
  *
  * @param[in]  aResult   A valid pointer to the beacon information or NULL when the active scan completes.
- * @param[in]  aInstance A pointer to application-specific context.
+ * @param[in]  aContext  A pointer to application-specific context.
  *
  */
 typedef void (*otHandleActiveScanResult)(otActiveScanResult *aResult, void *aContext);
@@ -440,7 +453,7 @@ OTAPI bool otIsActiveScanInProgress(otInstance *aInstance);
  * scan completes.
  *
  * @param[in]  aResult   A valid pointer to the energy scan result information or NULL when the energy scan completes.
- * @param[in]  aInstance A pointer to application-specific context.
+ * @param[in]  aContext  A pointer to application-specific context.
  *
  */
 typedef void (*otHandleEnergyScanResult)(otEnergyScanResult *aResult, void *aContext);
@@ -1020,7 +1033,7 @@ OTAPI ThreadError otSendPendingSet(otInstance *aInstance, const otOperationalDat
                                    uint8_t aLength);
 
 /**
- * Get the data poll period of sleepy end deivce.
+ * Get the data poll period of sleepy end device.
  *
  * @param[in]  aInstance A pointer to an OpenThread instance.
  *
@@ -1031,7 +1044,7 @@ OTAPI ThreadError otSendPendingSet(otInstance *aInstance, const otOperationalDat
 OTAPI uint32_t otGetPollPeriod(otInstance *aInstance);
 
 /**
- * Set the data poll period for sleepy end deivce.
+ * Set the data poll period for sleepy end device.
  *
  * @param[in]  aInstance    A pointer to an OpenThread instance.
  * @param[in]  aPollPeriod  data poll period.
@@ -1682,7 +1695,7 @@ OTAPI otDeviceRole otGetDeviceRole(otInstance *aInstance);
  * @param[in]   aIndex    An index into the EID cache table.
  * @param[out]  aEntry    A pointer to where the EID information is placed.
  *
- * @retval kThreadError_None         Successfully retreieved the EID cache entry.
+ * @retval kThreadError_None         Successfully retrieved the EID cache entry.
  * @retval kThreadError_InvalidArgs  @p aIndex was out of bounds or @p aEntry was NULL.
  *
  */
@@ -1998,7 +2011,8 @@ ThreadError otSetMessageOffset(otMessage aMessage, uint16_t aOffset);
  * @param[in]  aBuf      A pointer to the data to append.
  * @param[in]  aLength   Number of bytes to append.
  *
- * @returns The number of bytes appended.
+ * @retval kThreadErrorNone    Successfully appended the message length.
+ * @retval kThreadErrorNoBufs  No available buffers to grow the message.
  *
  * @sa otNewUdpMessage
  * @sa otFreeMessage
@@ -2009,7 +2023,7 @@ ThreadError otSetMessageOffset(otMessage aMessage, uint16_t aOffset);
  * @sa otReadMessage
  * @sa otWriteMessage
  */
-int otAppendMessage(otMessage aMessage, const void *aBuf, uint16_t aLength);
+ThreadError otAppendMessage(otMessage aMessage, const void *aBuf, uint16_t aLength);
 
 /**
  * Read bytes from a message.
@@ -2126,14 +2140,14 @@ void otSetReceiveIp6DatagramFilterEnabled(otInstance *aInstance, bool aEnabled);
 /**
  * Allocate a new message buffer for sending an IPv6 message.
  *
- * @param[in]  aInstance A pointer to an OpenThread instance.
- * @param[in]  aLength   The required length of the message.
+ * @param[in]  aInstance             A pointer to an OpenThread instance.
+ * @param[in]  aLinkSecurityEnabled  TRUE if the message should be secured at Layer 2
  *
  * @returns A pointer to the message buffer or NULL if no message buffers are available.
  *
  * @sa otFreeMessage
  */
-otMessage otNewIPv6Message(otInstance *aInstance, uint16_t aLength);
+otMessage otNewIPv6Message(otInstance *aInstance, bool aLinkSecurityEnabled);
 
 /**
  * This function sends an IPv6 datagram via the Thread interface.
@@ -2211,8 +2225,7 @@ ThreadError otOpenUdpSocket(otInstance *aInstance, otUdpSocket *aSocket, otUdpRe
 /**
  * Close a UDP/IPv6 socket.
  *
- * @param[in]  aInstance A pointer to an OpenThread instance.
- * @param[in]  aSocket   A pointer to a UDP socket structure.
+ * @param[in]  aSocket  A pointer to a UDP socket structure.
  *
  * @retval kThreadErrorNone  Successfully closed the socket.
  *
@@ -2221,7 +2234,7 @@ ThreadError otOpenUdpSocket(otInstance *aInstance, otUdpSocket *aSocket, otUdpRe
  * @sa otBindUdpSocket
  * @sa otSendUdp
  */
-ThreadError otCloseUdpSocket(otInstance *aInstance, otUdpSocket *aSocket);
+ThreadError otCloseUdpSocket(otUdpSocket *aSocket);
 
 /**
  * Bind a UDP/IPv6 socket.

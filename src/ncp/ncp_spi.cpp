@@ -32,10 +32,12 @@
 
 #include <common/code_utils.hpp>
 #include <common/new.hpp>
+#include <net/ip6.hpp>
 #include <ncp/ncp.h>
 #include <ncp/ncp_spi.hpp>
 #include <platform/spi-slave.h>
 #include <core/openthread-core-config.h>
+#include <openthreadinstance.h>
 
 #define SPI_RESET_FLAG          0x80
 #define SPI_CRC_FLAG            0x40
@@ -86,9 +88,9 @@ static uint16_t spi_header_get_data_len(const uint8_t *header)
 
 NcpSpi::NcpSpi(otInstance *aInstance):
     NcpBase(aInstance),
-    mHandleRxFrameTask(aInstance, &NcpSpi::HandleRxFrame, this),
-    mPrepareTxFrameTask(aInstance, &NcpSpi::PrepareTxFrame, this),
-    mTxFrameBuffer(aInstance, mTxBuffer, sizeof(mTxBuffer))
+    mHandleRxFrameTask(aInstance->mIp6.mTaskletScheduler, &NcpSpi::HandleRxFrame, this),
+    mPrepareTxFrameTask(aInstance->mIp6.mTaskletScheduler, &NcpSpi::PrepareTxFrame, this),
+    mTxFrameBuffer(mTxBuffer, sizeof(mTxBuffer))
 {
     memset(mEmptySendFrame, 0, kSpiHeaderLength);
     memset(mSendFrame, 0, kSpiHeaderLength);

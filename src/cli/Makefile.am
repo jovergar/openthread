@@ -30,15 +30,17 @@ include $(abs_top_nlbuild_autotools_dir)/automake/pre.am
 
 lib_LIBRARIES                       = libopenthread-cli.a
 
-libopenthread_cli_a_CPPFLAGS =        \
-    -I$(top_srcdir)/include           \
-    -I$(top_srcdir)/src               \
-    -I$(top_srcdir)/src/core          \
-    $(OPENTHREAD_TARGET_DEFINES)      \
+libopenthread_cli_a_CPPFLAGS                       = \
+    -I$(top_srcdir)/include                          \
+    -I$(top_srcdir)/src                              \
+    -I$(top_srcdir)/src/core                         \
+    -DOPENTHREAD_CONFIG_FILE=\"openthread-config.h\" \
+    $(OPENTHREAD_TARGET_DEFINES)                     \
     $(NULL)
 
 libopenthread_cli_a_SOURCES         = \
     cli.cpp                           \
+    cli_console.cpp                   \
     cli_dataset.cpp                   \
     cli_uart.cpp                      \
     cli_udp.cpp                       \
@@ -46,6 +48,7 @@ libopenthread_cli_a_SOURCES         = \
 
 noinst_HEADERS                      = \
     cli.hpp                           \
+    cli_console.hpp                   \
     cli_dataset.hpp                   \
     cli_uart.hpp                      \
     cli_server.hpp                    \

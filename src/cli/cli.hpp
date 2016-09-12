@@ -36,11 +36,12 @@
 
 #include <stdarg.h>
 
+#include OPENTHREAD_CONFIG_FILE
+
 #include <cli/cli_server.hpp>
 #ifndef OTDLL
 #include <net/icmp6.hpp>
 #include <common/timer.hpp>
-#include <openthread-config.h>
 #endif
 
 #ifdef OTDLL
@@ -152,17 +153,29 @@ private:
     void ProcessChild(int argc, char *argv[]);
     void ProcessChildTimeout(int argc, char *argv[]);
     void ProcessChildMax(int argc, char *argv[]);
+#if OPENTHREAD_ENABLE_COMMISSIONER
+    void ProcessCommissioner(int argc, char *argv[]);
+#endif  // OPENTHREAD_ENABLE_COMMISSIONER
     void ProcessContextIdReuseDelay(int argc, char *argv[]);
     void ProcessCounters(int argc, char *argv[]);
     void ProcessDataset(int argc, char *argv[]);
+#if OPENTHREAD_ENABLE_DIAG
+    void ProcessDiag(int argc, char *argv[]);
+#endif  // OPENTHREAD_ENABLE_DIAG
     void ProcessDiscover(int argc, char *argv[]);
     void ProcessEidCache(int argc, char *argv[]);
+#ifdef OPENTHREAD_EXAMPLES_POSIX
+    void ProcessExit(int argc, char *argv[]);
+#endif
     void ProcessExtAddress(int argc, char *argv[]);
     void ProcessExtPanId(int argc, char *argv[]);
     void ProcessIfconfig(int argc, char *argv[]);
     void ProcessIpAddr(int argc, char *argv[]);
     ThreadError ProcessIpAddrAdd(int argc, char *argv[]);
     ThreadError ProcessIpAddrDel(int argc, char *argv[]);
+#if OPENTHREAD_ENABLE_JOINER
+    void ProcessJoiner(int argc, char *argv[]);
+#endif  // OPENTHREAD_ENABLE_JOINER
     void ProcessKeySequence(int argc, char *argv[]);
     void ProcessLeaderData(int argc, char *argv[]);
     void ProcessLeaderPartitionId(int argc, char *argv[]);
@@ -197,10 +210,6 @@ private:
     void ProcessThread(int argc, char *argv[]);
     void ProcessVersion(int argc, char *argv[]);
     void ProcessWhitelist(int argc, char *argv[]);
-
-#if OPENTHREAD_ENABLE_DIAG
-    void ProcessDiag(int argc, char *argv[]);
-#endif
 
 #ifdef OTDLL
     void ProcessInstanceList(int argc, char *argv[]);

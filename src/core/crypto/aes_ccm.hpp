@@ -35,7 +35,7 @@
 #define AES_CCM_HPP_
 
 #include <openthread-types.h>
-#include <crypto/aes_ecb.h>
+#include <crypto/aes_ecb.hpp>
 
 namespace Thread {
 namespace Crypto {
@@ -54,15 +54,6 @@ namespace Crypto {
 class AesCcm
 {
 public:
-
-    /**
-     * Constructor.
-     *
-     * @param[in]  aCryptoContext  The crypto context used.
-     *
-     */
-    AesCcm(otCryptoContext *aCryptoContext) : mCryptoContext(aCryptoContext) { }
-
     /**
      * This method sets the key.
      *
@@ -115,10 +106,10 @@ public:
     void Finalize(void *aTag, uint8_t *aTagLength);
 
 private:
-    otCryptoContext *mCryptoContext;
-    uint8_t mBlock[otAesBlockSize];
-    uint8_t mCtr[otAesBlockSize];
-    uint8_t mCtrPad[otAesBlockSize];
+    AesEcb mEcb;
+    uint8_t mBlock[AesEcb::kBlockSize];
+    uint8_t mCtr[AesEcb::kBlockSize];
+    uint8_t mCtrPad[AesEcb::kBlockSize];
     uint8_t mNonceLength;
     uint32_t mHeaderLength;
     uint32_t mHeaderCur;

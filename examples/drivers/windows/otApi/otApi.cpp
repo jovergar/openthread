@@ -2622,3 +2622,59 @@ otIp6PrefixMatch(
 
     return rval;
 }
+
+OTAPI 
+ThreadError 
+otCommissionerStart(
+    otInstance *aInstance, 
+    const char *aPSKd
+    )
+{
+    otPSKd pskd = {0};
+    size_t aPSKdLength = strlen(aPSKd);
+    if (aPSKdLength > OPENTHREAD_PSK_MAX_LENGTH)
+    {
+        return kThreadError_InvalidArgs;
+    }
+
+    memcpy_s(pskd.buffer, sizeof(pskd.buffer), aPSKd, aPSKdLength);
+
+    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_COMMISIONER_START, (const otPSKd*)&pskd));
+}
+
+OTAPI 
+ThreadError 
+otCommissionerStop(
+    otInstance *aInstance
+    )
+{
+    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_COMMISIONER_STOP));
+}
+
+OTAPI 
+ThreadError 
+otJoinerStart(
+    otInstance *aInstance,
+    const char *aPSKd
+    )
+{
+    otPSKd pskd = {0};
+    size_t aPSKdLength = strlen(aPSKd);
+    if (aPSKdLength > OPENTHREAD_PSK_MAX_LENGTH)
+    {
+        return kThreadError_InvalidArgs;
+    }
+
+    memcpy_s(pskd.buffer, sizeof(pskd.buffer), aPSKd, aPSKdLength);
+
+    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_JOINER_START, (const otPSKd*)&pskd));
+}
+
+OTAPI 
+ThreadError 
+otJoinerStop(
+    otInstance *aInstance
+    )
+{
+    return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_JOINER_STOP));
+}

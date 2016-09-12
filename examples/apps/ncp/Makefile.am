@@ -36,6 +36,7 @@ ot_ncp_CPPFLAGS                                                        = \
     -I$(top_srcdir)/include                                              \
     -I$(top_srcdir)/src/core                                             \
     -I$(top_srcdir)/examples/platforms                                   \
+    -DOPENTHREAD_CONFIG_FILE=\"openthread-config.h\"                     \
     $(NULL)
 
 ot_ncp_LDADD                                                           = \
@@ -73,5 +74,9 @@ endif
 ot_ncp_SOURCES                                                         = \
     main.c                                                               \
     $(NULL)
+
+if OPENTHREAD_BUILD_COVERAGE
+CLEANFILES                                                             = $(wildcard *.gcda *.gcno)
+endif # OPENTHREAD_BUILD_COVERAGE
 
 include $(abs_top_nlbuild_autotools_dir)/automake/post.am

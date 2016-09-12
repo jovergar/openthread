@@ -36,13 +36,14 @@ EXTRA_DIST                          = \
 
 lib_LIBRARIES                       = libopenthread-ncp.a
 
-libopenthread_ncp_a_CPPFLAGS        = \
-    -I$(top_srcdir)/include           \
-    -I$(top_srcdir)/src               \
-    -I$(top_srcdir)/src/core          \
-    -I$(top_srcdir)/third_party       \
-    -D_GNU_SOURCE                     \
-    $(OPENTHREAD_TARGET_DEFINES)      \
+libopenthread_ncp_a_CPPFLAGS                       = \
+    -I$(top_srcdir)/include                          \
+    -I$(top_srcdir)/src                              \
+    -I$(top_srcdir)/src/core                         \
+    -I$(top_srcdir)/third_party                      \
+    -D_GNU_SOURCE                                    \
+    -DOPENTHREAD_CONFIG_FILE=\"openthread-config.h\" \
+    $(OPENTHREAD_TARGET_DEFINES)                     \
     $(NULL)
 
 libopenthread_ncp_a_CXXFLAGS        = \

@@ -42,10 +42,19 @@
     <ClCompile Include="common\tasklet.cpp" />
     <ClCompile Include="common\timer.cpp" />
     <ClCompile Include="crypto\aes_ccm.cpp" />
+    <ClCompile Include="crypto\aes_ecb.cpp" />
+    <ClCompile Include="crypto\hmac_sha256.cpp" />
+    <ClCompile Include="crypto\mbedtls.cpp" />
+    <ClCompile Include="crypto\sha256.cpp" />
     <ClCompile Include="mac\mac.cpp" />
     <ClCompile Include="mac\mac_blacklist.cpp" />
     <ClCompile Include="mac\mac_frame.cpp" />
     <ClCompile Include="mac\mac_whitelist.cpp" />
+    <ClCompile Include="meshcop\commissioner.cpp" />
+    <ClCompile Include="meshcop\dtls.cpp" />
+    <ClCompile Include="meshcop\joiner.cpp" />
+    <ClCompile Include="meshcop\joiner_router.cpp" />
+    <ClCompile Include="meshcop\leader.cpp" />
     <ClCompile Include="net\icmp6.cpp" />
     <ClCompile Include="net\ip6.cpp" />
     <ClCompile Include="net\ip6_address.cpp" />
@@ -84,10 +93,19 @@
     <ClInclude Include="common\tasklet.hpp" />
     <ClInclude Include="common\timer.hpp" />
     <ClInclude Include="crypto\aes_ccm.hpp" />
+    <ClInclude Include="crypto\aes_ecb.hpp" />
+    <ClInclude Include="crypto\hmac_sha256.hpp" />
+    <ClInclude Include="crypto\mbedtls.hpp" />
+    <ClInclude Include="crypto\sha256.hpp" />
     <ClInclude Include="mac\mac.hpp" />
     <ClInclude Include="mac\mac_blacklist.hpp" />
     <ClInclude Include="mac\mac_frame.hpp" />
     <ClInclude Include="mac\mac_whitelist.hpp" />
+    <ClInclude Include="meshcop\commissioner.hpp" />
+    <ClInclude Include="meshcop\dtls.hpp" />
+    <ClInclude Include="meshcop\joiner.hpp" />
+    <ClInclude Include="meshcop\joiner_router.hpp" />
+    <ClInclude Include="meshcop\leader.hpp" />
     <ClInclude Include="net\icmp6.hpp" />
     <ClInclude Include="net\ip6.hpp" />
     <ClInclude Include="net\ip6_address.hpp" />
@@ -197,8 +215,8 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);WINDOWS_LOGGING;WINDOWS_KERNEL;PLATFORM_INFO="Windows"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)src\core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);MBEDTLS_CONFIG_FILE="mbedtls-config.h";OPENTHREAD_CONFIG_FILE="openthread-windows-config.h";OPENTHREAD_MULTIPLE_INSTANCE;WINDOWS_LOGGING;WINDOWS_KERNEL</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)src\core;$(SolutionDir)third_party\mbedtls;$(SolutionDir)third_party\mbedtls\repo\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4100;4706;4748;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <WppEnabled>true</WppEnabled>
       <WppModuleName>otCore</WppModuleName>
@@ -209,8 +227,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);WINDOWS_LOGGING;WINDOWS_KERNEL;PLATFORM_INFO="Windows"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)src\core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);MBEDTLS_CONFIG_FILE="mbedtls-config.h";OPENTHREAD_CONFIG_FILE="openthread-windows-config.h";OPENTHREAD_MULTIPLE_INSTANCE;WINDOWS_LOGGING;WINDOWS_KERNEL</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)src\core;$(SolutionDir)third_party\mbedtls;$(SolutionDir)third_party\mbedtls\repo\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4100;4603;4627;4706;4986;4987;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <WppEnabled>true</WppEnabled>
       <WppModuleName>otCore</WppModuleName>

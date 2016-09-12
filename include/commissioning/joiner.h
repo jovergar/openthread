@@ -29,51 +29,50 @@
 /**
  * @file
  * @brief
- *   This file includes the platform abstraction for AES ECB computations.
+ *   This file includes the platform abstraction for the Thread Joiner role.
  */
 
-#ifndef AES_ECB_H_
-#define AES_ECB_H_
+#ifndef OPENTHREAD_JOINER_H_
+#define OPENTHREAD_JOINER_H_
 
-#include <openthread-types.h>
-#include <cryptocontext.h>
+#ifdef OTDLL
+#ifndef OTAPI
+#define OTAPI __declspec(dllimport)
+#endif
+#else
+#define OTAPI
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @addtogroup core-security
+ * @addtogroup core-commissioning
  *
  * @{
  *
  */
 
-enum
-{
-    otAesBlockSize = 16,  ///< AES-128 block size.
-};
-
 /**
- * This method sets the key.
+ * This function enables the Thread Joiner role.
  *
- * @param[in]  aCryptoContext  The crypto context used.
- * @param[in]  aKey            A pointer to the key.
- * @param[in]  aKeyLength      Length of the key in bytes.
+ * @param[in]  aInstance  A pointer to an OpenThread instance.
+ * @param[in]  aPSKd      A pointer to the PSKd.
+ *
+ * @retval kThreadError_None         Successfully started the Commissioner role.
+ * @retval kThreadError_InvalidArgs  @p aPSKd is invalid.
  *
  */
-void otCryptoAesEcbSetKey(otCryptoContext *aCryptoContext, const void *aKey, uint16_t aKeyLength);
+OTAPI ThreadError otJoinerStart(otInstance *aInstance, const char *aPSKd);
 
 /**
- * This method encrypts data.
+ * This function disables the Thread Joiner role.
  *
- * @param[in]   aCryptoContext  The crypto context used.
- * @param[in]   aInput          A pointer to the input.
- * @param[out]  aOutput         A pointer to the output.
+ * @param[in]  aInstance  A pointer to an OpenThread instance.
  *
  */
-void otCryptoAesEcbEncrypt(otCryptoContext *aCryptoContext, const uint8_t aInput[otAesBlockSize],
-                           uint8_t aOutput[otAesBlockSize]);
+OTAPI ThreadError otJoinerStop(otInstance *aInstance);
 
 /**
  * @}
@@ -84,4 +83,4 @@ void otCryptoAesEcbEncrypt(otCryptoContext *aCryptoContext, const uint8_t aInput
 }  // end of extern "C"
 #endif
 
-#endif  // AES_ECB_H_
+#endif  // OPENTHREAD_JOINER_H_
