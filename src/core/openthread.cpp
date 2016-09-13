@@ -31,7 +31,12 @@
  *   This file implements the top-level interface to the OpenThread stack.
  */
 
+#ifdef OPENTHREAD_CONFIG_FILE
 #include OPENTHREAD_CONFIG_FILE
+#else
+#include <openthread-config.h>
+#endif
+
 #include <openthread.h>
 #include <common/code_utils.hpp>
 #include <common/debug.hpp>
@@ -1321,6 +1326,7 @@ ThreadError otSendPendingSet(otInstance *aInstance, const otOperationalDataset *
 }
 
 #if OPENTHREAD_ENABLE_COMMISSIONER
+#include <commissioning/commissioner.h>
 ThreadError otCommissionerStart(otInstance *aInstance, const char *aPSKd)
 {
     return aInstance->mThreadNetif.GetCommissioner().Start(aPSKd);
@@ -1329,6 +1335,14 @@ ThreadError otCommissionerStart(otInstance *aInstance, const char *aPSKd)
 ThreadError otCommissionerStop(otInstance *aInstance)
 {
     return aInstance->mThreadNetif.GetCommissioner().Stop();
+}
+
+ThreadError otCommissionerPanIdQuery(otInstance *aInstance, uint16_t aPanId, uint32_t aChannelMask,
+                                     const otIp6Address *aAddress,
+                                     otCommissionerPanIdConflictCallback aCallback, void *aContext)
+{
+    return aInstance->mThreadNetif.GetCommissioner().mPanIdQuery.SendQuery(
+        aPanId, aChannelMask, *static_cast<const Ip6::Address *>(aAddress), aCallback, aContext);
 }
 #endif  // OPENTHREAD_ENABLE_COMMISSIONER
 

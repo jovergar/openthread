@@ -31,13 +31,16 @@
  *   This file implements the CLI interpreter.
  */
 
+#ifdef OPENTHREAD_CONFIG_FILE
+#include OPENTHREAD_CONFIG_FILE
+#else
+#include <openthread-config.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef OTDLL
-#include OPENTHREAD_CONFIG_FILE
-#endif
 #include <openthread.h>
 
 #include "cli.hpp"

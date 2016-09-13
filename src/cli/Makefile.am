@@ -30,12 +30,11 @@ include $(abs_top_nlbuild_autotools_dir)/automake/pre.am
 
 lib_LIBRARIES                       = libopenthread-cli.a
 
-libopenthread_cli_a_CPPFLAGS                       = \
-    -I$(top_srcdir)/include                          \
-    -I$(top_srcdir)/src                              \
-    -I$(top_srcdir)/src/core                         \
-    -DOPENTHREAD_CONFIG_FILE=\"openthread-config.h\" \
-    $(OPENTHREAD_TARGET_DEFINES)                     \
+libopenthread_cli_a_CPPFLAGS        = \
+    -I$(top_srcdir)/include           \
+    -I$(top_srcdir)/src               \
+    -I$(top_srcdir)/src/core          \
+    $(OPENTHREAD_TARGET_DEFINES)      \
     $(NULL)
 
 libopenthread_cli_a_SOURCES         = \

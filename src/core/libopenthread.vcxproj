@@ -39,6 +39,7 @@
     <ClCompile Include="meshcop\joiner.cpp" />
     <ClCompile Include="meshcop\joiner_router.cpp" />
     <ClCompile Include="meshcop\leader.cpp" />
+    <ClCompile Include="meshcop\panid_query_client.cpp" />
     <ClCompile Include="net\icmp6.cpp" />
     <ClCompile Include="net\ip6.cpp" />
     <ClCompile Include="net\ip6_address.cpp" />
@@ -62,6 +63,7 @@
     <ClCompile Include="thread\network_data.cpp" />
     <ClCompile Include="thread\network_data_leader.cpp" />
     <ClCompile Include="thread\network_data_local.cpp" />
+    <ClCompile Include="thread\panid_query_server.cpp" />
     <ClCompile Include="thread\thread_netif.cpp" />
     <ClCompile Include="thread\thread_tlvs.cpp" />
   </ItemGroup>
@@ -90,6 +92,7 @@
     <ClInclude Include="meshcop\joiner.hpp" />
     <ClInclude Include="meshcop\joiner_router.hpp" />
     <ClInclude Include="meshcop\leader.hpp" />
+    <ClInclude Include="meshcop\panid_query_client.hpp" />
     <ClInclude Include="net\icmp6.hpp" />
     <ClInclude Include="net\ip6.hpp" />
     <ClInclude Include="net\ip6_address.hpp" />
@@ -117,6 +120,7 @@
     <ClInclude Include="thread\network_data_leader.hpp" />
     <ClInclude Include="thread\network_data_local.hpp" />
     <ClInclude Include="thread\network_data_tlvs.hpp" />
+    <ClInclude Include="thread\panid_query_server.hpp" />
     <ClInclude Include="thread\thread_netif.hpp" />
     <ClInclude Include="thread\thread_tlvs.hpp" />
     <ClInclude Include="thread\thread_uris.hpp" />

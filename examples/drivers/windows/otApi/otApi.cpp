@@ -2608,7 +2608,7 @@ otIp6PrefixMatch(
 OTAPI 
 ThreadError 
 otCommissionerStart(
-    otInstance *aInstance, 
+     _In_ otInstance *aInstance, 
     const char *aPSKd
     )
 {
@@ -2627,16 +2627,37 @@ otCommissionerStart(
 OTAPI 
 ThreadError 
 otCommissionerStop(
-    otInstance *aInstance
+     _In_ otInstance *aInstance
     )
 {
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_COMMISIONER_STOP));
 }
 
+OTAPI
+ThreadError 
+otCommissionerPanIdQuery(
+     _In_ otInstance *aInstance, 
+    uint16_t aPanId, 
+    uint32_t aChannelMask,
+    const otIp6Address *aAddress,
+     _In_ otCommissionerPanIdConflictCallback aCallback, 
+     _In_ void *aContext
+    )
+{
+    UNREFERENCED_PARAMETER(aInstance);
+    UNREFERENCED_PARAMETER(aPanId);
+    UNREFERENCED_PARAMETER(aChannelMask);
+    UNREFERENCED_PARAMETER(aAddress);
+    UNREFERENCED_PARAMETER(aCallback);
+    UNREFERENCED_PARAMETER(aContext);
+    // TODO ...
+    return kThreadError_NotImplemented;
+}
+
 OTAPI 
 ThreadError 
 otJoinerStart(
-    otInstance *aInstance,
+     _In_ otInstance *aInstance,
     const char *aPSKd
     )
 {
@@ -2655,7 +2676,7 @@ otJoinerStart(
 OTAPI 
 ThreadError 
 otJoinerStop(
-    otInstance *aInstance
+     _In_ otInstance *aInstance
     )
 {
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_JOINER_STOP));

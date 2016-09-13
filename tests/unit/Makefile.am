@@ -53,7 +53,6 @@ AM_CPPFLAGS                                                         = \
     -I$(top_srcdir)/src                                               \
     -I$(top_srcdir)/src/core                                          \
     -I$(top_srcdir)/third_party/mbedtls/repo/include                  \
-    -DOPENTHREAD_CONFIG_FILE=\"openthread-config.h\"                  \
     $(NULL)
 
 COMMON_LDADD                                                        = \

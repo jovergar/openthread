@@ -34,9 +34,13 @@
 #ifndef CLI_HPP_
 #define CLI_HPP_
 
-#include <stdarg.h>
-
+#ifdef OPENTHREAD_CONFIG_FILE
 #include OPENTHREAD_CONFIG_FILE
+#else
+#include <openthread-config.h>
+#endif
+
+#include <stdarg.h>
 
 #include <cli/cli_server.hpp>
 #ifndef OTDLL
@@ -225,6 +229,7 @@ private:
 #ifndef OTDLL
     static void s_HandleLinkPcapReceive(const RadioPacket *aFrame, void *aContext);
 #endif
+    static void s_HandlePanIdConflict(uint16_t aPanId, uint32_t aChannelMask, void *aContext);
 
 #ifndef OTDLL
     void HandleEchoResponse(Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
@@ -239,6 +244,7 @@ private:
 #ifndef OTDLL
     void HandleLinkPcapReceive(const RadioPacket *aFrame);
 #endif
+    void HandlePanIdConflict(uint16_t aPanId, uint32_t aChannelMask);
 
     static const struct Command sCommands[];
 

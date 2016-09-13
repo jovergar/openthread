@@ -31,6 +31,12 @@
  *   This file implements the CLI interpreter.
  */
 
+#ifdef OPENTHREAD_CONFIG_FILE
+#include OPENTHREAD_CONFIG_FILE
+#else
+#include <openthread-config.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,8 +44,6 @@
 #ifdef OTDLL
 #include <assert.h>
 #endif
-
-#include OPENTHREAD_CONFIG_FILE
 
 #include <openthread.h>
 #include <commissioning/commissioner.h>
@@ -1957,9 +1961,40 @@ void Interpreter::ProcessCommissioner(int argc, char *argv[])
     {
         otCommissionerStop(mInstance);
     }
+    else if (strcmp(argv[0], "panid") == 0)
+    {
+        long panid;
+        long mask;
+        otIp6Address address;
+
+        VerifyOrExit(argc > 3, error = kThreadError_Parse);
+
+        // panid
+        SuccessOrExit(error = ParseLong(argv[1], panid));
+
+        // mask
+        SuccessOrExit(error = ParseLong(argv[2], mask));
+
+        // destination
+        SuccessOrExit(error = otIp6AddressFromString(argv[3], &address));
+
+        SuccessOrExit(error = otCommissionerPanIdQuery(mInstance, static_cast<uint16_t>(panid),
+                                                       static_cast<uint32_t>(mask),
+                                                       &address, Interpreter::s_HandlePanIdConflict, this));
+    }
 
 exit:
     AppendResult(error);
+}
+
+void Interpreter::s_HandlePanIdConflict(uint16_t aPanId, uint32_t aChannelMask, void *aContext)
+{
+    static_cast<Interpreter *>(aContext)->HandlePanIdConflict(aPanId, aChannelMask);
+}
+
+void Interpreter::HandlePanIdConflict(uint16_t aPanId, uint32_t aChannelMask)
+{
+    sServer->OutputFormat("Conflict: %04x, %08x\r\n", aPanId, aChannelMask);
 }
 
 #endif  // OPENTHREAD_ENABLE_COMMISSIONER
