@@ -7,22 +7,4 @@ platform: x64
 build:
   project: openthread.sln
   verbosity: minimal
-test_script:
-- ps: >-
-    .\.bin\x64\$(configuration)\exe\aes.exe
-
-    .\.bin\x64\$(configuration)\exe\hmac_sha256.exe
-
-    .\.bin\x64\$(configuration)\exe\link_quality.exe
-
-    .\.bin\x64\$(configuration)\exe\lowpan.exe
-
-    .\.bin\x64\$(configuration)\exe\mac_frame.exe
-
-    .\.bin\x64\$(configuration)\exe\message.exe
-
-    .\.bin\x64\$(configuration)\exe\ncp_buffer.exe
-
-    .\.bin\x64\$(configuration)\exe\timer.exe
-
-    .\.bin\x64\$(configuration)\exe\toolchain.exe
+test: off
