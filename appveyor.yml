@@ -1,10 +1,12 @@
 version: 1.0.{build}
 image: Previous Visual Studio 2015
-configuration: Release
+configuration:
+- Release
+- Debug
 platform: x64
 build:
   project: openthread.sln
-  verbosity: normal
+  verbosity: minimal
 test_script:
 - cmd: >-
     .\.bin\x64\Release\exe\aes.exe
