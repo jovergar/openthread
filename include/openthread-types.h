@@ -90,11 +90,6 @@ typedef struct otDeviceList
 #endif
 
 /**
- * This type represents the OpenThread instance structure.
- */
-typedef struct otInstance otInstance;
-
-/**
  * This enumeration represents error codes used throughout OpenThread.
  */
 typedef enum ThreadError

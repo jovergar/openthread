@@ -3151,7 +3151,7 @@ ThreadError NcpBase::SetPropertyHandler_STREAM_NET_INSECURE(uint8_t header, spin
     unsigned int meta_len(0);
 
     // STREAM_NET_INSECURE packets are not secured at layer 2.
-    otMessage message = otNewIPv6Message(mInstance, false);
+    otMessage message = otNewIp6Message(mInstance, false);
 
     if (message == NULL)
     {
@@ -3174,7 +3174,7 @@ ThreadError NcpBase::SetPropertyHandler_STREAM_NET_INSECURE(uint8_t header, spin
         (void)meta_ptr;
         (void)meta_len;
         (void)parsedLength;
-
+        
         errorCode = otAppendMessage(message, frame_ptr, static_cast<uint16_t>(frame_len));
     }
 
@@ -3219,9 +3219,9 @@ ThreadError NcpBase::SetPropertyHandler_STREAM_NET(uint8_t header, spinel_prop_k
     unsigned int frame_len(0);
     const uint8_t *meta_ptr(NULL);
     unsigned int meta_len(0);
-
+    
     // STREAM_NET requires layer 2 security.
-    otMessage message = otNewIPv6Message(mInstance, true);
+    otMessage message = otNewIp6Message(mInstance, true);
 
     if (message == NULL)
     {
@@ -3244,7 +3244,7 @@ ThreadError NcpBase::SetPropertyHandler_STREAM_NET(uint8_t header, spinel_prop_k
         (void)meta_ptr;
         (void)meta_len;
         (void)parsedLength;
-
+        
         errorCode = otAppendMessage(message, frame_ptr, static_cast<uint16_t>(frame_len));
     }
 

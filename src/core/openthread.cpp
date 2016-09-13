@@ -1143,6 +1143,18 @@ otMessage otNewUdpMessage(otInstance *aInstance)
     return aInstance->mIp6.mUdp.NewMessage(0);
 }
 
+otMessage otNewIp6Message(otInstance *aInstance, bool aLinkSecurityEnabled)
+{
+    Message *message = aInstance->mIp6.mMessagePool.New(Message::kTypeIp6, 0);
+
+    if (message)
+    {
+        message->SetLinkSecurityEnabled(aLinkSecurityEnabled);
+    }
+
+    return message;
+}
+
 ThreadError otFreeMessage(otMessage aMessage)
 {
     return static_cast<Message *>(aMessage)->Free();

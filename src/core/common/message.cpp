@@ -250,7 +250,7 @@ ThreadError Message::Append(const void *aBuf, uint16_t aLength)
     SuccessOrExit(error = SetLength(GetLength() + aLength));
     bytesWritten = Write(oldLength, aLength, aBuf);
 
-    assert(bytesWritten == aLength);
+    assert(bytesWritten == (int)aLength);
     (void)bytesWritten;
 
 exit:
