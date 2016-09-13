@@ -343,6 +343,11 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
         // Calculate the size of the otInstance and allocate it
         (VOID)otInstanceInit(NULL, &otInstanceSize);
         NT_ASSERT(otInstanceSize != 0);
+
+        // Add space for a pointer back to the filter
+        otInstanceSize += sizeof(PMS_FILTER);
+
+        // Allocate the buffer
         pFilter->otInstanceBuffer = (PUCHAR)FILTER_ALLOC_MEM(NdisFilterHandle, (ULONG)otInstanceSize);
         if (pFilter == NULL)
         {
@@ -351,9 +356,13 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             break;
         }
 
+        // Store the pointer and decrement the size
+        memcpy(pFilter->otInstanceBuffer, &pFilter, sizeof(PMS_FILTER));
+        otInstanceSize -= sizeof(PMS_FILTER);
+
         // Initialize the OpenThread library
         pFilter->otCachedRole = kDeviceRoleDisabled;
-        pFilter->otCtx = otInstanceInit(pFilter->otInstanceBuffer, &otInstanceSize);
+        pFilter->otCtx = otInstanceInit(pFilter->otInstanceBuffer + sizeof(PMS_FILTER), &otInstanceSize);
         NT_ASSERT(pFilter->otCtx);
         if (pFilter->otCtx == NULL)
         {
@@ -361,6 +370,9 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             Status = NDIS_STATUS_RESOURCES;
             break;
         }
+
+        // Make sure our helper function returns the right pointer for the filter, given the openthread instance
+        NT_ASSERT(otCtxToFilter(pFilter->otCtx) == pFilter);
 
         // Register callbacks with OpenThread
         otSetStateChangedCallback(pFilter->otCtx, otLwfStateChangedCallback, pFilter);

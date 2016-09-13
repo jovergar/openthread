@@ -191,7 +191,7 @@ typedef struct _MS_FILTER
 // Helper function that converts an otInstance pointer to a MS_FILTER pointer
 __inline PMS_FILTER otCtxToFilter(_In_ otInstance* otCtx)
 {
-    return (PMS_FILTER)CONTAINING_RECORD(otCtx, MS_FILTER, otInstanceBuffer);
+    return *(PMS_FILTER*)((PUCHAR)otCtx - sizeof(PMS_FILTER));
 }
 
 // Helper function to indicate if a role means it is attached or not

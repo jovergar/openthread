@@ -220,9 +220,13 @@
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ndis.lib;wdmsec.lib;netio.lib;uuid.lib;bcrypt.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\libopenthread_k.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\mbedtls_k.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);ndis.lib;wdmsec.lib;netio.lib;uuid.lib;cng.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\libopenthread_k.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\mbedtls_k.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -244,7 +248,7 @@
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);..;.;</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ndis.lib;wdmsec.lib;netio.lib;uuid.lib;bcrypt.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\libopenthread_k.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\mbedtls_k.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);ndis.lib;wdmsec.lib;netio.lib;uuid.lib;cng.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\libopenthread_k.lib;$(SolutionDir).bin\$(Platform)\$(Configuration)\lib\mbedtls_k.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
