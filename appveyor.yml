@@ -8,21 +8,21 @@ build:
   project: openthread.sln
   verbosity: minimal
 test_script:
-- cmd: >-
-    .\.bin\x64\$CONFIGURATION$\exe\aes.exe
+- ps: >-
+    .\.bin\x64\$(configuration)\exe\aes.exe
 
-    .\.bin\x64\$CONFIGURATION$\exe\hmac_sha256.exe
+    .\.bin\x64\$(configuration)\exe\hmac_sha256.exe
 
-    .\.bin\x64\$CONFIGURATION$\exe\link_quality.exe
+    .\.bin\x64\$(configuration)\exe\link_quality.exe
 
-    .\.bin\x64\$CONFIGURATION$\exe\lowpan.exe
+    .\.bin\x64\$(configuration)\exe\lowpan.exe
 
-    .\.bin\x64\$CONFIGURATION$\exe\mac_frame.exe
+    .\.bin\x64\$(configuration)\exe\mac_frame.exe
 
-    .\.bin\x64\$CONFIGURATION$\exe\message.exe
+    .\.bin\x64\$(configuration)\exe\message.exe
 
-    .\.bin\x64\$CONFIGURATION$\exe\ncp_buffer.exe
+    .\.bin\x64\$(configuration)\exe\ncp_buffer.exe
 
-    .\.bin\x64\$CONFIGURATION$\exe\timer.exe
+    .\.bin\x64\$(configuration)\exe\timer.exe
 
-    .\.bin\x64\$CONFIGURATION$\exe\toolchain.exe
+    .\.bin\x64\$(configuration)\exe\toolchain.exe
