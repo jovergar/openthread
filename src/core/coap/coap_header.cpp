@@ -232,7 +232,7 @@ ThreadError Header::AppendUriPathOptions(const char *aUriPath)
 ThreadError Header::AppendContentFormatOption(MediaType aType)
 {
     Option coapOption;
-    uint8_t type = aType;
+    uint8_t type = static_cast<uint8_t>(aType);
 
     coapOption.mNumber = Option::kOptionContentFormat;
     coapOption.mLength = 1;
