@@ -33,6 +33,7 @@
 
 #include <openthread.h>
 
+#include <common/code_utils.hpp>
 #include <platform/alarm.h>
 #include <platform/misc.h>
 #include <platform/radio.h>
@@ -90,6 +91,10 @@ extern "C" {
     //
     // Radio
     //
+
+    void otPlatRadioGetIeeeEui64(otInstance *, uint8_t *)
+    {
+    }
 
     ThreadError otPlatRadioSetPanId(otInstance *, uint16_t)
     {
@@ -166,6 +171,23 @@ extern "C" {
 #else
         return (uint32_t)random();
 #endif
+    }
+    
+    ThreadError otPlatRandomSecureGet(uint16_t aInputLength, uint8_t *aOutput, uint16_t *aOutputLength)
+    {
+        ThreadError error = kThreadError_None;
+
+        VerifyOrExit(aOutput && aOutputLength, error = kThreadError_InvalidArgs);
+
+        for (uint16_t length = 0; length < aInputLength; length++)
+        {
+            aOutput[length] = (uint8_t)otPlatRandomGet();
+        }
+
+        *aOutputLength = aInputLength;
+
+    exit:
+        return error;
     }
 
     //
