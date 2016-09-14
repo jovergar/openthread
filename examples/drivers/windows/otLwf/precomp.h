@@ -42,6 +42,7 @@
 #include <netiodef.h>
 #include <nsihelper.h>
 #include <netioapi.h>
+#include <bcrypt.h>
 
 VOID  
 RtlCopyBufferToMdl(  

@@ -78,6 +78,46 @@ otLwfRadioInit(
     LogFuncExit(DRIVER_DEFAULT);
 }
 
+void otPlatRadioGetIeeeEui64(otInstance *otCtx, uint8_t *aIeeeEui64)
+{
+    PMS_FILTER pFilter = otCtxToFilter(otCtx);
+    NDIS_STATUS status;
+    ULONG bytesProcessed;
+    OT_FACTORY_EXTENDED_ADDRESS OidBuffer = { {0} };
+
+    RtlZeroMemory(aIeeeEui64, sizeof(ULONGLONG));
+
+    // Query the MP for the address
+    status = 
+        otLwfSendInternalRequest(
+            pFilter,
+            NdisRequestQueryInformation,
+            OID_OT_FACTORY_EXTENDED_ADDRESS,
+            &OidBuffer,
+            sizeof(OT_FACTORY_EXTENDED_ADDRESS),
+            &bytesProcessed
+            );
+    if (status != NDIS_STATUS_SUCCESS)
+    {
+        LogError(DRIVER_DEFAULT, "Query for OID_FACTORY_EXTENDED_ADDRESS failed, %!NDIS_STATUS!", status);
+        return;
+    }
+
+    // Validate the return header
+    if (bytesProcessed != SIZEOF_OT_FACTORY_EXTENDED_ADDRESS_REVISION_1 ||
+        pFilter->MiniportCapabilities.Header.Type != NDIS_OBJECT_TYPE_DEFAULT ||
+        pFilter->MiniportCapabilities.Header.Revision != OT_FACTORY_EXTENDED_ADDRESS_REVISION_1 ||
+        pFilter->MiniportCapabilities.Header.Size != SIZEOF_OT_FACTORY_EXTENDED_ADDRESS_REVISION_1)
+    {
+        LogError(DRIVER_DEFAULT, "Query for OID_OT_FACTORY_EXTENDED_ADDRESS returned invalid data");
+        return;
+    }
+
+    LogInfo(DRIVER_DEFAULT, "Interface %!GUID! get factory Extended Mac Address: %llX", &pFilter->InterfaceGuid, OidBuffer.ExtendedAddress);
+
+    memcpy(aIeeeEui64, &OidBuffer.ExtendedAddress, sizeof(ULONGLONG));
+}
+
 ThreadError otPlatRadioSetPanId(_In_ otInstance *otCtx, uint16_t panid)
 {
     PMS_FILTER pFilter = otCtxToFilter(otCtx);

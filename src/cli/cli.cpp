@@ -91,7 +91,9 @@ const struct Command Interpreter::sCommands[] =
 #endif
     { "discover", &Interpreter::ProcessDiscover },
     { "eidcache", &Interpreter::ProcessEidCache },
+#ifndef OTDLL
     { "eui64", &Interpreter::ProcessEui64 },
+#endif
 #ifdef OPENTHREAD_EXAMPLES_POSIX
     { "exit", &Interpreter::ProcessExit },
 #endif
@@ -611,6 +613,7 @@ exit:
     AppendResult(kThreadError_None);
 }
 
+#ifndef OTDLL
 void Interpreter::ProcessEui64(int argc, char *argv[])
 {
     ThreadError error = kThreadError_None;
@@ -626,6 +629,7 @@ exit:
     (void)argv;
     AppendResult(error);
 }
+#endif
 
 void Interpreter::ProcessExtAddress(int argc, char *argv[])
 {

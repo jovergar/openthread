@@ -13,6 +13,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="hardware_entropy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="repo\library\aes.c">
       <Filter>Source Files\repo\library</Filter>
     </ClCompile>

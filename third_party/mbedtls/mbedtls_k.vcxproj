@@ -35,6 +35,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="hardware_entropy.c" />
     <ClCompile Include="repo\library\aes.c" />
     <ClCompile Include="repo\library\bignum.c" />
     <ClCompile Include="repo\library\ccm.c" />
