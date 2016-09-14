@@ -172,7 +172,7 @@ extern "C" {
         return (uint32_t)random();
 #endif
     }
-    
+
     ThreadError otPlatRandomSecureGet(uint16_t aInputLength, uint8_t *aOutput, uint16_t *aOutputLength)
     {
         ThreadError error = kThreadError_None;
@@ -186,7 +186,7 @@ extern "C" {
 
         *aOutputLength = aInputLength;
 
-    exit:
+exit:
         return error;
     }
 
