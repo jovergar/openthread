@@ -627,7 +627,7 @@ OTAPI void otSetExtendedPanId(otInstance *aInstance, const uint8_t *aExtendedPan
  * @param[out]  aEui64     A pointer to where the factory-assigned IEEE EUI-64 is placed.
  *
  */
-void otGetFactoryAssignedIeeeEui64(otInstance *aInstance, otExtAddress *aEui64);
+OTAPI void otGetFactoryAssignedIeeeEui64(otInstance *aInstance, otExtAddress *aEui64);
 
 /**
  * This function returns a pointer to the Leader's RLOC.
@@ -1628,7 +1628,7 @@ OTAPI void otPlatformReset(otInstance *aInstance);
  *
  * @sa otSetRouterDowngradeThreshold
  */
-uint8_t otGetRouterDowngradeThreshold(otInstance *aInstance);
+OTAPI uint8_t otGetRouterDowngradeThreshold(otInstance *aInstance);
 
 /**
  * Set the ROUTER_DOWNGRADE_THRESHOLD parameter used in the Leader role.
@@ -1638,7 +1638,7 @@ uint8_t otGetRouterDowngradeThreshold(otInstance *aInstance);
  *
  * @sa otGetRouterDowngradeThreshold
  */
-void otSetRouterDowngradeThreshold(otInstance *aInstance, uint8_t aThreshold);
+OTAPI void otSetRouterDowngradeThreshold(otInstance *aInstance, uint8_t aThreshold);
 
 /**
  * @}

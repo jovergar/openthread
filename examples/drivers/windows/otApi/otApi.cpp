@@ -1249,6 +1249,18 @@ otSetExtendedPanId(
 }
 
 OTAPI 
+void 
+otGetFactoryAssignedIeeeEui64(
+    _In_ otInstance *aInstance, 
+    _Out_ otExtAddress *aEui64
+)
+{
+    UNREFERENCED_PARAMETER(aInstance);
+    UNREFERENCED_PARAMETER(aEui64);
+    // TODO ...
+}
+
+OTAPI 
 ThreadError 
 otGetLeaderRloc(
     _In_ otInstance *aInstance, 
@@ -2366,6 +2378,30 @@ otPlatformReset(
     )
 {
     if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_PLATFORM_RESET);
+}
+
+OTAPI 
+uint8_t 
+otGetRouterDowngradeThreshold(
+    _In_ otInstance *aInstance
+    )
+{
+    uint8_t Result = 0;
+    UNREFERENCED_PARAMETER(aInstance);
+    // TODO
+    return Result;
+}
+
+OTAPI 
+void 
+otSetRouterDowngradeThreshold(
+    _In_ otInstance *aInstance, 
+    uint8_t aThreshold
+    )
+{
+    UNREFERENCED_PARAMETER(aInstance);
+    UNREFERENCED_PARAMETER(aThreshold);
+    // TODO
 }
 
 OTAPI
