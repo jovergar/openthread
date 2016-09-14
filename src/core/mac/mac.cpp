@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Nest Labs, Inc.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,6 @@
 #include <thread/mle_router.hpp>
 #include <thread/thread_netif.hpp>
 #include <openthreadinstance.h>
-
 
 namespace Thread {
 namespace Mac {

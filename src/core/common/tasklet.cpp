@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Nest Labs, Inc.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -35,6 +35,7 @@
 #include <common/code_utils.hpp>
 #include <common/debug.hpp>
 #include <common/tasklet.hpp>
+#include <net/ip6.hpp>
 
 namespace Thread {
 
@@ -67,7 +68,7 @@ ThreadError TaskletScheduler::Post(Tasklet &aTasklet)
     {
         mHead = &aTasklet;
         mTail = &aTasklet;
-        otSignalTaskletPending(NULL);
+        otSignalTaskletPending(aTasklet.mScheduler.GetIp6()->GetInstance());
     }
     else
     {
@@ -113,6 +114,11 @@ void TaskletScheduler::RunNextTasklet(void)
     {
         task->RunTask();
     }
+}
+
+Ip6::Ip6 *TaskletScheduler::GetIp6()
+{
+    return Ip6::Ip6FromTaskletScheduler(this);
 }
 
 }  // namespace Thread

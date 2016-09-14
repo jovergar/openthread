@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Nest Labs, Inc.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -364,6 +364,11 @@ private:
     Netif *mNetifListHead;
     int8_t mNextInterfaceId;
 };
+
+__inline Ip6 *Ip6FromTaskletScheduler(TaskletScheduler *aTaskletScheduler)
+{
+    return (Ip6 *)CONTAINING_RECORD(aTaskletScheduler, Ip6, mTaskletScheduler);
+}
 
 __inline Ip6 *Ip6FromTimerScheduler(TimerScheduler *aTimerScheduler)
 {
