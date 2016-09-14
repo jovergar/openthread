@@ -918,7 +918,8 @@ otInstanceInit(
     otInstance *aInstance = nullptr;
 
     OTLWF_DEVICE Result = {0};
-    if (SendIOCTL(
+    if (aApitInstance &&
+        SendIOCTL(
             aApitInstance, 
             IOCTL_OTLWF_QUERY_DEVICE, 
             (LPVOID)aDeviceGuid, 
@@ -953,6 +954,7 @@ otGetDeviceGuid(
     otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return {};
     return aInstance->InterfaceGuid;
 }
 
@@ -962,6 +964,7 @@ otGetDeviceIfIndex(
     otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return (uint32_t)-1;
     return aInstance->InterfaceIndex;
 }
 
@@ -971,6 +974,7 @@ otGetCompartmentId(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return (uint32_t)-1;
     return aInstance->CompartmentID;
 }
 
@@ -992,6 +996,7 @@ otInterfaceUp(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_INTERFACE, (BOOLEAN)TRUE));
 }
 
@@ -1001,6 +1006,7 @@ otInterfaceDown(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_INTERFACE, (BOOLEAN)FALSE));
 }
 
@@ -1011,7 +1017,7 @@ otIsInterfaceUp(
     )
 {
     BOOLEAN Result = FALSE;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_INTERFACE, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_INTERFACE, &Result);
     return Result != FALSE;
 }
 
@@ -1021,6 +1027,7 @@ otThreadStart(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_THREAD, (BOOLEAN)TRUE));
 }
 
@@ -1030,6 +1037,7 @@ otThreadStop(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_THREAD, (BOOLEAN)FALSE));
 }
 
@@ -1040,7 +1048,7 @@ otIsSingleton(
     )
 {
     BOOLEAN Result = FALSE;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_SINGLETON, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_SINGLETON, &Result);
     return Result != FALSE;
 }
 
@@ -1054,6 +1062,8 @@ otActiveScan(
     void *aCallbackContext
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     aInstance->ApiHandle->SetCallback(
         aInstance->ApiHandle->ActiveScanCallbacks,
         aInstance->InterfaceGuid, aCallback, aCallbackContext
@@ -1074,7 +1084,7 @@ otIsActiveScanInProgress(
     )
 {
     BOOLEAN Result = FALSE;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ACTIVE_SCAN, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ACTIVE_SCAN, &Result);
     return Result != FALSE;
 }
 
@@ -1089,6 +1099,8 @@ otDiscover(
     void *aCallbackContext
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     aInstance->ApiHandle->SetCallback(
         aInstance->ApiHandle->DiscoverCallbacks,
         aInstance->InterfaceGuid, aCallback, aCallbackContext
@@ -1110,7 +1122,7 @@ otIsDiscoverInProgress(
     )
 {
     BOOLEAN Result = FALSE;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_DISCOVER, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_DISCOVER, &Result);
     return Result != FALSE;
 }
 
@@ -1121,7 +1133,7 @@ otGetChannel(
     )
 {
     uint8_t Result = 0xFF;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_CHANNEL, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_CHANNEL, &Result);
     return Result;
 }
 
@@ -1132,6 +1144,7 @@ otSetChannel(
     uint8_t aChannel
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_CHANNEL, aChannel));
 }
 
@@ -1142,7 +1155,7 @@ otGetMaxAllowedChildren(
     )
 {
     uint8_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAX_CHILDREN, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAX_CHILDREN, &Result);
     return Result;
 }
 
@@ -1153,6 +1166,7 @@ otSetMaxAllowedChildren(
     uint8_t aMaxChildren
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAX_CHILDREN, aMaxChildren));
 }
 
@@ -1163,7 +1177,7 @@ otGetChildTimeout(
     )
 {
     uint32_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_CHILD_TIMEOUT, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_CHILD_TIMEOUT, &Result);
     return Result;
 }
 
@@ -1174,7 +1188,8 @@ otSetChildTimeout(
     uint32_t aTimeout
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_CHILD_TIMEOUT, aTimeout);
+    if (aInstance == nullptr) return;
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_CHILD_TIMEOUT, aTimeout);
 }
 
 OTAPI 
@@ -1184,6 +1199,8 @@ otGetExtendedAddress(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return nullptr;
+
     otExtAddress *Result = (otExtAddress*)malloc(sizeof(otExtAddress));
     if (Result && QueryIOCTL(aInstance, IOCTL_OTLWF_OT_EXTENDED_ADDRESS, Result) != ERROR_SUCCESS)
     {
@@ -1200,6 +1217,7 @@ otSetExtendedAddress(
     const otExtAddress *aExtendedAddress
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_EXTENDED_ADDRESS, aExtendedAddress));
 }
 
@@ -1209,6 +1227,8 @@ otGetExtendedPanId(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return nullptr;
+
     otExtendedPanId *Result = (otExtendedPanId*)malloc(sizeof(otExtendedPanId));
     if (Result && QueryIOCTL(aInstance, IOCTL_OTLWF_OT_EXTENDED_PANID, Result) != ERROR_SUCCESS)
     {
@@ -1225,7 +1245,7 @@ otSetExtendedPanId(
     const uint8_t *aExtendedPanId
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_EXTENDED_PANID, (const otExtendedPanId*)aExtendedPanId);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_EXTENDED_PANID, (const otExtendedPanId*)aExtendedPanId);
 }
 
 OTAPI 
@@ -1235,6 +1255,7 @@ otGetLeaderRloc(
     _Out_ otIp6Address *aLeaderRloc
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LEADER_RLOC, aLeaderRloc));
 }
 
@@ -1246,7 +1267,7 @@ otGetLinkMode(
 {
     otLinkModeConfig Result = {0};
     static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LINK_MODE, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LINK_MODE, &Result);
     return Result;
 }
 
@@ -1257,6 +1278,7 @@ otSetLinkMode(
     otLinkModeConfig aConfig
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     static_assert(sizeof(otLinkModeConfig) == 4, "The size of otLinkModeConfig should be 4 bytes");
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_LINK_MODE, aConfig));
 }
@@ -1268,6 +1290,8 @@ otGetMasterKey(
     _Out_ uint8_t *aKeyLength
     )
 {
+    if (aInstance == nullptr) return nullptr;
+
     struct otMasterKeyAndLength
     {
         otMasterKey Key;
@@ -1295,6 +1319,8 @@ otSetMasterKey(
     uint8_t aKeyLength
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     BYTE Buffer[sizeof(GUID) + sizeof(otMasterKey) + sizeof(uint8_t)];
     memcpy(Buffer, &aInstance->InterfaceGuid, sizeof(GUID));
     memcpy(Buffer + sizeof(GUID), aKey, aKeyLength);
@@ -1310,7 +1336,7 @@ otGetMaxTransmitPower(
     )
 {
     int8_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAX_TRANSMIT_POWER, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAX_TRANSMIT_POWER, &Result);
     return Result;
 }
 
@@ -1321,7 +1347,7 @@ otSetMaxTransmitPower(
     int8_t aPower
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAX_TRANSMIT_POWER, aPower);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAX_TRANSMIT_POWER, aPower);
 }
 
 OTAPI
@@ -1345,6 +1371,8 @@ otGetMeshLocalPrefix(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return nullptr;
+
     otMeshLocalPrefix *Result = (otMeshLocalPrefix*)malloc(sizeof(otMeshLocalPrefix));
     if (Result && QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MESH_LOCAL_PREFIX, Result) != ERROR_SUCCESS)
     {
@@ -1361,6 +1389,7 @@ otSetMeshLocalPrefix(
     const uint8_t *aMeshLocalPrefix
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_MESH_LOCAL_PREFIX, (const otMeshLocalPrefix*)aMeshLocalPrefix));
 }
 
@@ -1373,6 +1402,7 @@ otGetNetworkDataLeader(
     _Out_ uint8_t *aDataLength
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     UNREFERENCED_PARAMETER(aInstance);
     UNREFERENCED_PARAMETER(aStable);
     UNREFERENCED_PARAMETER(aData);
@@ -1389,6 +1419,7 @@ otGetNetworkDataLocal(
     _Out_ uint8_t *aDataLength
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     UNREFERENCED_PARAMETER(aInstance);
     UNREFERENCED_PARAMETER(aStable);
     UNREFERENCED_PARAMETER(aData);
@@ -1402,6 +1433,8 @@ otGetNetworkName(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return nullptr;
+
     otNetworkName *Result = (otNetworkName*)malloc(sizeof(otNetworkName));
     if (Result && QueryIOCTL(aInstance, IOCTL_OTLWF_OT_NETWORK_NAME, Result) != ERROR_SUCCESS)
     {
@@ -1418,6 +1451,8 @@ otSetNetworkName(
     _In_ const char *aNetworkName
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     otNetworkName Buffer = {0};
     strcpy_s(Buffer.m8, sizeof(Buffer), aNetworkName);
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_NETWORK_NAME, (const otNetworkName*)&Buffer));
@@ -1432,6 +1467,8 @@ otGetNextOnMeshPrefix(
     _Out_ otBorderRouterConfig *aConfig
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     BYTE InBuffer[sizeof(GUID) + sizeof(BOOLEAN) + sizeof(uint8_t)];
     BYTE OutBuffer[sizeof(uint8_t) + sizeof(otBorderRouterConfig)];
 
@@ -1463,7 +1500,7 @@ otPanId otGetPanId(
     )
 {
     otPanId Result = {0};
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_PAN_ID, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_PAN_ID, &Result);
     return Result;
 }
 
@@ -1474,6 +1511,7 @@ otSetPanId(
     otPanId aPanId
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_PAN_ID, aPanId));
 }
 
@@ -1484,7 +1522,7 @@ otIsRouterRoleEnabled(
     )
 {
     BOOLEAN Result = {0};
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_ROLL_ENABLED, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_ROLL_ENABLED, &Result);
     return Result != FALSE;
 }
 
@@ -1495,7 +1533,7 @@ otSetRouterRoleEnabled(
     bool aEnabled
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_ROLL_ENABLED, (BOOLEAN)aEnabled);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_ROLL_ENABLED, (BOOLEAN)aEnabled);
 }
 
 OTAPI
@@ -1505,7 +1543,7 @@ otGetShortAddress(
     )
 {
     otShortAddress Result = {0};
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_SHORT_ADDRESS, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_SHORT_ADDRESS, &Result);
     return Result;
 }
 
@@ -1537,6 +1575,8 @@ otGetUnicastAddresses(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return nullptr;
+
     // Put the current thead in the correct compartment
     bool RevertCompartmentOnExit = false;
     ULONG OriginalCompartmentID = GetCurrentThreadCompartmentId();
@@ -1642,6 +1682,8 @@ otAddUnicastAddress(
     const otNetifAddress *aAddress
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     // Put the current thead in the correct compartment
     bool RevertCompartmentOnExit = false;
     ULONG OriginalCompartmentID = GetCurrentThreadCompartmentId();
@@ -1706,6 +1748,8 @@ otRemoveUnicastAddress(
     const otIp6Address *aAddress
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     // Put the current thead in the correct compartment
     bool RevertCompartmentOnExit = false;
     ULONG OriginalCompartmentID = GetCurrentThreadCompartmentId();
@@ -1753,6 +1797,7 @@ void otSetStateChangedCallback(
     _In_ void *aContext
     )
 {
+    if (aInstance == nullptr) return;
     aInstance->ApiHandle->SetCallback(
         aInstance->ApiHandle->StateChangedCallbacks,
         aInstance->InterfaceGuid, aCallback, aContext
@@ -1766,6 +1811,7 @@ otGetActiveDataset(
     _Out_ otOperationalDataset *aDataset
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ACTIVE_DATASET, aDataset));
 }
 
@@ -1776,6 +1822,7 @@ otSetActiveDataset(
     const otOperationalDataset *aDataset
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ACTIVE_DATASET, aDataset));
 }
 
@@ -1786,6 +1833,7 @@ otGetPendingDataset(
     _Out_ otOperationalDataset *aDataset
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_PENDING_DATASET, aDataset));
 }
 
@@ -1796,6 +1844,7 @@ otSetPendingDataset(
     const otOperationalDataset *aDataset
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_PENDING_DATASET, aDataset));
 }
 
@@ -1807,6 +1856,7 @@ otSendActiveGet(
     uint8_t aLength
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     UNREFERENCED_PARAMETER(aInstance);
     UNREFERENCED_PARAMETER(aTlvTypes);
     UNREFERENCED_PARAMETER(aLength);
@@ -1822,6 +1872,7 @@ otSendActiveSet(
     uint8_t aLength
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     UNREFERENCED_PARAMETER(aInstance);
     UNREFERENCED_PARAMETER(aDataset);
     UNREFERENCED_PARAMETER(aTlvs);
@@ -1837,6 +1888,7 @@ otSendPendingGet(
     uint8_t aLength
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     UNREFERENCED_PARAMETER(aInstance);
     UNREFERENCED_PARAMETER(aTlvTypes);
     UNREFERENCED_PARAMETER(aLength);
@@ -1852,6 +1904,7 @@ otSendPendingSet(
     uint8_t aLength
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     UNREFERENCED_PARAMETER(aInstance);
     UNREFERENCED_PARAMETER(aDataset);
     UNREFERENCED_PARAMETER(aTlvs);
@@ -1866,7 +1919,7 @@ otGetPollPeriod(
     )
 {
     uint32_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_POLL_PERIOD, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_POLL_PERIOD, &Result);
     return Result;
 }
 
@@ -1877,7 +1930,7 @@ otSetPollPeriod(
     uint32_t aPollPeriod
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_POLL_PERIOD, aPollPeriod);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_POLL_PERIOD, aPollPeriod);
 }
 
 OTAPI
@@ -1887,7 +1940,7 @@ otGetLocalLeaderWeight(
     )
 {
     uint8_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LOCAL_LEADER_WEIGHT, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LOCAL_LEADER_WEIGHT, &Result);
     return Result;
 }
 
@@ -1897,7 +1950,7 @@ void otSetLocalLeaderWeight(
     uint8_t aWeight
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_LOCAL_LEADER_WEIGHT, aWeight);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_LOCAL_LEADER_WEIGHT, aWeight);
 }
 
 OTAPI 
@@ -1907,7 +1960,7 @@ otGetLocalLeaderPartitionId(
     )
 {
     uint32_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LOCAL_LEADER_PARTITION_ID, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LOCAL_LEADER_PARTITION_ID, &Result);
     return Result;
 }
 
@@ -1918,7 +1971,7 @@ otSetLocalLeaderPartitionId(
     uint32_t aPartitionId
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_LOCAL_LEADER_PARTITION_ID, aPartitionId);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_LOCAL_LEADER_PARTITION_ID, aPartitionId);
 }
 
 OTAPI
@@ -1928,6 +1981,7 @@ otAddBorderRouter(
     const otBorderRouterConfig *aConfig
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ADD_BORDER_ROUTER, aConfig));
 }
 
@@ -1938,6 +1992,7 @@ otRemoveBorderRouter(
     const otIp6Prefix *aPrefix
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_BORDER_ROUTER, aPrefix));
 }
 
@@ -1948,6 +2003,7 @@ otAddExternalRoute(
     const otExternalRouteConfig *aConfig
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ADD_EXTERNAL_ROUTE, aConfig));
 }
 
@@ -1958,6 +2014,7 @@ otRemoveExternalRoute(
     const otIp6Prefix *aPrefix
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_EXTERNAL_ROUTE, aPrefix));
 }
 
@@ -1967,6 +2024,7 @@ otSendServerData(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_SEND_SERVER_DATA));
 }
 
@@ -1977,7 +2035,7 @@ otGetContextIdReuseDelay(
     )
 {
     uint32_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_CONTEXT_ID_REUSE_DELAY, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_CONTEXT_ID_REUSE_DELAY, &Result);
     return Result;
 }
 
@@ -1988,7 +2046,7 @@ otSetContextIdReuseDelay(
     uint32_t aDelay
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_EXTERNAL_ROUTE, aDelay);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_EXTERNAL_ROUTE, aDelay);
 }
 
 OTAPI
@@ -1998,7 +2056,7 @@ otGetKeySequenceCounter(
     )
 {
     uint32_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_KEY_SEQUENCE_COUNTER, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_KEY_SEQUENCE_COUNTER, &Result);
     return Result;
 }
 
@@ -2009,7 +2067,7 @@ otSetKeySequenceCounter(
     uint32_t aKeySequenceCounter
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_EXTERNAL_ROUTE, aKeySequenceCounter);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_EXTERNAL_ROUTE, aKeySequenceCounter);
 }
 
 OTAPI
@@ -2018,7 +2076,7 @@ uint8_t otGetNetworkIdTimeout(
     )
 {
     uint8_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_NETWORK_ID_TIMEOUT, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_NETWORK_ID_TIMEOUT, &Result);
     return Result;
 }
 
@@ -2029,7 +2087,7 @@ otSetNetworkIdTimeout(
     uint8_t aTimeout
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_NETWORK_ID_TIMEOUT, aTimeout);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_NETWORK_ID_TIMEOUT, aTimeout);
 }
 
 OTAPI
@@ -2039,7 +2097,7 @@ otGetRouterUpgradeThreshold(
     )
 {
     uint8_t Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_UPGRADE_THRESHOLD, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_UPGRADE_THRESHOLD, &Result);
     return Result;
 }
 
@@ -2050,7 +2108,7 @@ otSetRouterUpgradeThreshold(
     uint8_t aThreshold
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_UPGRADE_THRESHOLD, aThreshold);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_UPGRADE_THRESHOLD, aThreshold);
 }
 
 OTAPI
@@ -2060,6 +2118,7 @@ otReleaseRouterId(
     uint8_t aRouterId
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_RELEASE_ROUTER_ID, aRouterId));
 }
 
@@ -2070,6 +2129,7 @@ otAddMacWhitelist(
     const uint8_t *aExtAddr
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ADD_MAC_WHITELIST, (const otExtAddress*)aExtAddr));
 }
 
@@ -2081,6 +2141,8 @@ otAddMacWhitelistRssi(
     int8_t aRssi
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     BYTE Buffer[sizeof(GUID) + sizeof(otExtAddress) + sizeof(int8_t)];
     memcpy(Buffer, &aInstance->InterfaceGuid, sizeof(GUID));
     memcpy(Buffer + sizeof(GUID), aExtAddr, sizeof(otExtAddress));
@@ -2096,7 +2158,7 @@ otRemoveMacWhitelist(
     const uint8_t *aExtAddr
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_MAC_WHITELIST, (const otExtAddress*)aExtAddr);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_MAC_WHITELIST, (const otExtAddress*)aExtAddr);
 }
 
 OTAPI
@@ -2107,6 +2169,7 @@ otGetMacWhitelistEntry(
     _Out_ otMacWhitelistEntry *aEntry
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_WHITELIST_ENTRY, &aIndex, aEntry));
 }
 
@@ -2116,7 +2179,7 @@ otClearMacWhitelist(
     _In_ otInstance *aInstance
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_CLEAR_MAC_WHITELIST);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_CLEAR_MAC_WHITELIST);
 }
 
 OTAPI
@@ -2125,7 +2188,7 @@ otDisableMacWhitelist(
     _In_ otInstance *aInstance
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_WHITELIST_ENABLED, (BOOLEAN)FALSE);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_WHITELIST_ENABLED, (BOOLEAN)FALSE);
 }
 
 OTAPI
@@ -2134,7 +2197,7 @@ otEnableMacWhitelist(
     _In_ otInstance *aInstance
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_WHITELIST_ENABLED, (BOOLEAN)TRUE);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_WHITELIST_ENABLED, (BOOLEAN)TRUE);
 }
 
 OTAPI
@@ -2144,7 +2207,7 @@ otIsMacWhitelistEnabled(
     )
 {
     BOOLEAN Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_WHITELIST_ENABLED, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_WHITELIST_ENABLED, &Result);
     return Result != FALSE;
 }
 
@@ -2154,6 +2217,7 @@ otBecomeDetached(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_DEVICE_ROLE, (uint8_t)kDeviceRoleDetached));
 }
 
@@ -2164,6 +2228,8 @@ otBecomeChild(
     otMleAttachFilter aFilter
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     uint8_t Role = kDeviceRoleDetached;
     uint8_t Filter = (uint8_t)aFilter;
 
@@ -2181,6 +2247,7 @@ otBecomeRouter(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_DEVICE_ROLE, (uint8_t)kDeviceRoleRouter));
 }
 
@@ -2190,6 +2257,7 @@ otBecomeLeader(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_DEVICE_ROLE, (uint8_t)kDeviceRoleLeader));
 }
 
@@ -2200,6 +2268,7 @@ otAddMacBlacklist(
     const uint8_t *aExtAddr
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_ADD_MAC_BLACKLIST, (const otExtAddress*)aExtAddr));
 }
 
@@ -2210,7 +2279,7 @@ otRemoveMacBlacklist(
     const uint8_t *aExtAddr
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_MAC_BLACKLIST, (const otExtAddress*)aExtAddr);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_REMOVE_MAC_BLACKLIST, (const otExtAddress*)aExtAddr);
 }
 
 OTAPI
@@ -2221,6 +2290,7 @@ otGetMacBlacklistEntry(
     _Out_ otMacBlacklistEntry *aEntry
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENTRY, &aIndex, aEntry));
 }
 
@@ -2230,7 +2300,7 @@ otClearMacBlacklist(
     _In_ otInstance *aInstance
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_CLEAR_MAC_BLACKLIST);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_CLEAR_MAC_BLACKLIST);
 }
 
 OTAPI
@@ -2239,7 +2309,7 @@ otDisableMacBlacklist(
     _In_ otInstance *aInstance
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED, (BOOLEAN)FALSE);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED, (BOOLEAN)FALSE);
 }
 
 OTAPI
@@ -2248,7 +2318,7 @@ otEnableMacBlacklist(
     _In_ otInstance *aInstance
     )
 {
-    (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED, (BOOLEAN)TRUE);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED, (BOOLEAN)TRUE);
 }
 
 OTAPI
@@ -2258,7 +2328,7 @@ otIsMacBlacklistEnabled(
     )
 {
     BOOLEAN Result = 0;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_MAC_BLACKLIST_ENABLED, &Result);
     return Result != FALSE;
 }
 
@@ -2270,6 +2340,7 @@ otGetAssignLinkQuality(
     _Out_ uint8_t *aLinkQuality
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ASSIGN_LINK_QUALITY, (otExtAddress*)aExtAddr, aLinkQuality));
 }
 
@@ -2294,7 +2365,7 @@ otPlatformReset(
     _In_ otInstance *aInstance
     )
 {
-    SetIOCTL(aInstance, IOCTL_OTLWF_OT_PLATFORM_RESET);
+    if (aInstance) (void)SetIOCTL(aInstance, IOCTL_OTLWF_OT_PLATFORM_RESET);
 }
 
 OTAPI
@@ -2305,6 +2376,7 @@ otGetChildInfoById(
     _Out_ otChildInfo *aChildInfo
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_CHILD_INFO_BY_ID, &aChildId, aChildInfo));
 }
 
@@ -2316,6 +2388,7 @@ otGetChildInfoByIndex(
     _Out_ otChildInfo *aChildInfo
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_CHILD_INFO_BY_INDEX, &aChildIndex, aChildInfo));
 }
 
@@ -2326,7 +2399,7 @@ otGetDeviceRole(
     )
 {
     uint8_t Result = kDeviceRoleOffline;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_DEVICE_ROLE, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_DEVICE_ROLE, &Result);
     return (otDeviceRole)Result;
 }
 
@@ -2338,6 +2411,7 @@ otGetEidCacheEntry(
     _Out_ otEidCacheEntry *aEntry
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_EID_CACHE_ENTRY, &aIndex, aEntry));
 }
 
@@ -2348,6 +2422,7 @@ otGetLeaderData(
     _Out_ otLeaderData *aLeaderData
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LEADER_DATA, aLeaderData));
 }
 
@@ -2358,7 +2433,7 @@ otGetLeaderRouterId(
     )
 {
     uint8_t Result = 0xFF;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LEADER_ROUTER_ID, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LEADER_ROUTER_ID, &Result);
     return Result;
 }
 
@@ -2369,7 +2444,7 @@ otGetLeaderWeight(
     )
 {
     uint8_t Result = 0xFF;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LEADER_WEIGHT, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_LEADER_WEIGHT, &Result);
     return Result;
 }
 
@@ -2380,7 +2455,7 @@ otGetNetworkDataVersion(
     )
 {
     uint8_t Result = 0xFF;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_NETWORK_DATA_VERSION, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_NETWORK_DATA_VERSION, &Result);
     return Result;
 }
 
@@ -2391,7 +2466,7 @@ otGetPartitionId(
     )
 {
     uint32_t Result = 0xFFFFFFFF;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_PARTITION_ID, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_PARTITION_ID, &Result);
     return Result;
 }
 
@@ -2402,7 +2477,7 @@ otGetRloc16(
     )
 {
     uint16_t Result = 0xFFFF;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_RLOC16, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_RLOC16, &Result);
     return Result;
 }
 
@@ -2413,7 +2488,7 @@ otGetRouterIdSequence(
     )
 {
     uint8_t Result = 0xFF;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_ID_SEQUENCE, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_ID_SEQUENCE, &Result);
     return Result;
 }
 
@@ -2425,6 +2500,7 @@ otGetRouterInfo(
     _Out_ otRouterInfo *aRouterInfo
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_ROUTER_INFO, &aRouterId, aRouterInfo));
 }
 
@@ -2435,6 +2511,7 @@ otGetParentInfo(
     _Out_ otRouterInfo *aParentInfo
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     static_assert(sizeof(otRouterInfo) == 20, "The size of otRouterInfo should be 20 bytes");
     return DwordToThreadError(QueryIOCTL(aInstance, IOCTL_OTLWF_OT_PARENT_INFO, aParentInfo));
 }
@@ -2446,7 +2523,7 @@ otGetStableNetworkDataVersion(
     )
 {
     uint8_t Result = 0xFF;
-    (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION, &Result);
+    if (aInstance) (void)QueryIOCTL(aInstance, IOCTL_OTLWF_OT_STABLE_NETWORK_DATA_VERSION, &Result);
     return Result;
 }
 
@@ -2456,6 +2533,8 @@ otGetMacCounters(
     _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return nullptr;
+
     otMacCounters* aCounters = (otMacCounters*)malloc(sizeof(otMacCounters));
     if (aCounters)
     {
@@ -2612,6 +2691,8 @@ otCommissionerStart(
     const char *aPSKd
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     otPSKd pskd = {0};
     size_t aPSKdLength = strlen(aPSKd);
     if (aPSKdLength > OPENTHREAD_PSK_MAX_LENGTH)
@@ -2630,6 +2711,7 @@ otCommissionerStop(
      _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_COMMISIONER_STOP));
 }
 
@@ -2644,6 +2726,7 @@ otCommissionerPanIdQuery(
      _In_ void *aContext
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     UNREFERENCED_PARAMETER(aInstance);
     UNREFERENCED_PARAMETER(aPanId);
     UNREFERENCED_PARAMETER(aChannelMask);
@@ -2661,6 +2744,8 @@ otJoinerStart(
     const char *aPSKd
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
+
     otPSKd pskd = {0};
     size_t aPSKdLength = strlen(aPSKd);
     if (aPSKdLength > OPENTHREAD_PSK_MAX_LENGTH)
@@ -2679,5 +2764,6 @@ otJoinerStop(
      _In_ otInstance *aInstance
     )
 {
+    if (aInstance == nullptr) return kThreadError_InvalidArgs;
     return DwordToThreadError(SetIOCTL(aInstance, IOCTL_OTLWF_OT_JOINER_STOP));
 }

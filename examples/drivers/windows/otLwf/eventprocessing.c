@@ -801,7 +801,7 @@ otLwfEventWorkerThread(
                                     ThreadError error = kThreadError_None;
 
                                     // Create a new message
-                                    otMessage message = otNewIPv6Message(pFilter->otCtx, TRUE);
+                                    otMessage message = otNewIp6Message(pFilter->otCtx, TRUE);
                                     if (message)
                                     {
                                         // Write to the message

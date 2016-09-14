@@ -1116,18 +1116,6 @@ void otSetReceiveIp6DatagramFilterEnabled(otInstance *aInstance, bool aEnabled)
     aInstance->mIp6.SetReceiveIp6FilterEnabled(aEnabled);
 }
 
-otMessage otNewIPv6Message(otInstance *aInstance, bool aLinkSecurityEnabled)
-{
-    Message *message = aInstance->mIp6.mMessagePool.New(Message::kTypeIp6, 0);
-
-    if (message)
-    {
-        message->SetLinkSecurityEnabled(aLinkSecurityEnabled);
-    }
-
-    return message;
-}
-
 ThreadError otSendIp6Datagram(otInstance *aInstance, otMessage aMessage)
 {
     otLogFuncEntry();

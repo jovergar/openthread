@@ -45,6 +45,9 @@ namespace Thread {
 
 MessagePool::MessagePool(void)
 {
+    memset(mBuffers, 0, sizeof(mBuffers));
+    memset(&mAll, 0, sizeof(mAll));
+
     mFreeBuffers = mBuffers;
 
     for (int i = 0; i < kNumBuffers - 1; i++)

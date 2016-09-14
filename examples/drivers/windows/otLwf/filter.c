@@ -355,6 +355,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             Status = NDIS_STATUS_RESOURCES;
             break;
         }
+        RtlZeroMemory(pFilter->otInstanceBuffer, otInstanceSize);
 
         // Store the pointer and decrement the size
         memcpy(pFilter->otInstanceBuffer, &pFilter, sizeof(PMS_FILTER));

@@ -194,6 +194,7 @@ ThreadError Mle::Start(void)
     VerifyOrExit(mNetif.IsUp(), error = kThreadError_InvalidState);
 
     mDeviceState = kDeviceStateDetached;
+    mNetif.SetStateChangedFlags(OT_NET_ROLE);
     SetStateDetached();
 
     if (GetRloc16() == Mac::kShortAddrInvalid)
