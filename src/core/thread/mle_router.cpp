@@ -275,6 +275,17 @@ exit:
     return error;
 }
 
+void MleRouter::StopLeader(void)
+{
+    mCoapServer.RemoveResource(mAddressSolicit);
+    mCoapServer.RemoveResource(mAddressRelease);
+    mNetif.GetActiveDataset().StopLeader();
+    mNetif.GetPendingDataset().StopLeader();
+    mAdvertiseTimer.Stop();
+    mNetworkData.Stop();
+    mNetif.UnsubscribeAllRoutersMulticast();
+}
+
 ThreadError MleRouter::HandleDetachStart(void)
 {
     ThreadError error = kThreadError_None;
@@ -284,10 +295,8 @@ ThreadError MleRouter::HandleDetachStart(void)
         mRouters[i].mState = Neighbor::kStateInvalid;
     }
 
-    mAdvertiseTimer.Stop();
+    StopLeader();
     mStateUpdateTimer.Stop();
-    mNetworkData.Stop();
-    mNetif.UnsubscribeAllRoutersMulticast();
 
     return error;
 }
@@ -298,9 +307,8 @@ ThreadError MleRouter::HandleChildStart(otMleAttachFilter aFilter)
 
     mRouterIdSequenceLastUpdated = Timer::GetNow();
 
-    mAdvertiseTimer.Stop();
+    StopLeader();
     mStateUpdateTimer.Start(kStateUpdatePeriod);
-    mNetworkData.Stop();
 
     switch (aFilter)
     {
@@ -325,7 +333,7 @@ ThreadError MleRouter::HandleChildStart(otMleAttachFilter aFilter)
     }
     else
     {
-        mNetif.UnsubscribeAllRoutersMulticast();
+
     }
 
     return kThreadError_None;
@@ -370,8 +378,8 @@ ThreadError MleRouter::SetStateLeader(uint16_t aRloc16)
     mRouters[mRouterId].mLastHeard = Timer::GetNow();
 
     mNetworkData.Start();
-    mNetif.GetActiveDataset().ApplyLocalToNetwork();
-    mNetif.GetPendingDataset().ApplyLocalToNetwork();
+    mNetif.GetActiveDataset().StartLeader();
+    mNetif.GetPendingDataset().StartLeader();
     mCoapServer.AddResource(mAddressSolicit);
     mCoapServer.AddResource(mAddressRelease);
     mNetif.GetIp6().SetForwardingEnabled(true);
@@ -1954,13 +1962,15 @@ ThreadError MleRouter::HandleChildIdRequest(const Message &aMessage, const Ip6::
     numTlvs = tlvRequest.GetLength();
 
     if (activeTimestamp.GetLength() == 0 ||
-        mNetif.GetActiveDataset().GetNetwork().GetTimestamp().Compare(activeTimestamp) != 0)
+        mNetif.GetActiveDataset().GetNetwork().GetTimestamp() == NULL ||
+        mNetif.GetActiveDataset().GetNetwork().GetTimestamp()->Compare(activeTimestamp) != 0)
     {
         child->mRequestTlvs[numTlvs++] = Tlv::kActiveDataset;
     }
 
     if (pendingTimestamp.GetLength() == 0 ||
-        mNetif.GetPendingDataset().GetNetwork().GetTimestamp().Compare(pendingTimestamp) != 0)
+        mNetif.GetPendingDataset().GetNetwork().GetTimestamp() == NULL ||
+        mNetif.GetPendingDataset().GetNetwork().GetTimestamp()->Compare(pendingTimestamp) != 0)
     {
         child->mRequestTlvs[numTlvs++] = Tlv::kPendingDataset;
     }
@@ -2104,13 +2114,15 @@ ThreadError MleRouter::HandleDataRequest(const Message &aMessage, const Ip6::Mes
     numTlvs = tlvRequest.GetLength();
 
     if (activeTimestamp.GetLength() == 0 ||
-        mNetif.GetActiveDataset().GetNetwork().GetTimestamp().Compare(activeTimestamp) != 0)
+        mNetif.GetActiveDataset().GetNetwork().GetTimestamp() == NULL ||
+        mNetif.GetActiveDataset().GetNetwork().GetTimestamp()->Compare(activeTimestamp) != 0)
     {
         tlvs[numTlvs++] = Tlv::kActiveDataset;
     }
 
     if (pendingTimestamp.GetLength() == 0 ||
-        mNetif.GetPendingDataset().GetNetwork().GetTimestamp().Compare(pendingTimestamp) != 0)
+        mNetif.GetPendingDataset().GetNetwork().GetTimestamp() == NULL ||
+        mNetif.GetPendingDataset().GetNetwork().GetTimestamp()->Compare(pendingTimestamp) != 0)
     {
         tlvs[numTlvs++] = Tlv::kPendingDataset;
     }
