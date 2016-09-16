@@ -70,6 +70,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "otApi", "examples\drivers\w
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "otCli", "examples\drivers\windows\otCli\otCli.vcxproj", "{CAC8A00E-C6C8-4CF0-BA5A-C9A9A601C6DB}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "border-router", "examples\borderrouter\windows\border-router.vcxproj", "{EDA10DA0-9CE9-4833-800F-5C48FA72D033}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -278,6 +280,14 @@ Global
 		{CAC8A00E-C6C8-4CF0-BA5A-C9A9A601C6DB}.Release|x64.Build.0 = Release|x64
 		{CAC8A00E-C6C8-4CF0-BA5A-C9A9A601C6DB}.Release|x86.ActiveCfg = Release|Win32
 		{CAC8A00E-C6C8-4CF0-BA5A-C9A9A601C6DB}.Release|x86.Build.0 = Release|Win32
+		{EDA10DA0-9CE9-4833-800F-5C48FA72D033}.Debug|x64.ActiveCfg = Debug|x64
+		{EDA10DA0-9CE9-4833-800F-5C48FA72D033}.Debug|x64.Build.0 = Debug|x64
+		{EDA10DA0-9CE9-4833-800F-5C48FA72D033}.Debug|x86.ActiveCfg = Debug|Win32
+		{EDA10DA0-9CE9-4833-800F-5C48FA72D033}.Debug|x86.Build.0 = Debug|Win32
+		{EDA10DA0-9CE9-4833-800F-5C48FA72D033}.Release|x64.ActiveCfg = Release|x64
+		{EDA10DA0-9CE9-4833-800F-5C48FA72D033}.Release|x64.Build.0 = Release|x64
+		{EDA10DA0-9CE9-4833-800F-5C48FA72D033}.Release|x86.ActiveCfg = Release|Win32
+		{EDA10DA0-9CE9-4833-800F-5C48FA72D033}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -308,5 +318,6 @@ Global
 		{3F1F7F6C-2A33-4635-9880-08FC5BC4E435} = {3223EA88-5499-47EF-97B4-B6515BC3D8C8}
 		{ED0EA262-C222-42C7-98D3-E70C72978ED2} = {3223EA88-5499-47EF-97B4-B6515BC3D8C8}
 		{CAC8A00E-C6C8-4CF0-BA5A-C9A9A601C6DB} = {3223EA88-5499-47EF-97B4-B6515BC3D8C8}
+		{EDA10DA0-9CE9-4833-800F-5C48FA72D033} = {76EA541E-CAB1-4DB5-A39F-E3DB2A78CDDD}
 	EndGlobalSection
 EndGlobal
