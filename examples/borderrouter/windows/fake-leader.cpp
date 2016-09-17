@@ -31,6 +31,10 @@ HRESULT FakeLeader::Start()
     }
 
     hr = mBorderRouterSocket.Bind(THREAD_LEADER_PORT);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
     while (1)
     {
@@ -44,8 +48,7 @@ HRESULT FakeLeader::Start()
 // static
 void FakeLeader::HandleBorderRouterSocketReceive(void* aContext, uint8_t* aBuf, DWORD aLength)
 {
-    FakeLeader *obj = reinterpret_cast<FakeLeader *>(aContext);
-    obj->HandleBorderRouterSocketReceive(aBuf, aLength);
+    static_cast<FakeLeader*>(aContext)->HandleBorderRouterSocketReceive(aBuf, aLength);
 }
 
 void FakeLeader::HandleBorderRouterSocketReceive(uint8_t* aBuf, DWORD aLength)
@@ -57,7 +60,7 @@ void FakeLeader::HandleBorderRouterSocketReceive(uint8_t* aBuf, DWORD aLength)
 void FakeLeader::HandleCoapMessage(void* aContext, OffMesh::Coap::Header& aHeader,
                                    uint8_t* aMessage, uint16_t aLength, const char* aUriPath)
 {
-    FakeLeader *obj = static_cast<FakeLeader *>(aContext);
+    FakeLeader *obj = static_cast<FakeLeader*>(aContext);
 
     if (strcmp(aUriPath, OPENTHREAD_URI_LEADER_PETITION) == 0)
     {

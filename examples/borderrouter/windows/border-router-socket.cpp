@@ -5,8 +5,14 @@
 #include <mbedtls/platform.h>
 #include "border-router-socket.hpp"
 
-BRSocket::BRSocket()
+BRSocket::BRSocket() :
+    mSocket(INVALID_SOCKET)
 {
+}
+
+BRSocket::~BRSocket()
+{
+    Uninitialize();
 }
 
 HRESULT BRSocket::Initialize(BrSocketReadCallback readCallback, void* clientContext)
@@ -21,6 +27,14 @@ HRESULT BRSocket::Initialize(BrSocketReadCallback readCallback, void* clientCont
     }
 
     return S_OK;
+}
+
+void BRSocket::Uninitialize()
+{
+    if (mSocket != INVALID_SOCKET)
+    {
+        closesocket(mSocket);
+    }
 }
 
 HRESULT BRSocket::Bind(unsigned short port)
@@ -135,4 +149,9 @@ HRESULT BRSocket::SendTo(const uint8_t* aBuf, uint16_t aLength, sockaddr_in* pee
         printf("wrote %d bytes out of %d in SendTo\n", result, aLength);
         return S_OK;
     }
+}
+
+void BRSocket::GetLastPeer(SOCKADDR* lastPeer)
+{
+    *lastPeer = mPeerAddr;
 }

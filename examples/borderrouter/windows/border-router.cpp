@@ -16,7 +16,7 @@ extern "C" void otSignalTaskletPending(otInstance *)
 {
 }
 
-static inline uint8_t _str1ToHex(const char charTuple) {
+inline uint8_t _str1ToHex(const char charTuple) {
     if ('0' <= charTuple && charTuple <= '9') {
         return (uint8_t)(charTuple - '0');
     }
@@ -29,13 +29,13 @@ static inline uint8_t _str1ToHex(const char charTuple) {
     return 0;
 }
 
-static inline uint8_t _str2ToHex(const char hexByte[2]) {
+inline uint8_t _str2ToHex(const char hexByte[2]) {
     const char hi = hexByte[0];
     const char lo = hexByte[1];
     return (_str1ToHex(hi) * 16) + _str1ToHex(lo);
 }
 
-static void printBuffer(char* buffer, int len)
+void printBuffer(char* buffer, int len)
 {
     for (int i = 0; i < len; i++)
     {
@@ -48,7 +48,7 @@ static void printBuffer(char* buffer, int len)
     printf("\n");
 }
 
-static void getPSKc(const char* passPhrase, const char* networkName, const char* const xPanId, uint8_t* derivedKeyOut) {
+void getPSKc(const char* passPhrase, const char* networkName, const char* const xPanId, uint8_t* derivedKeyOut) {
     const char* saltPrefix = "Thread";
     const size_t preLen = strlen(saltPrefix);
     const size_t xpiLen = xPanId ? strlen(xPanId) / 2 : 0;
@@ -218,8 +218,16 @@ HRESULT BorderRouter::Start()
     }
 
     hr = mThreadLeaderSocket.Initialize(HandleThreadSocketReceive, this);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
     hr = mCommissionerSocket.Bind(19779);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
     uint8_t derivedKey[16];
     getPSKc("12SECRETPASSWORD34", "TestNetwork1", "0001020304050607", derivedKey);
@@ -243,20 +251,28 @@ void BorderRouter::Stop()
 // static
 void BorderRouter::HandleCommissionerSocketReceive(void *aContext, uint8_t *aBuf, DWORD aLength)
 {
-    BorderRouter *obj = reinterpret_cast<BorderRouter *>(aContext);
-    obj->HandleCommissionerSocketReceive(aBuf, aLength);
+    static_cast<BorderRouter *>(aContext)->HandleCommissionerSocketReceive(aBuf, aLength);
 }
 
 void BorderRouter::HandleCommissionerSocketReceive(uint8_t *aBuf, DWORD aLength)
 {
     // just got something from the commissioner socket, need to decrypt it (or continue the DTLS handshake)
+    if (!mDtls.IsConnected())
+    {
+        // The DTLS server requires that we set some client ID, or the handshake will fail. The documentation
+        // states that it is usually an ip/port pair (something that identifies the peer on the transport).
+        // Set it here.
+        SOCKADDR currentPeer;
+        mCommissionerSocket.GetLastPeer(&currentPeer);
+        mDtls.SetClientId(reinterpret_cast<uint8_t*>(&currentPeer), sizeof(currentPeer));
+    }
     mDtls.Receive(aBuf, static_cast<uint16_t>(aLength));
 }
 
 // static
 void BorderRouter::HandleThreadSocketReceive(void *aContext, uint8_t *aBuf, DWORD aLength)
 {
-    reinterpret_cast<BorderRouter *>(aContext)->HandleThreadSocketReceive(aBuf, aLength);
+    static_cast<BorderRouter *>(aContext)->HandleThreadSocketReceive(aBuf, aLength);
 }
 
 void BorderRouter::HandleThreadSocketReceive(uint8_t* aBuf, DWORD aLength)
@@ -273,7 +289,7 @@ void BorderRouter::HandleThreadSocketReceive(uint8_t* aBuf, DWORD aLength)
 // static
 void BorderRouter::HandleDtlsReceive(void * aContext, uint8_t * aBuf, uint16_t aLength)
 {
-    reinterpret_cast<BorderRouter *>(aContext)->HandleDtlsReceive(aBuf, aLength);
+    static_cast<BorderRouter *>(aContext)->HandleDtlsReceive(aBuf, aLength);
 }
 
 void BorderRouter::HandleDtlsReceive(uint8_t *aBuf, uint16_t aLength)
@@ -284,7 +300,7 @@ void BorderRouter::HandleDtlsReceive(uint8_t *aBuf, uint16_t aLength)
 
 ThreadError BorderRouter::HandleDtlsSend(void* aContext, const uint8_t* aBuf, uint16_t aLength)
 {
-    return reinterpret_cast<BorderRouter *>(aContext)->HandleDtlsSend(aBuf, aLength);
+    return static_cast<BorderRouter *>(aContext)->HandleDtlsSend(aBuf, aLength);
 }
 
 ThreadError BorderRouter::HandleDtlsSend(const uint8_t* aBuf, uint16_t aLength)

@@ -21,6 +21,8 @@
 */
 #define OPENTHREAD_URI_COMMISSIONER_KEEP_ALIVE  "c/ca"
 
+void getPSKc(const char* passPhrase, const char* networkName, const char* const xPanId, uint8_t* derivedKeyOut);
+
 class BorderRouter
 {
 public:

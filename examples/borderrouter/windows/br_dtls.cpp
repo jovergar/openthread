@@ -114,11 +114,7 @@ ThreadError Dtls::Start(bool aClient, ReceiveHandler aReceiveHandler, SendHandle
     mbedtls_ssl_conf_max_version(&mConf, MBEDTLS_SSL_MAJOR_VERSION_3, MBEDTLS_SSL_MINOR_VERSION_3);
     mbedtls_ssl_conf_ciphersuites(&mConf, ciphersuites);
     mbedtls_ssl_conf_handshake_timeout(&mConf, 8000, 60000);
-#ifdef WINDOWS_KERNEL
-    mbedtls_ssl_conf_dbg(&mConf, HandleMbedtlsDebug, NULL);
-#else
-    mbedtls_ssl_conf_dbg(&mConf, my_debug, stdout);
-#endif
+    mbedtls_ssl_conf_dbg(&mConf, HandleMbedtlsDebug, stdout);
 
     if (!mClient)
     {
@@ -164,7 +160,7 @@ ThreadError Dtls::Stop(void)
     return kThreadError_None;
 }
 
-ThreadError Dtls::SetPsk(const uint8_t *aPsk, uint8_t aPskLength)
+ThreadError Dtls::SetPsk(const uint8_t* aPsk, uint8_t aPskLength)
 {
     ThreadError error = kThreadError_None;
 
@@ -177,7 +173,7 @@ exit:
     return error;
 }
 
-ThreadError Dtls::SetClientId(const uint8_t *aClientId, uint8_t aLength)
+ThreadError Dtls::SetClientId(const uint8_t* aClientId, uint8_t aLength)
 {
     int rval = mbedtls_ssl_set_client_transport_id(&mSsl, aClientId, aLength);
     return MapError(rval);
@@ -197,8 +193,6 @@ ThreadError Dtls::Send(const uint8_t *aBuf, uint16_t aLength)
 ThreadError Dtls::Receive(uint8_t *aMessage, uint16_t aLength)
 {
     printf("Dtls::Receive\r\n");
-
-    mbedtls_ssl_set_client_transport_id(&mSsl, (unsigned char*)"whatever", strlen("whatever"));
 
     mReceiveMessageBuffer = aMessage;
     mReceiveOffset = 0;
