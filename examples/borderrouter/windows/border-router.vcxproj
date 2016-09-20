@@ -75,7 +75,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Users\jovergar\Source\Repos\openthreadnickwindows\third_party\mbedtls;C:\Users\jovergar\Source\Repos\openthreadnickwindows\include;C:\Users\jovergar\Source\Repos\openthreadnickwindows\examples\borderrouter\windows;C:\Users\jovergar\Source\Repos\openthreadnickwindows\src\core\;C:\Users\jovergar\Source\Repos\openthreadnickwindows\third_party\mbedtls\repo\include\;$(IncludePath)</IncludePath>
     <OutDir>$(SolutionDir).bin\$(Platform)\$(Configuration)\exe\</OutDir>
     <IntDir>$(SolutionDir).obj\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
@@ -106,6 +105,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_CONSOLE;MBEDTLS_CONFIG_FILE="mbedtls-config.h";OPENTHREAD_CONFIG_FILE="openthread-windows-config.h";_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)src\core;$(SolutionDir)third_party\mbedtls;$(SolutionDir)third_party\mbedtls\repo\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
