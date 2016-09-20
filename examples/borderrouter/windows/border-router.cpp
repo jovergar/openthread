@@ -278,7 +278,7 @@ void BorderRouter::HandleThreadSocketReceive(void *aContext, uint8_t *aBuf, DWOR
 void BorderRouter::HandleThreadSocketReceive(uint8_t* aBuf, DWORD aLength)
 {
     // just got something from the thread socket. it will be a reply to something
-    // we sent to the leader. replys don't have coap URIs so if the message format
+    // we sent to the leader. replies don't have coap URIs so if the message format
     // is the same, we can just forward it directly as is
     //
     // currently, all responses are the same, so we just forward over DTLS to
@@ -328,7 +328,7 @@ void BorderRouter::HandleCoapMessage(OffMesh::Coap::Header& aRequestHeader, uint
 {
     printf("BorderRouter::HandleCoapMessage called with URI %s!\n", aUriPath);
 
-    char* destinationUri = nullptr;
+    const char* destinationUri = nullptr;
     if (strcmp(aUriPath, OPENTHREAD_URI_COMMISSIONER_PETITION) == 0)
     {
         destinationUri = OPENTHREAD_URI_LEADER_PETITION;
@@ -336,6 +336,12 @@ void BorderRouter::HandleCoapMessage(OffMesh::Coap::Header& aRequestHeader, uint
     else if (strcmp(aUriPath, OPENTHREAD_URI_COMMISSIONER_KEEP_ALIVE) == 0)
     {
         destinationUri = OPENTHREAD_URI_LEADER_KEEP_ALIVE;
+    }
+    else if (strcmp(aUriPath, OPENTHREAD_URI_ACTIVE_GET) == 0 ||
+             strcmp(aUriPath, OPENTHREAD_URI_ACTIVE_SET) == 0)
+    {
+        // these URIs don't need to be modified, send them as is
+        destinationUri = aUriPath;
     }
     else
     {
