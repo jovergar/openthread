@@ -1,5 +1,30 @@
-// border-router.cpp : Defines the entry point for the console application.
-//
+/*
+*  Copyright (c) 2016, Nest Labs, Inc.
+*  All rights reserved.
+*
+*  Redistribution and use in source and binary forms, with or without
+*  modification, are permitted provided that the following conditions are met:
+*  1. Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer.
+*  2. Redistributions in binary form must reproduce the above copyright
+*     notice, this list of conditions and the following disclaimer in the
+*     documentation and/or other materials provided with the distribution.
+*  3. Neither the name of the copyright holder nor the
+*     names of its contributors may be used to endorse or promote products
+*     derived from this software without specific prior written permission.
+*
+*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+*  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+*  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+*  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+*  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+*  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+*  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+*  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+*  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+*  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+*  POSSIBILITY OF SUCH DAMAGE.
+*/
 
 #include "stdafx.h"
 #include "fake-leader.hpp"
@@ -71,12 +96,18 @@ void FakeLeader::HandleCoapMessage(void* aContext, OffMesh::Coap::Header& aHeade
     {
         obj->HandleLeaderKeepAlive(aHeader, aMessage, aLength);
     }
-    else if (strcmp(aUriPath, OPENTHREAD_URI_ACTIVE_GET) == 0)
+    else if (strcmp(aUriPath, OPENTHREAD_URI_ACTIVE_GET) == 0 ||
+             strcmp(aUriPath, OPENTHREAD_URI_PENDING_GET) == 0)
     {
+        // our fake leader doesn't do pending datasets. just treat it like
+        // an active set
         obj->HandleActiveGet(aHeader, aMessage, aLength);
     }
-    else if (strcmp(aUriPath, OPENTHREAD_URI_ACTIVE_SET) == 0)
+    else if (strcmp(aUriPath, OPENTHREAD_URI_ACTIVE_SET) == 0 ||
+             strcmp(aUriPath, OPENTHREAD_URI_PENDING_SET) == 0)
     {
+        // our fake leader doesn't do pending datasets. just treat it like
+        // an active set
         obj->HandleActiveSet(aHeader, aMessage, aLength);
     }
     else
@@ -184,17 +215,28 @@ void FakeLeader::HandleActiveGet(OffMesh::Coap::Header& aRequestHeader, uint8_t*
     // if the payload includes a Get TLV, then we send just those parameters. Otherwise we must send
     // the entire active operation dataset
 
+    uint8_t sizeOfDataSetPayload = 0;
+    bool needToSendWholeDataSet = false;
+    uint8_t requestedTlvs[Dataset::kMaxSize];
+
     if (aLength == 0)
     {
         // have to send whole dataset
+        sizeOfDataSetPayload = mNetwork.GetSize();
+        needToSendWholeDataSet = true;
     }
     else
     {
-        // assume this is a Get TLV. A get TLV is a list of 8 bit type identifiers
-        uint8_t* requestedTlvs = aBuf + sizeof(Tlv);
+        // assume this is a well formatted Get TLV. A get TLV is a list of 8 bit type identifiers
+        Tlv tlv;
+        memcpy_s(&tlv, sizeof(tlv), aBuf, sizeof(tlv));
+        uint8_t length = tlv.GetLength();
+
+        memcpy_s(requestedTlvs, sizeof(requestedTlvs), aBuf + sizeof(tlv), length);
+        sizeOfDataSetPayload = length;
     }
 
-    uint16_t requiredSize = responseHeader.GetLength();
+    uint16_t requiredSize = responseHeader.GetLength() + sizeOfDataSetPayload;
     auto messageBuffer = std::unique_ptr<uint8_t[]>(new (std::nothrow) uint8_t[requiredSize]);
     if (messageBuffer == nullptr)
     {
@@ -204,6 +246,24 @@ void FakeLeader::HandleActiveGet(OffMesh::Coap::Header& aRequestHeader, uint8_t*
 
     memcpy_s(messageBuffer.get(), requiredSize, responseHeader.GetBytes(), responseHeader.GetLength());
     uint16_t offset = responseHeader.GetLength();
+    if (needToSendWholeDataSet)
+    {
+        memcpy_s(messageBuffer.get() + offset, requiredSize - offset, mNetwork.GetBytes(), sizeOfDataSetPayload);
+    }
+    else
+    {
+        Tlv* tlv;
+        for (uint8_t index = 0; index < sizeOfDataSetPayload; index++)
+        {
+            tlv = mNetwork.Get(static_cast<Tlv::Type>(requestedTlvs[index]));
+            if (tlv != nullptr)
+            {
+                memcpy_s(messageBuffer.get() + offset, requiredSize - offset, tlv, sizeof(Tlv) + tlv->GetLength());
+                offset += sizeof(Tlv) + tlv->GetLength();
+            }
+        }
+    }
+    
 
     mBorderRouterSocket.Reply(messageBuffer.get(), requiredSize);
 }
@@ -211,6 +271,34 @@ void FakeLeader::HandleActiveGet(OffMesh::Coap::Header& aRequestHeader, uint8_t*
 void FakeLeader::HandleActiveSet(OffMesh::Coap::Header& aRequestHeader, uint8_t* aBuf, uint16_t aLength)
 {
     printf("FakeLeader::HandleActiveSet entered\n");
+
+    // The first TLV might be a commissioner session ID TLV, or an active timestamp TLV.
+    // This fake leader isn't going to validate either of them, but we do need to figure out
+    // where those 1/2 TLVs end so we can get to the active operational dataset TLVs that follow
+    // A real leader would do something with the timestamp but we'll ignore that
+    bool haveFoundActiveTimestampTlv = false;
+    uint16_t offsetOfReceivedBuffer = 0;
+    while (!haveFoundActiveTimestampTlv)
+    {
+        Tlv tlv;
+        memcpy_s(&tlv, sizeof(tlv), aBuf + offsetOfReceivedBuffer, sizeof(tlv));
+        
+        if (tlv.GetType() == Tlv::kActiveTimestamp)
+        {
+            haveFoundActiveTimestampTlv = true;
+        }
+
+        offsetOfReceivedBuffer += sizeof(tlv) + tlv.GetLength();
+    }
+
+    // now set the rest of the TLVs
+    while (offsetOfReceivedBuffer < aLength)
+    {
+        Tlv tlv;
+        memcpy_s(&tlv, sizeof(tlv), aBuf + offsetOfReceivedBuffer, sizeof(tlv));
+        mNetwork.Set(tlv);
+        offsetOfReceivedBuffer += sizeof(tlv) + tlv.GetLength();
+    }
 
     // tell the client we accepted all TLV by sending a state TLV with "Accept"
 

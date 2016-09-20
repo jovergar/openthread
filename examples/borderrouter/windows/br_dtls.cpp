@@ -51,27 +51,6 @@
 #include "dtls.tmh"
 #endif
 
-static void my_debug(void *ctx, int level, const char *file, int line, const char *str)
-{
-    ((void)level);
-
-    fprintf((FILE *)ctx, "%s:%04d: %s\r\n", file, line, str);
-    fflush((FILE *)ctx);
-}
-
-static void printBuffer(char* buffer, int len)
-{
-    for (int i = 0; i < len; i++)
-    {
-        printf("%02x", (unsigned char)*buffer++);
-        if (i % 4 == 3)
-        {
-            printf(" ");
-        }
-    }
-    printf("\n");
-}
-
 namespace OffMesh {
 namespace MeshCoP {
 
