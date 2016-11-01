@@ -35,21 +35,30 @@
 #include <stdio.h>
 
 #include <common/code_utils.hpp>
+#include <common/settings.hpp>
+#include <platform/settings.h>
 #include <thread/meshcop_tlvs.hpp>
 #include <thread/meshcop_dataset.hpp>
 
 namespace Thread {
 namespace MeshCoP {
 
-Dataset::Dataset(const Tlv::Type aType) :
+Dataset::Dataset(otInstance *aInstance, const Tlv::Type aType) :
     mType(aType),
-    mLength(0)
+    mLength(0),
+    mInstance(aInstance)
 {
 }
 
-void Dataset::Clear(void)
+void Dataset::Clear(bool isLocal)
 {
     mLength = 0;
+
+    if (isLocal)
+    {
+        otPlatSettingsDelete(mInstance, static_cast<uint16_t>(mType == Tlv::kActiveTimestamp ? kKeyActiveDataset :
+                                                              kKeyPendingDataset), -1);
+    }
 }
 
 Tlv *Dataset::Get(Tlv::Type aType)
@@ -92,7 +101,7 @@ exit:
     return rval;
 }
 
-void Dataset::Get(otOperationalDataset &aDataset)
+void Dataset::Get(otOperationalDataset &aDataset) const
 {
     const Tlv *cur = reinterpret_cast<const Tlv *>(mTlvs);
     const Tlv *end = reinterpret_cast<const Tlv *>(mTlvs + mLength);
@@ -109,8 +118,6 @@ void Dataset::Get(otOperationalDataset &aDataset)
             const ActiveTimestampTlv *tlv = static_cast<const ActiveTimestampTlv *>(cur);
             aDataset.mActiveTimestamp = tlv->GetSeconds();
             aDataset.mIsActiveTimestampSet = true;
-
-            GetTimestamp();
             break;
         }
 
@@ -227,6 +234,20 @@ void Dataset::Get(otOperationalDataset &aDataset)
 
         cur = cur->GetNext();
     }
+}
+
+ThreadError Dataset::Set(const Dataset &aDataset)
+{
+    memcpy(mTlvs, aDataset.mTlvs, aDataset.mLength);
+    mLength = aDataset.mLength;
+
+    if (mType == Tlv::kActiveTimestamp)
+    {
+        Remove(Tlv::kPendingTimestamp);
+        Remove(Tlv::kDelayTimer);
+    }
+
+    return kThreadError_None;
 }
 
 ThreadError Dataset::Set(const otOperationalDataset &aDataset)
@@ -390,6 +411,44 @@ void Dataset::SetTimestamp(const Timestamp &aTimestamp)
     timestampTlv.timestamp = aTimestamp;
 
     Set(timestampTlv.tlv);
+}
+
+int Dataset::Compare(const Dataset &aCompare) const
+{
+    const Timestamp *thisTimestamp = GetTimestamp();
+    const Timestamp *compareTimestamp = aCompare.GetTimestamp();
+    int rval;
+
+    if (compareTimestamp == NULL && thisTimestamp == NULL)
+    {
+        rval = 0;
+    }
+    else if (compareTimestamp == NULL && thisTimestamp != NULL)
+    {
+        rval = -1;
+    }
+    else if (compareTimestamp != NULL && thisTimestamp == NULL)
+    {
+        rval = 1;
+    }
+    else
+    {
+        rval = thisTimestamp->Compare(*compareTimestamp);
+    }
+
+    return rval;
+}
+
+ThreadError Dataset::Restore(void)
+{
+    return otPlatSettingsGet(mInstance, static_cast<uint16_t>(mType == Tlv::kActiveTimestamp ? kKeyActiveDataset :
+                                                              kKeyPendingDataset), 0, mTlvs, &mLength);
+}
+
+ThreadError Dataset::Store(void)
+{
+    return otPlatSettingsSet(mInstance, static_cast<uint16_t>(mType == Tlv::kActiveTimestamp ? kKeyActiveDataset :
+                                                              kKeyPendingDataset), mTlvs, mLength);
 }
 
 ThreadError Dataset::Set(const Tlv &aTlv)

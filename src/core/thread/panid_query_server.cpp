@@ -31,10 +31,13 @@
  *   This file implements the PAN ID Query Server.
  */
 
+#define WPP_NAME "panid_query_server.tmh"
+
 #include <coap/coap_header.hpp>
 #include <common/code_utils.hpp>
 #include <common/debug.hpp>
 #include <common/logging.hpp>
+#include <platform/random.h>
 #include <thread/meshcop_tlvs.hpp>
 #include <thread/panid_query_server.hpp>
 #include <thread/thread_netif.hpp>
@@ -47,14 +50,13 @@
 namespace Thread {
 
 PanIdQueryServer::PanIdQueryServer(ThreadNetif &aThreadNetif) :
-    mPanIdQuery(OPENTHREAD_URI_PANID_QUERY, &PanIdQueryServer::HandleQuery, this),
-    mSocket(aThreadNetif.GetIp6().mUdp),
     mTimer(aThreadNetif.GetIp6().mTimerScheduler, &PanIdQueryServer::HandleTimer, this),
+    mPanIdQuery(OPENTHREAD_URI_PANID_QUERY, &PanIdQueryServer::HandleQuery, this),
     mCoapServer(aThreadNetif.GetCoapServer()),
+    mCoapClient(aThreadNetif.GetCoapClient()),
     mNetif(aThreadNetif)
 {
     mCoapServer.AddResource(mPanIdQuery);
-    mSocket.Open(HandleUdpReceive, this);
 }
 
 void PanIdQueryServer::HandleQuery(void *aContext, Coap::Header &aHeader, Message &aMessage,
@@ -74,7 +76,7 @@ void PanIdQueryServer::HandleQuery(Coap::Header &aHeader, Message &aMessage, con
     uint16_t offset;
     uint16_t length;
 
-    VerifyOrExit(aHeader.GetCode() == Coap::Header::kCodePost, ;);
+    VerifyOrExit(aHeader.GetCode() == kCoapRequestPost, ;);
 
     SuccessOrExit(MeshCoP::Tlv::GetValueOffset(aMessage, MeshCoP::Tlv::kChannelMask, offset, length));
     aMessage.Read(offset, sizeof(channelMaskBuf), channelMaskBuf);
@@ -108,24 +110,19 @@ ThreadError PanIdQueryServer::SendQueryResponse(const Coap::Header &aRequestHead
     Coap::Header responseHeader;
     Ip6::MessageInfo responseInfo;
 
-    VerifyOrExit(aRequestHeader.GetType() == Coap::Header::kTypeConfirmable, ;);
+    VerifyOrExit(aRequestHeader.GetType() == kCoapTypeConfirmable, ;);
 
     VerifyOrExit((message = mCoapServer.NewMessage(0)) != NULL, error = kThreadError_NoBufs);
 
-    responseHeader.Init();
-    responseHeader.SetVersion(1);
-    responseHeader.SetType(Coap::Header::kTypeAcknowledgment);
-    responseHeader.SetCode(Coap::Header::kCodeChanged);
-    responseHeader.SetMessageId(aRequestHeader.GetMessageId());
-    responseHeader.SetToken(aRequestHeader.GetToken(), aRequestHeader.GetTokenLength());
-    responseHeader.Finalize();
+    responseHeader.SetDefaultResponseHeader(aRequestHeader);
+
     SuccessOrExit(error = message->Append(responseHeader.GetBytes(), responseHeader.GetLength()));
 
     memcpy(&responseInfo, &aRequestInfo, sizeof(responseInfo));
     memset(&responseInfo.mSockAddr, 0, sizeof(responseInfo.mSockAddr));
     SuccessOrExit(error = mCoapServer.SendMessage(*message, responseInfo));
 
-    otLogInfoMeshCoP("sent panid query response\r\n");
+    otLogInfoMeshCoP("sent panid query response");
 
 exit:
 
@@ -175,18 +172,12 @@ ThreadError PanIdQueryServer::SendConflict(void)
     Ip6::MessageInfo messageInfo;
     Message *message;
 
-    header.Init();
-    header.SetVersion(1);
-    header.SetType(Coap::Header::kTypeConfirmable);
-    header.SetCode(Coap::Header::kCodePost);
-    header.SetMessageId(0);
-    header.SetToken(NULL, 0);
+    header.Init(kCoapTypeConfirmable, kCoapRequestPost);
+    header.SetToken(Coap::Header::kDefaultTokenLength);
     header.AppendUriPathOptions(OPENTHREAD_URI_PANID_CONFLICT);
-    header.AppendContentFormatOption(Coap::Header::kApplicationOctetStream);
-    header.Finalize();
+    header.SetPayloadMarker();
 
-    VerifyOrExit((message = mSocket.NewMessage(0)) != NULL, error = kThreadError_NoBufs);
-    SuccessOrExit(error = message->Append(header.GetBytes(), header.GetLength()));
+    VerifyOrExit((message = mCoapClient.NewMessage(header)) != NULL, error = kThreadError_NoBufs);
 
     channelMask.Init();
     channelMask.SetLength(sizeof(channelMaskBuf));
@@ -209,9 +200,9 @@ ThreadError PanIdQueryServer::SendConflict(void)
     memset(&messageInfo, 0, sizeof(messageInfo));
     messageInfo.GetPeerAddr() = mCommissioner;
     messageInfo.mPeerPort = kCoapUdpPort;
-    SuccessOrExit(error = mSocket.SendTo(*message, messageInfo));
+    SuccessOrExit(error = mCoapClient.SendMessage(*message, messageInfo));
 
-    otLogInfoMeshCoP("sent panid conflict\r\n");
+    otLogInfoMeshCoP("sent panid conflict");
 
 exit:
 
@@ -230,16 +221,8 @@ void PanIdQueryServer::HandleTimer(void *aContext)
 
 void PanIdQueryServer::HandleTimer(void)
 {
-    otLogInfoMeshCoP("%x\r\n", mChannelMask);
     mNetif.GetMac().ActiveScan(mChannelMask, 0, HandleScanResult, this);
     mChannelMask = 0;
-}
-
-void PanIdQueryServer::HandleUdpReceive(void *aContext, otMessage aMessage, const otMessageInfo *aMessageInfo)
-{
-    (void)aContext;
-    (void)aMessage;
-    (void)aMessageInfo;
 }
 
 }  // namespace Thread

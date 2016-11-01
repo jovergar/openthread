@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -96,6 +96,7 @@ otLwfOnAddressAdded(
         (VOID)otLwfSetCompartment(pFilter, &OriginalCompartmentID);
 
         status = CreateUnicastIpAddressEntry(&newRow);
+        //NT_ASSERT(NT_SUCCESS(status));
         if (!NT_SUCCESS(status))
         {
             LogError(DRIVER_DEFAULT, "CreateUnicastIpAddressEntry failed %!STATUS!", status);
@@ -107,7 +108,7 @@ otLwfOnAddressAdded(
         newRouteRow.DestinationPrefix.PrefixLength = 0;
 
         status = CreateIpForwardEntry2(&newRouteRow);
-        if (!NT_SUCCESS(status))
+        if (!NT_SUCCESS(status) && status != STATUS_DUPLICATE_OBJECTID)
         {
             LogVerbose(DRIVER_DEFAULT, "CreateIpForwardEntry2 failed %!STATUS!", status);
         }

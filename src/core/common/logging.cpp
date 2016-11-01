@@ -31,11 +31,19 @@
  *   This file implements the tasklet scheduler.
  */
 
-#include <ctype.h>
-#include <stdio.h>
-#include <string.h>
+#define WPP_NAME "logging.tmh"
 
-#include <platform/logging.h>
+#ifdef OPENTHREAD_CONFIG_FILE
+#include OPENTHREAD_CONFIG_FILE
+#else
+#include <openthread-config.h>
+#endif
+
+#include <common/logging.hpp>
+
+#ifndef WINDOWS_LOGGING
+#define otLogDump(aFormat, ...) otPlatLog(aLogLevel, aLogRegion, aFormat, ## __VA_ARGS__)
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -97,7 +105,7 @@ static void DumpLine(otLogLevel aLogLevel, otLogRegion aLogRegion, const void *a
         }
     }
 
-    otPlatLog(aLogLevel, aLogRegion, "%s\n", buf);
+    otLogDump("%s", buf);
 }
 
 void otDump(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aId, const void *aBuf, const size_t aLength)
@@ -107,15 +115,13 @@ void otDump(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aId, const
     char buf[80];
     char *cur = buf;
 
-    otPlatLog(aLogLevel, aLogRegion, "\n");
-
     for (size_t i = 0; i < (width - idlen) / 2 - 5; i++)
     {
         snprintf(cur, sizeof(buf) - static_cast<size_t>(cur - buf), "=");
         cur += strlen(cur);
     }
 
-    snprintf(cur, sizeof(buf) - static_cast<size_t>(cur - buf), "[%s len=%03zu]", aId, aLength);
+    snprintf(cur, sizeof(buf) - static_cast<size_t>(cur - buf), "[%s len=%03u]", aId, static_cast<uint16_t>(aLength));
     cur += strlen(cur);
 
     for (size_t i = 0; i < (width - idlen) / 2 - 4; i++)
@@ -124,7 +130,7 @@ void otDump(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aId, const
         cur += strlen(cur);
     }
 
-    otPlatLog(aLogLevel, aLogRegion, "%s\n", buf);
+    otLogDump("%s", buf);
 
     for (size_t i = 0; i < aLength; i += 16)
     {
@@ -139,7 +145,7 @@ void otDump(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aId, const
         cur += strlen(cur);
     }
 
-    otPlatLog(aLogLevel, aLogRegion, "%s\n", buf);
+    otLogDump("%s", buf);
 }
 
 #ifdef __cplusplus

@@ -42,12 +42,17 @@
 
 #include <openthread-types.h>
 
+#include <coap/coap_server.hpp>
+#include <coap/coap_client.hpp>
 #include <mac/mac.hpp>
 #include <meshcop/joiner_router.hpp>
 #include <meshcop/leader.hpp>
 #include <net/ip6_filter.hpp>
 #include <net/netif.hpp>
 #include <thread/address_resolver.hpp>
+#include <thread/announce_begin_server.hpp>
+#include <thread/energy_scan_server.hpp>
+#include <thread/network_diag.hpp>
 #include <thread/key_manager.hpp>
 #include <thread/meshcop_dataset_manager.hpp>
 #include <thread/mesh_forwarder.hpp>
@@ -112,14 +117,6 @@ public:
     bool IsUp(void) const;
 
     /**
-     * This method returns a pointer to a NULL-terminated string that names the interface.
-     *
-     * @returns A pointer to a NULL-terminated string that names the interface.
-     *
-     */
-    const char *GetName(void) const;
-
-    /**
      * This method retrieves the link address.
      *
      * @param[out]  aAddress  A reference to the link address.
@@ -159,12 +156,28 @@ public:
     AddressResolver &GetAddressResolver(void) { return mAddressResolver; }
 
     /**
-     * This method returns a pointer to the coap server object.
+     * This method returns a pointer to the network diagnostic object.
      *
-     * @returns A pointer to the coap server object.
+     * @returns A reference to the address resolver object.
+     *
+     */
+    NetworkDiagnostic::NetworkDiagnostic &GetNetworkDiagnostic(void) { return mNetworkDiagnostic; }
+
+    /**
+     * This method returns a reference to the CoAP server object.
+     *
+     * @returns A reference to the CoAP server object.
      *
      */
     Coap::Server &GetCoapServer(void) { return mCoapServer; }
+
+    /**
+     * This method returns a reference to the CoAP client object.
+     *
+     * @returns A reference to the CoAP client object.
+     *
+     */
+    Coap::Client &GetCoapClient(void) { return mCoapClient; }
 
     /**
      * This method returns a reference to the IPv6 filter object.
@@ -236,6 +249,10 @@ public:
 
     MeshCoP::JoinerRouter &GetJoinerRouter(void) { return mJoinerRouter; }
 
+    MeshCoP::Leader &GetLeader(void) { return mLeader; }
+
+    AnnounceBeginServer &GetAnnounceBeginServer(void) { return mAnnounceBegin; }
+
 #if OPENTHREAD_ENABLE_COMMISSIONER
     MeshCoP::Commissioner &GetCommissioner(void) { return mCommissioner; }
 #endif  // OPENTHREAD_ENABLE_COMMISSIONER
@@ -258,6 +275,7 @@ public:
 
 private:
     Coap::Server mCoapServer;
+    Coap::Client mCoapClient;
     AddressResolver mAddressResolver;
     MeshCoP::ActiveDataset mActiveDataset;
     MeshCoP::PendingDataset mPendingDataset;
@@ -269,6 +287,7 @@ private:
     Mle::MleRouter mMleRouter;
     NetworkData::Local mNetworkDataLocal;
     NetworkData::Leader mNetworkDataLeader;
+    NetworkDiagnostic::NetworkDiagnostic mNetworkDiagnostic;
     bool mIsUp;
 
 #if OPENTHREAD_ENABLE_COMMISSIONER
@@ -285,7 +304,9 @@ private:
 
     MeshCoP::JoinerRouter mJoinerRouter;
     MeshCoP::Leader mLeader;
+    AnnounceBeginServer mAnnounceBegin;
     PanIdQueryServer mPanIdQuery;
+    EnergyScanServer mEnergyScan;
 };
 
 /**

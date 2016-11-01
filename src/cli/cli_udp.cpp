@@ -65,8 +65,7 @@ exit:
 
 void Udp::HandleUdpReceive(void *aContext, otMessage aMessage, const otMessageInfo *aMessageInfo)
 {
-    Udp *obj = reinterpret_cast<Udp *>(aContext);
-    obj->HandleUdpReceive(aMessage, aMessageInfo);
+    static_cast<Udp *>(aContext)->HandleUdpReceive(aMessage, aMessageInfo);
 }
 
 void Udp::HandleUdpReceive(otMessage aMessage, const otMessageInfo *aMessageInfo)
@@ -100,7 +99,7 @@ int Udp::Output(const char *aBuf, uint16_t aBufLength)
     ThreadError error = kThreadError_None;
     otMessage message;
 
-    VerifyOrExit((message = otNewUdpMessage(mInstance)) != NULL, error = kThreadError_NoBufs);
+    VerifyOrExit((message = otNewUdpMessage(mInstance, true)) != NULL, error = kThreadError_NoBufs);
     SuccessOrExit(error = otSetMessageLength(message, aBufLength));
     otWriteMessage(message, 0, aBuf, aBufLength);
     SuccessOrExit(error = otSendUdp(&mSocket, message, &mPeer));

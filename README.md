@@ -20,8 +20,8 @@ applications. More information about Thread can be found on
 [ot-logo]: doc/images/openthread_logo.png
 [ot-travis]: https://travis-ci.org/openthread/openthread
 [ot-travis-svg]: https://travis-ci.org/openthread/openthread.svg?branch=master
-[ot-appveyor]: https://ci.appveyor.com/project/nibanks/openthread
-[ot-appveyor-svg]: https://ci.appveyor.com/api/projects/status/gtda4x951abbbp49/branch/windows?svg=true
+[ot-appveyor]: https://ci.appveyor.com/project/jwhui/openthread
+[ot-appveyor-svg]: https://ci.appveyor.com/api/projects/status/r5qwyhn9p26nmfk3?svg=true
 [ot-codecov]: https://codecov.io/gh/openthread/openthread
 [ot-codecov-svg]: https://codecov.io/gh/openthread/openthread/branch/master/graph/badge.svg
 
@@ -42,9 +42,10 @@ Mesh Routing.
 ![OpenThread Contributor Logos](doc/images/openthread_contrib.png)
 
 Nest, along with ARM, Atmel, a subsidiary of Microchip Technology,
-Dialog Semiconductor, Qualcomm Technologies, Inc. (a subsidiary of
-Qualcomm Incorporated and Texas Instruments Incorporated) are
-contributing to the ongoing development of OpenThread.
+Dialog Semiconductor, Microsoft Corporation, Qualcomm Technologies,
+Inc. (a subsidiary of Qualcomm Incorporated), and Texas Instruments
+Incorporated are contributing to the ongoing development of
+OpenThread.
 
 
 # Getting started #

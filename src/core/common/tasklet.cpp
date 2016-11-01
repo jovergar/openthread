@@ -62,7 +62,7 @@ ThreadError TaskletScheduler::Post(Tasklet &aTasklet)
 {
     ThreadError error = kThreadError_None;
 
-    VerifyOrExit(mTail != &aTasklet && aTasklet.mNext == NULL, error = kThreadError_Busy);
+    VerifyOrExit(mTail != &aTasklet && aTasklet.mNext == NULL, error = kThreadError_Already);
 
     if (mTail == NULL)
     {
@@ -104,15 +104,25 @@ bool TaskletScheduler::AreTaskletsPending(void)
     return mHead != NULL;
 }
 
-void TaskletScheduler::RunNextTasklet(void)
+void TaskletScheduler::ProcessQueuedTasklets(void)
 {
-    Tasklet  *task;
+    Tasklet *tail = mTail;
+    Tasklet *cur;
 
-    task = PopTasklet();
-
-    if (task != NULL)
+    while ((cur = PopTasklet()) != NULL)
     {
-        task->RunTask();
+        cur->RunTask();
+
+        // only process tasklets that were queued at the time this method was called
+        if (cur == tail)
+        {
+            if (mHead != NULL)
+            {
+                otSignalTaskletPending(cur->mScheduler.GetIp6()->GetInstance());
+            }
+
+            break;
+        }
     }
 }
 

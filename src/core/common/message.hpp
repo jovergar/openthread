@@ -34,12 +34,20 @@
 #ifndef MESSAGE_HPP_
 #define MESSAGE_HPP_
 
+#ifdef OPENTHREAD_CONFIG_FILE
+#include OPENTHREAD_CONFIG_FILE
+#else
+#include <openthread-config.h>
+#endif
+
+#include <stdint.h>
 #include <string.h>
 
-#include <openthread-types.h>
 #include <openthread-core-config.h>
+#include <openthread-types.h>
 #include <common/code_utils.hpp>
 #include <mac/mac_frame.hpp>
+#include <platform/messagepool.h>
 
 #ifdef _WIN32
 #pragma warning(disable:4201)  //nonstandard extension used : nameless struct/union
@@ -87,14 +95,7 @@ struct MessageListEntry
     Message            *mPrev;  ///< A pointer to the previous Message in the list.
 };
 
-/**
- * This structure contains a pointer to the next Message buffer.
- *
- */
-struct BufferHeader
-{
-    class Buffer *mNext;  ///< A pointer to the next Message buffer.
-};
+
 
 /**
  * This structure contains metdata about a Message.
@@ -115,23 +116,25 @@ struct MessageInfo
     uint16_t         mDatagramTag;       ///< The datagram tag used for 6LoWPAN fragmentation.
 
     uint8_t          mChildMask[8];      ///< A bit-vector to indicate which sleepy children need to receive this.
-    uint16_t         mPanId;             ///< The Destination PAN ID.
     uint8_t          mTimeout;           ///< Seconds remaining before dropping the message.
     int8_t           mInterfaceId;       ///< The interface ID.
+    union
+    {
+        uint16_t     mPanId;             ///< Used for MLE Discover Request and Response messages.
+        uint8_t      mChannel;           ///< Used for MLE Announce.
+    };
 
     uint8_t          mType : 2;          ///< Identifies the type of message.
+    uint8_t          mSubType : 3;       ///< Identifies the message sub type.
     bool             mDirectTx : 1;      ///< Used to indicate whether a direct transmission is required.
     bool             mLinkSecurity : 1;  ///< Indicates whether or not link security is enabled.
-    bool             mMleDiscoverRequest : 1;   ///< Identifies MLE Discover Request.
-    bool             mMleDiscoverResponse : 1;  ///< Identifies MLE Discover Response.
-    bool             mJoinerEntrust : 1; ///< Indicates whether or not this message is a Joiner Entrust.
 };
 
 /**
  * This class represents a Message buffer.
  *
  */
-class Buffer
+class Buffer : public ::BufferHeader
 {
     friend class Message;
 
@@ -142,13 +145,13 @@ public:
      * @returns A pointer to the next message buffer.
      *
      */
-    class Buffer *GetNextBuffer(void) const { return mHeader.mNext; }
+    class Buffer *GetNextBuffer(void) const { return static_cast<Buffer *>(mNext); }
 
     /**
      * This method sets the pointer to the next message buffer.
      *
      */
-    void SetNextBuffer(class Buffer *buf) { mHeader.mNext = buf; }
+    void SetNextBuffer(class Buffer *buf) { mNext = static_cast<BufferHeader *>(buf); }
 
 private:
     /**
@@ -189,7 +192,6 @@ private:
         kHeadBufferDataSize = kBufferDataSize - sizeof(struct MessageInfo),
     };
 
-    struct BufferHeader mHeader;
     union
     {
         struct
@@ -216,6 +218,15 @@ public:
         kTypeIp6         = 0,   ///< A full uncompress IPv6 packet
         kType6lowpan     = 1,   ///< A 6lowpan frame
         kTypeMacDataPoll = 2,   ///< A MAC data poll message
+    };
+
+    enum
+    {
+        kSubTypeNone                = 0,  ///< None
+        kSubTypeMleAnnounce         = 1,  ///< MLE Announce
+        kSubTypeMleDiscoverRequest  = 2,  ///< MLE Discover Request
+        kSubTypeMleDiscoverResponse = 3,  ///< MLE Discover Response
+        kSubTypeJoinerEntrust       = 4,  ///< Joiner Entrust
     };
 
     /**
@@ -290,6 +301,22 @@ public:
     uint8_t GetType(void) const;
 
     /**
+     * This method returns the sub type of the message.
+     *
+     * @returns The sub type of the message.
+     *
+     */
+    uint8_t GetSubType(void) const;
+
+    /**
+     * This method sets the message sub type.
+     *
+     * @param[in]  aSubType  The message sub type.
+     *
+     */
+    void SetSubType(uint8_t aSubType);
+
+    /**
      * This method prepends bytes to the front of the message.
      *
      * On success, this method grows the message by @p aLength bytes.
@@ -302,6 +329,16 @@ public:
      *
      */
     ThreadError Prepend(const void *aBuf, uint16_t aLength);
+
+    /**
+     * This method removes header bytes from the message.
+     *
+     * @param[in]  aLength  Number of header bytes to remove.
+     *
+     * @retval kThreadError_None  Successfully removed header bytes from the message.
+     *
+     */
+    ThreadError RemoveHeader(uint16_t aLength);
 
     /**
      * This method appends bytes to the end of the message.
@@ -353,6 +390,24 @@ public:
      *
      */
     int CopyTo(uint16_t aSourceOffset, uint16_t aDestinationOffset, uint16_t aLength, Message &aMessage) const;
+
+    /**
+     * This method creates a copy of the current Message. It allocates the new one
+     * from the same Message Poll as the original Message and copies @p aLength octets of a payload.
+     *
+     * @param[in] aLength  Number of payload bytes to copy.
+     *
+     * @returns A pointer to the message or NULL if insufficient message buffers are available.
+     */
+    Message *Clone(uint16_t aLength) const;
+
+    /**
+     * This method creates a copy of the current Message. It allocates the new one
+     * from the same Message Poll as the original Message and copies a full payload.
+     *
+     * @returns A pointer to the message or NULL if insufficient message buffers are available.
+     */
+    Message *Clone(void) const { return Clone(GetLength()); };
 
     /**
      * This method returns the datagram tag used for 6LoWPAN fragmentation.
@@ -409,6 +464,8 @@ public:
     /**
      * This method returns the IEEE 802.15.4 Destination PAN ID.
      *
+     * @note Only use this when sending MLE Discover Request or Response messages.
+     *
      * @returns The IEEE 802.15.4 Destination PAN ID.
      *
      */
@@ -417,10 +474,32 @@ public:
     /**
      * This method sets the IEEE 802.15.4 Destination PAN ID.
      *
+     * @note Only use this when sending MLE Discover Request or Response messages.
+     *
      * @param[in]  aPanId  The IEEE 802.15.4 Destination PAN ID.
      *
      */
     void SetPanId(uint16_t aPanId);
+
+    /**
+     * This method returns the IEEE 802.15.4 Channel to use for transmission.
+     *
+     * @note Only use this when sending MLE Announce messages.
+     *
+     * @returns The IEEE 802.15.4 Channel to use for transmission.
+     *
+     */
+    uint8_t GetChannel(void) const;
+
+    /**
+     * This method sets the IEEE 802.15.4 Channel to use for transmission.
+     *
+     * @note Only use this when sending MLE Announce messages.
+     *
+     * @param[in]  aChannel  The IEEE 802.15.4 Channel to use for transmission.
+     *
+     */
+    void SetChannel(uint8_t aChannel);
 
     /**
      * This method returns the timeout used for 6LoWPAN reassembly.
@@ -493,57 +572,6 @@ public:
     void SetLinkSecurityEnabled(bool aLinkSecurityEnabled);
 
     /**
-     * This method indicates whether or not this message is an MLE Discovery Request.
-     *
-     * @retval TRUE   If this message is an MLE Discovery Request.
-     * @retval FALSE  If this message is not an MLE Discovery Request.
-     *
-     */
-    bool IsMleDiscoverRequest(void) const;
-
-    /**
-     * This method sets whether or not this message is an MLE Discovery Request.
-     *
-     * @param[in]  aLinkSecurityEnabled  TRUE if this message is an MLE Discovery Request, FALSE otherwise.
-     *
-     */
-    void SetMleDiscoverRequest(bool aMleDiscoverRequest);
-
-    /**
-     * This method indicates whether or not this message is an MLE Discovery Response.
-     *
-     * @retval TRUE   If this message is an MLE Discovery Response.
-     * @retval FALSE  If this message is not an MLE Discovery Response.
-     *
-     */
-    bool IsMleDiscoverResponse(void) const;
-
-    /**
-     * This method sets whether or not this message is an MLE Discovery Response.
-     *
-     * @param[in]  aLinkSecurityEnabled  TRUE if this message is an MLE Discovery Response, FALSE otherwise.
-     *
-     */
-    void SetMleDiscoverResponse(bool aMleDiscoverResponse);
-
-    /**
-     * This method indicates whether or not this message is an Joiner Entrust.
-     *
-     * @retval TRUE   If this message is an Joiner Entrust.
-     * @retval FALSE  If this message is not an Joiner Entrust.
-     *
-     */
-    bool IsJoinerEntrust(void) const;
-
-    /**
-     * This method sets whether or not this message is an Joiner Entrust.
-     *
-     * @param[in]  aLinkSecurityEnabled  TRUE if this message is an Joiner Entrust, FALSE otherwise.
-     *
-     */
-    void SetJoinerEntrust(bool aJoinerEntrust);
-
-    /**
      * This method is used to update a checksum value.
      *
      * @param[in]  aChecksum  Initial checksum value.
@@ -556,7 +584,7 @@ public:
     uint16_t UpdateChecksum(uint16_t aChecksum, uint16_t aOffset, uint16_t aLength) const;
 
 private:
-    MessagePool *GetMessagePool(void) { return mInfo.mMessagePool; }
+    MessagePool *GetMessagePool(void) const { return mInfo.mMessagePool; }
 
     void SetMessagePool(MessagePool *aMessagePool) { mInfo.mMessagePool = aMessagePool; }
 
@@ -642,8 +670,8 @@ public:
      *
      * @param[in]  aMessage  The message to add.
      *
-     * @retval kThreadError_None  Successfully added the message to the list.
-     * @retval kThreadError_Busy  The message is already enqueued in a list.
+     * @retval kThreadError_None     Successfully added the message to the list.
+     * @retval kThreadError_Already  The message is already enqueued in a list.
      *
      */
     ThreadError Enqueue(Message &aMessage);
@@ -653,8 +681,8 @@ public:
      *
      * @param[in]  aMessage  The message to remove.
      *
-     * @retval kThreadError_None  Successfully removed the message from the list.
-     * @retval kThreadError_Busy  The message is not enqueued in a list.
+     * @retval kThreadError_None      Successfully removed the message from the list.
+     * @retval kThreadError_NotFound  The message is not enqueued in a list.
      *
      */
     ThreadError Dequeue(Message &aMessage);
@@ -666,8 +694,8 @@ private:
      * @param[in]  aListId   The list to add @p aMessage to.
      * @param[in]  aMessage  The message to add to @p aListId.
      *
-     * @retval kThreadError_None  Successfully added the message to the list.
-     * @retval kThreadError_Busy  The message is already enqueued in a list.
+     * @retval kThreadError_None     Successfully added the message to the list.
+     * @retval kThreadError_Already  The message is already enqueued in a list.
      *
      */
     static ThreadError AddToList(uint8_t aListId, Message &aMessage);
@@ -678,8 +706,8 @@ private:
      * @param[in]  aListId   The list to add @p aMessage to.
      * @param[in]  aMessage  The message to add to @p aListId.
      *
-     * @retval kThreadError_None  Successfully added the message to the list.
-     * @retval kThreadError_Busy  The message is not enqueued in the list.
+     * @retval kThreadError_None      Successfully added the message to the list.
+     * @retval kThreadError_NotFound  The message is not enqueued in the list.
      *
      */
     static ThreadError RemoveFromList(uint8_t aListId, Message &aMessage);

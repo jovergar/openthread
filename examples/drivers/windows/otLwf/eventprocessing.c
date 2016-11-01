@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -84,6 +84,11 @@ otLwfEventProcessingStart(
         status = STATUS_ALREADY_REGISTERED;
         goto error;
     }
+
+    // Make sure to reset the necessary events
+    KeResetEvent(&pFilter->EventWorkerThreadStopEvent);
+    KeResetEvent(&pFilter->SendNetBufferListComplete);
+    KeResetEvent(&pFilter->EventWorkerThreadEnergyScanComplete);
 
     // Start the worker thread
     status = PsCreateSystemThread(
@@ -205,7 +210,7 @@ otLwfEventProcessingStop(
         
         // Before we are allowed to complete the pending IRP, we must remove the cancel routine
         KIRQL irql;
-        IoAcquireCancelSpinLock(&irql); // TODO - Should we do this outside of EventsLock ???
+        IoAcquireCancelSpinLock(&irql);
         IoSetCancelRoutine(Irp, NULL);
         IoReleaseCancelSpinLock(irql);
 
@@ -354,7 +359,7 @@ otLwfEventProcessingIndicateNewNetBufferLists(
     KeSetEvent(&pFilter->EventWorkerThreadProcessNBLs, 0, FALSE);
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 otLwfEventProcessingIndicateNetBufferListsCancelled(
     _In_ PMS_FILTER             pFilter,
@@ -437,14 +442,16 @@ otLwfCompleteNBLs(
     }
 }
 
-DRIVER_CANCEL otLwfEventProcessingCancelIrp;
-
-_Use_decl_annotations_
+_Function_class_(DRIVER_CANCEL)
+_Requires_lock_held_(_Global_cancel_spin_lock_)
+_Releases_lock_(_Global_cancel_spin_lock_)
+_IRQL_requires_min_(DISPATCH_LEVEL)
+_IRQL_requires_(DISPATCH_LEVEL)
 VOID
 otLwfEventProcessingCancelIrp(
-    _Inout_ PDEVICE_OBJECT DeviceObject,
+    _Inout_ struct _DEVICE_OBJECT *DeviceObject,
     _Inout_ _IRQL_uses_cancel_ struct _IRP *Irp
-)
+    )
 {
     PIRP IrpToCancel = NULL;
 
@@ -570,13 +577,33 @@ otLwfEventProcessingNextIrp(
     LogFuncExit(DRIVER_IOCTL);
 }
 
+// Indicates a energy scan was completed
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+otLwfEventProcessingIndicateEnergyScanResult(
+    _In_ PMS_FILTER pFilter,
+    _In_ CHAR       MaxRssi
+    )
+{
+    LogFuncEntry(DRIVER_IOCTL);
+
+    // Cache the Rssi
+    pFilter->otLastEnergyScanMaxRssi = MaxRssi;
+    
+    // Set the event to indicate we should indicate the state back to OpenThread
+    KeSetEvent(&pFilter->EventWorkerThreadEnergyScanComplete, 0, FALSE);
+
+    LogFuncExit(DRIVER_IOCTL);
+}
+
 // Helper function to copy data out of a NET_BUFFER
 __forceinline
 NTSTATUS
 CopyDataBuffer(
     _In_ PNET_BUFFER            NetBuffer,
     _In_ ULONG                  Size,
-    _In_ PVOID                  Destination
+    _Out_writes_bytes_all_(Size) 
+         PVOID                  Destination
     )
 {
     NTSTATUS status = STATUS_SUCCESS;
@@ -611,6 +638,8 @@ otLwfEventProcessingTimer(
     _In_opt_ PVOID Context
     )
 {
+    if (Context == NULL) return;
+
     PMS_FILTER pFilter = (PMS_FILTER)Context;
     UNREFERENCED_PARAMETER(Timer);
     
@@ -632,6 +661,7 @@ otLwfEventWorkerThread(
     )
 {
     PMS_FILTER pFilter = (PMS_FILTER)Context;
+    size_t otInstanceSize = 0;
     NT_ASSERT(pFilter);
 
     LogFuncEntry(DRIVER_DEFAULT);
@@ -644,13 +674,71 @@ otLwfEventWorkerThread(
         &pFilter->EventWorkerThreadProcessTasklets,
         &pFilter->SendNetBufferListComplete,
         &pFilter->EventWorkerThreadProcessIrp,
-        &pFilter->EventWorkerThreadProcessAddressChanges
+        &pFilter->EventWorkerThreadProcessAddressChanges,
+        &pFilter->EventWorkerThreadEnergyScanComplete
     };
 
     KWAIT_BLOCK WaitBlocks[ARRAYSIZE(WaitEvents)] = { 0 };
 
     // Space to processing buffers
-    UCHAR MessageBuffer[1500];
+    const ULONG MessageBufferSize = 1500;
+    PUCHAR MessageBuffer = FILTER_ALLOC_MEM(pFilter->FilterHandle, MessageBufferSize);
+    if (MessageBuffer == NULL)
+    {
+        LogError(DRIVER_DATA_PATH, "Failed to allocate 1500 bytes for MessageBuffer!");
+        return;
+    }
+
+#if DBG
+    // Initialize the list head for allocations
+    InitializeListHead(&pFilter->otOutStandingAllocations);
+
+    // Cache the Thread ID
+    pFilter->otThreadId = PsGetCurrentThreadId();
+#endif
+
+    // Initialize the radio layer
+    otLwfRadioInit(pFilter);
+
+    // Calculate the size of the otInstance and allocate it
+    (VOID)otInstanceInit(NULL, &otInstanceSize);
+    NT_ASSERT(otInstanceSize != 0);
+
+    // Add space for a pointer back to the filter
+    otInstanceSize += sizeof(PMS_FILTER);
+
+    // Allocate the buffer
+    pFilter->otInstanceBuffer = (PUCHAR)FILTER_ALLOC_MEM(pFilter->FilterHandle, (ULONG)otInstanceSize);
+    if (pFilter == NULL)
+    {
+        LogWarning(DRIVER_DEFAULT, "Failed to allocate otInstance buffer, 0x%x bytes", (ULONG)otInstanceSize);
+        goto exit;
+    }
+    RtlZeroMemory(pFilter->otInstanceBuffer, otInstanceSize);
+
+    // Store the pointer and decrement the size
+    memcpy(pFilter->otInstanceBuffer, &pFilter, sizeof(PMS_FILTER));
+    otInstanceSize -= sizeof(PMS_FILTER);
+
+    // Initialize the OpenThread library
+    pFilter->otCachedRole = kDeviceRoleDisabled;
+    pFilter->otCtx = otInstanceInit(pFilter->otInstanceBuffer + sizeof(PMS_FILTER), &otInstanceSize);
+    NT_ASSERT(pFilter->otCtx);
+    if (pFilter->otCtx == NULL)
+    {
+        LogError(DRIVER_DEFAULT, "otInstanceInit failed, otInstanceSize = %u bytes", (ULONG)otInstanceSize);
+        goto exit;
+    }
+
+    // Make sure our helper function returns the right pointer for the filter, given the openthread instance
+    NT_ASSERT(otCtxToFilter(pFilter->otCtx) == pFilter);
+
+    // Disable Icmp (ping) handling
+    otSetIcmpEchoEnabled(pFilter->otCtx, FALSE);
+
+    // Register callbacks with OpenThread
+    otSetStateChangedCallback(pFilter->otCtx, otLwfStateChangedCallback, pFilter);
+    otSetReceiveIp6DatagramCallback(pFilter->otCtx, otLwfReceiveIp6DatagramCallback, pFilter);
 
     // Query the current addresses from TCPIP and cache them
     (void)otLwfInitializeAddresses(pFilter);
@@ -773,7 +861,7 @@ otLwfEventWorkerThread(
                                     pFilter->otReceiveFrame.mPower = NblContext->Power;
                                     pFilter->otReceiveFrame.mLqi = NblContext->Lqi;
                                     pFilter->otReceiveFrame.mLength = (uint8_t)NET_BUFFER_DATA_LENGTH(CurrNb);
-                                    otLwfRadioReceiveFrame(pFilter);
+                                    otLwfRadioReceiveFrame(pFilter, CurrNbl);
                                     NblStatus = STATUS_SUCCESS;
                                 }
                             }
@@ -792,8 +880,8 @@ otLwfEventWorkerThread(
                         PNET_BUFFER CurrNb = NET_BUFFER_LIST_FIRST_NB(CurrNbl);
                         while (CurrNb != NULL)
                         {
-                            NT_ASSERT(NET_BUFFER_DATA_LENGTH(CurrNb) <= sizeof(MessageBuffer));
-                            if (NET_BUFFER_DATA_LENGTH(CurrNb) <= sizeof(MessageBuffer))
+                            NT_ASSERT(NET_BUFFER_DATA_LENGTH(CurrNb) <= MessageBufferSize);
+                            if (NET_BUFFER_DATA_LENGTH(CurrNb) <= MessageBufferSize)
                             {
                                 // Copy NB data into message
                                 if (NT_SUCCESS(CopyDataBuffer(CurrNb, NET_BUFFER_DATA_LENGTH(CurrNb), MessageBuffer)))
@@ -815,7 +903,7 @@ otLwfEventWorkerThread(
                                         {
                                             IPV6_HEADER* v6Header = (IPV6_HEADER*)MessageBuffer;
                                             
-                                            LogVerbose(DRIVER_DATA_PATH, "Filter: %p, SEND: %p : %!IPV6ADDR! => %!IPV6ADDR! (%u bytes)", 
+                                            LogVerbose(DRIVER_DATA_PATH, "Filter: %p, IP6_SEND: %p : %!IPV6ADDR! => %!IPV6ADDR! (%u bytes)", 
                                                        pFilter, CurrNbl, &v6Header->SourceAddress, &v6Header->DestinationAddress, 
                                                        NET_BUFFER_DATA_LENGTH(CurrNb));
                                         
@@ -849,8 +937,11 @@ otLwfEventWorkerThread(
                     }
                 }
 
-                // Complete the NBLs
-                otLwfCompleteNBLs(pFilter, FALSE, Event->Received, Event->NetBufferLists, NblStatus);
+                if (Event->NetBufferLists)
+                {
+                    // Complete the NBLs
+                    otLwfCompleteNBLs(pFilter, FALSE, Event->Received, Event->NetBufferLists, NblStatus);
+                }
 
                 // Free the event
                 NdisFreeMemory(Event, 0, 0);
@@ -862,12 +953,8 @@ otLwfEventWorkerThread(
         }
         else if (status == STATUS_WAIT_0 + 3) // EventWorkerThreadProcessTasklets fired
         {
-            do
-            {
-                // Process all tasklets that were indicated to us from OpenThread
-                otProcessNextTasklet(pFilter->otCtx);
-
-            } while (otAreTaskletsPending(pFilter->otCtx));
+            // Process all tasklets that were indicated to us from OpenThread
+            otProcessQueuedTasklets(pFilter->otCtx);
         }
         else if (status == STATUS_WAIT_0 + 4) // SendNetBufferListComplete fired
         {
@@ -906,6 +993,11 @@ otLwfEventWorkerThread(
                 NdisFreeMemory(Event, 0, 0);
             }
         }
+        else if (status == STATUS_WAIT_0 + 7) // EventWorkerThreadEnergyScanComplete fired
+        {
+            // Indicate energy scan complete
+            otPlatRadioEnergyScanDone(pFilter->otCtx, pFilter->otLastEnergyScanMaxRssi);
+        }
         else
         {
             LogWarning(DRIVER_DEFAULT, "Unexpected wait result, %!STATUS!", status);
@@ -918,7 +1010,39 @@ otLwfEventWorkerThread(
         }
     }
 
+exit:
+
+    if (pFilter->otCtx != NULL)
+    {
+        otInstanceFinalize(pFilter->otCtx);
+        pFilter->otCtx = NULL;
+        
+#if DBG
+        {
+            NT_ASSERT(pFilter->otOutstandingAllocationCount == 0);
+            NT_ASSERT(pFilter->otOutstandingMemoryAllocated == 0);
+            PLIST_ENTRY Link = pFilter->otOutStandingAllocations.Flink;
+            while (Link != &pFilter->otOutStandingAllocations)
+            {
+                OT_ALLOC* AllocHeader = CONTAINING_RECORD(Link, OT_ALLOC, Link);
+                Link = Link->Flink;
+
+                LogVerbose(DRIVER_DEFAULT, "Leaked Alloc ID:%u", AllocHeader->ID);
+            
+                ExFreePoolWithTag(AllocHeader, 'OTDM');
+            }
+        }
+#endif
+    }
+
+    if (pFilter->otInstanceBuffer != NULL)
+    {
+        NdisFreeMemory(pFilter->otInstanceBuffer, 0, 0);
+    }
+
     LogFuncExit(DRIVER_DEFAULT);
+
+    FILTER_FREE_MEM(MessageBuffer);
 
     PsTerminateSystemThread(STATUS_SUCCESS);
 }

@@ -73,6 +73,9 @@ public:
      *
      */
     enum State
+#if _WIN32
+        : unsigned int
+#endif
     {
         kStateInvalid,                   ///< Neighbor link is invalid
         kStateParentRequest,             ///< Received an MLE Parent Request message
@@ -88,6 +91,7 @@ public:
 #endif
     uint8_t         mMode : 4;           ///< The MLE device mode
     bool            mDataRequest : 1;    ///< Indicates whether or not a Data Poll was received
+    uint8_t         mLinkFailures;       ///< Consecutive link failure count
     LinkQualityInfo mLinkInfo;           ///< Link quality info (contains average RSS, link margin and link quality)
 };
 
@@ -105,8 +109,11 @@ public:
     Ip6::Address mIp6Address[kMaxIp6AddressPerChild];  ///< Registered IPv6 addresses
     uint32_t     mTimeout;                             ///< Child timeout
     uint16_t     mFragmentOffset;                      ///< 6LoWPAN fragment offset
-    uint8_t      mRequestTlvs[5];                      ///< Requested MLE TLVs
+    uint8_t      mRequestTlvs[7];                      ///< Requested MLE TLVs
     uint8_t      mNetworkDataVersion;                  ///< Current Network Data version
+    uint16_t     mQueuedIndirectMessageCnt;            ///< Count of queued messages
+    bool         mAddSrcMatchEntryShort;               ///< Indicates whether or not to force add short address
+    bool         mAddSrcMatchEntryPending;             ///< Indicates whether or not pending to add
 };
 
 /**

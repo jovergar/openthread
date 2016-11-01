@@ -146,6 +146,14 @@ public:
     ThreadError HandleDatagram(Message &aMessage, Netif *aNetif, int8_t aInterfaceId,
                                const void *aLinkMessageInfo, bool aFromNcpHost);
 
+
+    /**
+     * This methods adds a full IPv6 packet to the transmit queue.
+     *
+     * @param aMessage A reference to the message.
+     */
+    void EnqueueDatagram(Message &aMessage);
+
     /**
      * This static method updates a checksum.
      *
@@ -248,7 +256,7 @@ public:
      * @param  aNetif  A reference to the network interface.
      *
      * @retval kThreadError_None  Successfully enabled the network interface.
-     * @retval KThreadError_Busy  The network interface was already enabled.
+     * @retval KThreadError_Already  The network interface was already enabled.
      *
      */
     ThreadError AddNetif(Netif &aNetif);
@@ -259,7 +267,7 @@ public:
      * @param  aNetif  A reference to the network interface.
      *
      * @retval kThreadError_None  Successfully disabled the network interface.
-     * @retval KThreadError_Busy  The network interface was already disabled.
+     * @retval KThreadError_NotFound  The network interface was already disabled.
      *
      */
     ThreadError RemoveNetif(Netif &aNetif);
@@ -281,16 +289,6 @@ public:
      *
      */
     Netif *GetNetifById(int8_t aInterfaceId);
-
-    /**
-     * This method returns the network interface identified by @p aName.
-     *
-     * @param[in]  aName  A pointer to a NULL-terminated string.
-     *
-     * @returns A pointer to the network interface or NULL if none is found.
-     *
-     */
-    Netif *GetNetifByName(char *aName);
 
     /**
      * This method indicates whether or not @p aAddress is assigned to a network interface.
@@ -334,6 +332,7 @@ public:
     Routes mRoutes;
     Icmp mIcmp;
     Udp mUdp;
+    Mpl mMpl;
 
     MessagePool mMessagePool;
     TaskletScheduler mTaskletScheduler;
@@ -343,15 +342,17 @@ private:
     static void HandleSendQueue(void *aContext);
     void HandleSendQueue(void);
 
-    void ProcessReceiveCallback(const Message &aMessage, const MessageInfo &aMessageInfo, uint8_t aIpProto);
-    ThreadError HandleExtensionHeaders(Message &message, uint8_t &nextHeader, bool receive);
+    ThreadError ProcessReceiveCallback(const Message &aMessage, const MessageInfo &aMessageInfo, uint8_t aIpProto);
+    ThreadError HandleExtensionHeaders(Message &message, Header &header, uint8_t &nextHeader, bool forward,
+                                       bool receive);
     ThreadError HandleFragment(Message &message);
     ThreadError AddMplOption(Message &message, Header &header, IpProto nextHeader, uint16_t payloadLength);
-    ThreadError HandleOptions(Message &message);
+    ThreadError InsertMplOption(Message &message, Header &header);
+    ThreadError RemoveMplOption(Message &aMessage);
+    ThreadError HandleOptions(Message &message, Header &header, bool &forward);
     ThreadError HandlePayload(Message &message, MessageInfo &messageInfo, uint8_t ipproto);
-    ThreadError ForwardMessage(Message &message, MessageInfo &messageInfo);
+    ThreadError ForwardMessage(Message &message, MessageInfo &messageInfo, uint8_t ipproto);
 
-    Mpl mMpl;
     bool mForwardingEnabled;
 
     MessageQueue mSendQueue;
@@ -362,15 +363,14 @@ private:
     bool mIsReceiveIp6FilterEnabled;
 
     Netif *mNetifListHead;
-    int8_t mNextInterfaceId;
 };
 
-__inline Ip6 *Ip6FromTaskletScheduler(TaskletScheduler *aTaskletScheduler)
+static inline Ip6 *Ip6FromTaskletScheduler(TaskletScheduler *aTaskletScheduler)
 {
     return (Ip6 *)CONTAINING_RECORD(aTaskletScheduler, Ip6, mTaskletScheduler);
 }
 
-__inline Ip6 *Ip6FromTimerScheduler(TimerScheduler *aTimerScheduler)
+static inline Ip6 *Ip6FromTimerScheduler(TimerScheduler *aTimerScheduler)
 {
     return (Ip6 *)CONTAINING_RECORD(aTimerScheduler, Ip6, mTimerScheduler);
 }

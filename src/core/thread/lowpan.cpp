@@ -221,7 +221,7 @@ int Lowpan::Compress(Message &aMessage, const Mac::Address &aMacSource, const Ma
     bool srcContextValid = true, dstContextValid = true;
     uint8_t nextHeader;
 
-    aMessage.Read(0, sizeof(ip6Header), &ip6Header);
+    aMessage.Read(aMessage.GetOffset(), sizeof(ip6Header), &ip6Header);
 
     if (mNetworkData.GetContext(ip6Header.GetSource(), srcContext) != kThreadError_None)
     {
@@ -284,6 +284,7 @@ int Lowpan::Compress(Message &aMessage, const Mac::Address &aMacSource, const Ma
     {
     case Ip6::kProtoHopOpts:
     case Ip6::kProtoUdp:
+    case Ip6::kProtoIp6:
         hcCtl |= kHcNextHeader;
         break;
 
@@ -356,7 +357,7 @@ int Lowpan::Compress(Message &aMessage, const Mac::Address &aMacSource, const Ma
 
     aBuf[0] = hcCtl >> 8;
     aBuf[1] = hcCtl & 0xff;
-    aMessage.SetOffset(sizeof(ip6Header));
+    aMessage.MoveOffset(sizeof(ip6Header));
 
     nextHeader = static_cast<uint8_t>(ip6Header.GetNextHeader());
 
@@ -372,6 +373,13 @@ int Lowpan::Compress(Message &aMessage, const Mac::Address &aMacSource, const Ma
             cur += CompressUdp(aMessage, cur);
             ExitNow();
 
+        case Ip6::kProtoIp6:
+            // For IP-in-IP the NH bit of the LOWPAN_NHC encoding MUST be set to zero.
+            cur[0] = kExtHdrDispatch | kExtHdrEidIp6;
+            cur++;
+
+            cur += Compress(aMessage, aMacSource, aMacDest, cur);
+
         default:
             ExitNow();
         }
@@ -384,18 +392,21 @@ exit:
 int Lowpan::CompressExtensionHeader(Message &aMessage, uint8_t *aBuf, uint8_t &aNextHeader)
 {
     Ip6::ExtensionHeader extHeader;
+    Ip6::OptionHeader optionHeader;
     uint8_t *cur = aBuf;
     uint8_t len;
+    uint8_t padLength = 0;
+    uint16_t offset;
 
     aMessage.Read(aMessage.GetOffset(), sizeof(extHeader), &extHeader);
     aMessage.MoveOffset(sizeof(extHeader));
 
     cur[0] = kExtHdrDispatch | kExtHdrEidHbh;
-    aNextHeader = static_cast<uint8_t>(extHeader.GetNextHeader());
 
     switch (extHeader.GetNextHeader())
     {
     case Ip6::kProtoUdp:
+    case Ip6::kProtoIp6:
         cur[0] |= kExtHdrNextHeader;
         break;
 
@@ -408,11 +419,49 @@ int Lowpan::CompressExtensionHeader(Message &aMessage, uint8_t *aBuf, uint8_t &a
     cur++;
 
     len = (extHeader.GetLength() + 1) * 8 - sizeof(extHeader);
+
+    // RFC 6282 says: "IPv6 Hop-by-Hop and Destination Options Headers may use a trailing
+    // Pad1 or PadN to achieve 8-octet alignment. When there is a single trailing Pad1 or PadN
+    // option of 7 octets or less and the containing header is a multiple of 8 octets, the trailing
+    // Pad1 or PadN option MAY be elided by the compressor."
+    if (aNextHeader == Ip6::kProtoHopOpts || aNextHeader == Ip6::kProtoDstOpts)
+    {
+        offset = aMessage.GetOffset();
+
+        while (offset < len + aMessage.GetOffset())
+        {
+            aMessage.Read(offset, sizeof(optionHeader), &optionHeader);
+
+            if (optionHeader.GetType() == Ip6::OptionPad1::kType)
+            {
+                offset += sizeof(Ip6::OptionPad1);
+            }
+            else
+            {
+                offset += sizeof(optionHeader) + optionHeader.GetLength();
+            }
+        }
+
+        // Check if the last option can be compressed.
+        if (optionHeader.GetType() == Ip6::OptionPad1::kType)
+        {
+            padLength = sizeof(Ip6::OptionPad1);
+        }
+        else if (optionHeader.GetType() == Ip6::OptionPadN::kType)
+        {
+            padLength = sizeof(optionHeader) + optionHeader.GetLength();
+        }
+
+        len -= padLength;
+    }
+
+    aNextHeader = static_cast<uint8_t>(extHeader.GetNextHeader());
+
     cur[0] = len;
     cur++;
 
     aMessage.Read(aMessage.GetOffset(), len, cur);
-    aMessage.MoveOffset(len);
+    aMessage.MoveOffset(len + padLength);
     cur += len;
 
     return static_cast<int>(cur - aBuf);
@@ -750,12 +799,15 @@ exit:
 
 int Lowpan::DecompressExtensionHeader(Message &aMessage, const uint8_t *aBuf, uint16_t aBufLength)
 {
+    ThreadError error = kThreadError_None;
     const uint8_t *cur = aBuf;
     uint8_t hdr[2];
     uint8_t len;
     Ip6::IpProto nextHeader;
-    int rval = -1;
     uint8_t ctl = cur[0];
+    uint8_t padLength;
+    Ip6::OptionPad1 optionPad1;
+    Ip6::OptionPadN optionPadN;
 
     cur++;
 
@@ -765,7 +817,7 @@ int Lowpan::DecompressExtensionHeader(Message &aMessage, const uint8_t *aBuf, ui
         len = cur[0];
         cur++;
 
-        SuccessOrExit(DispatchToNextHeader(cur[len], nextHeader));
+        SuccessOrExit(error = DispatchToNextHeader(cur[len], nextHeader));
         hdr[0] = static_cast<uint8_t>(nextHeader);
     }
     else
@@ -780,19 +832,38 @@ int Lowpan::DecompressExtensionHeader(Message &aMessage, const uint8_t *aBuf, ui
     // length
     hdr[1] = BitVectorBytes(sizeof(hdr) + len) - 1;
 
-    SuccessOrExit(aMessage.Append(hdr, sizeof(hdr)));
+    SuccessOrExit(error = aMessage.Append(hdr, sizeof(hdr)));
     aMessage.MoveOffset(sizeof(hdr));
 
     // payload
-    SuccessOrExit(aMessage.Append(cur, len));
+    SuccessOrExit(error = aMessage.Append(cur, len));
     aMessage.MoveOffset(len);
     cur += len;
 
-    rval = static_cast<int>(cur - aBuf);
+    // The RFC6282 says: "The trailing Pad1 or PadN option MAY be elided by the compressor.
+    // A decompressor MUST ensure that the containing header is padded out to a multiple of 8 octets
+    // in length, using a Pad1 or PadN option if necessary."
+    padLength = 8 - ((len + sizeof(hdr)) & 0x07);
+
+    if (padLength != 8)
+    {
+        if (padLength == 1)
+        {
+            optionPad1.Init();
+            SuccessOrExit(error = aMessage.Append(&optionPad1, padLength));
+        }
+        else
+        {
+            optionPadN.Init(padLength);
+            SuccessOrExit(error = aMessage.Append(&optionPadN, padLength));
+        }
+
+        aMessage.MoveOffset(padLength);
+    }
 
 exit:
     (void)aBufLength;
-    return rval;
+    return (error == kThreadError_None) ? static_cast<int>(cur - aBuf) : -1;
 }
 
 int Lowpan::DecompressUdpHeader(Message &aMessage, const uint8_t *aBuf, uint16_t aBufLength, uint16_t aDatagramLength)
@@ -855,17 +926,11 @@ int Lowpan::DecompressUdpHeader(Message &aMessage, const uint8_t *aBuf, uint16_t
         udpHeader.SetLength(aDatagramLength - aMessage.GetOffset());
     }
 
-    aMessage.Append(&udpHeader, sizeof(udpHeader));
+    SuccessOrExit(error = aMessage.Append(&udpHeader, sizeof(udpHeader)));
     aMessage.MoveOffset(sizeof(udpHeader));
 
 exit:
-
-    if (error != kThreadError_None)
-    {
-        return -1;
-    }
-
-    return static_cast<int>(cur - aBuf);
+    return (error == kThreadError_None) ? static_cast<int>(cur - aBuf) : -1;
 }
 
 int Lowpan::Decompress(Message &aMessage, const Mac::Address &aMacSource, const Mac::Address &aMacDest,
@@ -875,16 +940,20 @@ int Lowpan::Decompress(Message &aMessage, const Mac::Address &aMacSource, const 
     Ip6::Header ip6Header;
     const uint8_t *cur = aBuf;
     bool compressed;
-    uint16_t remaining;
     int rval;
+    uint16_t remaining;
+    uint16_t ip6PayloadLength;
+    uint16_t compressedLength = 0;
+    uint16_t currentOffset = aMessage.GetOffset();
 
     compressed = (((static_cast<uint16_t>(cur[0]) << 8) | cur[1]) & kHcNextHeader) != 0;
 
-    VerifyOrExit((rval = DecompressBaseHeader(ip6Header, aMacSource, aMacDest, aBuf)) >= 0, ;);
+    VerifyOrExit((rval = DecompressBaseHeader(ip6Header, aMacSource, aMacDest, aBuf)) >= 0,
+                 error = kThreadError_Parse);
     cur += rval;
 
     SuccessOrExit(error = aMessage.Append(&ip6Header, sizeof(ip6Header)));
-    SuccessOrExit(error = aMessage.SetOffset(sizeof(ip6Header)));
+    SuccessOrExit(error = aMessage.MoveOffset(sizeof(ip6Header)));
 
     while (compressed)
     {
@@ -892,9 +961,23 @@ int Lowpan::Decompress(Message &aMessage, const Mac::Address &aMacSource, const 
 
         if ((cur[0] & kExtHdrDispatchMask) == kExtHdrDispatch)
         {
-            compressed = (cur[0] & kExtHdrNextHeader) != 0;
-            VerifyOrExit((rval = DecompressExtensionHeader(aMessage, cur, remaining)) >= 0,
-                         error = kThreadError_Parse);
+            if ((cur[0] & kExtHdrEidMask) == kExtHdrEidIp6)
+            {
+                compressed = false;
+
+                cur++;
+                remaining--;
+
+                VerifyOrExit((rval = Decompress(aMessage, aMacSource, aMacDest, cur, remaining,
+                                                (aDatagramLength ? aDatagramLength - aMessage.GetLength() : 0))) >= 0,
+                             error = kThreadError_Parse);
+            }
+            else
+            {
+                compressed = (cur[0] & kExtHdrNextHeader) != 0;
+                VerifyOrExit((rval = DecompressExtensionHeader(aMessage, cur, remaining)) >= 0,
+                             error = kThreadError_Parse);
+            }
         }
         else if ((cur[0] & kUdpDispatchMask) == kUdpDispatch)
         {
@@ -910,14 +993,23 @@ int Lowpan::Decompress(Message &aMessage, const Mac::Address &aMacSource, const 
         cur += rval;
     }
 
-exit:
+    compressedLength = static_cast<uint16_t>(cur - aBuf);
 
-    if (error != kThreadError_None)
+    if (aDatagramLength)
     {
-        return -1;
+        ip6PayloadLength = HostSwap16(aDatagramLength - sizeof(Ip6::Header));
+    }
+    else
+    {
+        ip6PayloadLength = HostSwap16(aMessage.GetOffset() - currentOffset -
+                                      sizeof(Ip6::Header) + aBufLen - compressedLength);
     }
 
-    return static_cast<int>(cur - aBuf);
+    aMessage.Write(currentOffset + Ip6::Header::GetPayloadLengthOffset(),
+                   sizeof(ip6PayloadLength), &ip6PayloadLength);
+
+exit:
+    return (error == kThreadError_None) ? static_cast<int>(compressedLength) : -1;
 }
 
 }  // namespace Lowpan

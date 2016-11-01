@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -81,7 +81,7 @@ enum
 VOID otLwfRadioInit(_In_ PMS_FILTER pFilter);
 
 // Indicates a received frame from the radio layer
-VOID otLwfRadioReceiveFrame(_In_ PMS_FILTER pFilter);
+VOID otLwfRadioReceiveFrame(_In_ PMS_FILTER pFilter, _In_ PNET_BUFFER_LIST NetBufferList);
 
 // Indicates the transmit frame is ready to send to the radio layer
 VOID otLwfRadioTransmitFrame(_In_ PMS_FILTER pFilter);

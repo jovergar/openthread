@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@ OTLWF_IOCTL_FUNC(
     _In_reads_bytes_(InBufferLength)
             PVOID           InBuffer,
     _In_    ULONG           InBufferLength,
-    _Out_writes_bytes_opt_(*OutBufferLength)
+    _Out_writes_bytes_(*OutBufferLength)
             PVOID           OutBuffer,
     _Inout_ PULONG          OutBufferLength
     );
@@ -80,7 +80,7 @@ OTLWF_OT_IOCTL_FUNC(
     _In_reads_bytes_(InBufferLength)
             PUCHAR          InBuffer,
     _In_    ULONG           InBufferLength,
-    _Out_writes_bytes_opt_(*OutBufferLength)
+    _Out_writes_bytes_(*OutBufferLength)
             PVOID           OutBuffer,
     _Inout_ PULONG          OutBufferLength
     );
@@ -155,5 +155,26 @@ OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerStart;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerStop;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otJoinerStart;
 OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otJoinerStop;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otFactoryAssignedIeeeEui64;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otHashMacAddress;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRouterDowngradeThreshold;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerPanIdQuery;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerEnergyScan;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otRouterSelectionJitter;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otJoinerUdpPort;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSendDiagnosticGet;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSendDiagnosticReset;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerAddJoiner;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerRemoveJoiner;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerProvisioningUrl;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otCommissionerAnnounceBegin;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otEnergyScan;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSendActiveGet;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSendActiveSet;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSendPendingGet;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSendPendingSet;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSendMgmtCommissionerGet;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otSendMgmtCommissionerSet;
+OTLWF_OT_IOCTL_FUNC otLwfIoCtl_otKeySwitchGuardtime;
 
 #endif // _IOCONTROL_H

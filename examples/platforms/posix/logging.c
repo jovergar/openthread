@@ -26,16 +26,16 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "platform-posix.h"
+
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <sys/time.h>
 #include <time.h>
 
-#include <common/code_utils.hpp>
 #include <platform/logging.h>
 
 // Macro to append content to end of the log string.
@@ -126,6 +126,9 @@ void otPlatLog(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aFormat
     case kLogRegionMeshCoP:
         LOG_PRINTF("MCOP ");
         break;
+
+    case kLogRegionNetDiag:
+        LOG_PRINTF("NDG ");
     }
 
     va_start(args, aFormat);
@@ -135,6 +138,6 @@ void otPlatLog(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aFormat
     VerifyOrExit(charsWritten >= 0, logString[offset] = 0);
 
 exit:
-    fprintf(stderr, "%s\r", logString);
+    fprintf(stderr, "%s\r\n", logString);
 }
 

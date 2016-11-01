@@ -46,22 +46,26 @@ class Dataset
 public:
     enum
     {
-        kMaxSize = 256,  ///< Maximum size of MeshCoP Dataset (bytes)
+        kMaxSize = 256,      ///< Maximum size of MeshCoP Dataset (bytes)
+        kMaxValueSize = 16,  /// < Maximum size of each Dataset TLV value (bytes)
     };
 
     /**
      * This constructor initializes the object.
      *
-     * @param[in]  aType      The type of the dataset, active or pending.
+     * @param[in]  aInstance  A pointer to an OpenThread instance.
+     * @param[in]  aType       The type of the dataset, active or pending.
      *
      */
-    Dataset(const Tlv::Type aType);
+    Dataset(otInstance *aInstance, const Tlv::Type aType);
 
     /**
      * This method clears the Dataset.
      *
+     * @param[in]  isLocal  TRUE to delete the local dataset from non-volatile memory, FALSE not.
+     *
      */
-    void Clear(void);
+    void Clear(bool isLocal);
 
     /**
      * This method returns a pointer to the TLV.
@@ -91,7 +95,7 @@ public:
      * This method converts the TLV representation to structure representation.
      *
      */
-    void Get(otOperationalDataset &aDataset);
+    void Get(otOperationalDataset &aDataset) const;
 
     /**
      * This method returns the Dataset size in bytes.
@@ -99,7 +103,7 @@ public:
      * @returns The Dataset size in bytes.
      *
      */
-    uint8_t GetSize(void) const { return mLength; }
+    uint16_t GetSize(void) const { return mLength; }
 
     /**
      * This method returns a reference to the Timestamp.
@@ -116,6 +120,36 @@ public:
     void SetTimestamp(const Timestamp &aTimestamp);
 
     /**
+     * This method compares this dataset to another based on the timestamp.
+     *
+     * @param[in]  aCompare  A reference to the timestamp to compare.
+     *
+     * @retval -1  if @p aCompare is older than this dataset.
+     * @retval  0  if @p aCompare is equal to this dataset.
+     * @retval  1  if @p aCompare is newer than this dataset.
+     *
+     */
+    int Compare(const Dataset &aCompare) const;
+
+    /**
+     * This method restores dataset from non-volatile memory.
+     *
+     * @retval kThreadError_None      Successfully restore the dataset.
+     * @retval kThreadError_NotFound  There is no corresponding dataset stored in non-volatile memory.
+     *
+     */
+    ThreadError Restore(void);
+
+    /**
+     * This method stores dataset into non-volatile memory.
+     *
+     * @retval kThreadError_None      Successfully store the dataset.
+     * @retval kThreadError_NoBufs    Could not store the dataset due to insufficient memory space.
+     *
+     */
+    ThreadError Store(void);
+
+    /**
      * This method sets a TLV in the Dataset.
      *
      * @param[in]  aTlv  A reference to the TLV.
@@ -128,6 +162,8 @@ public:
 
     ThreadError Set(const Message &aMessage, uint16_t aOffset, uint8_t aLength);
 
+    ThreadError Set(const Dataset &aDataset);
+
     ThreadError Set(const otOperationalDataset &aDataset);
 
     void Remove(Tlv::Type aType);
@@ -137,7 +173,8 @@ private:
 
     Tlv::Type  mType;            ///< Active or Pending
     uint8_t    mTlvs[kMaxSize];  ///< The Dataset buffer
-    uint8_t    mLength;          ///< The number of valid bytes in @var mTlvs
+    uint16_t   mLength;          ///< The number of valid bytes in @var mTlvs
+    otInstance *mInstance;       ///< The pointer to an OpenThread instance
 };
 
 }  // namespace MeshCoP

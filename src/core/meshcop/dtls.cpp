@@ -31,6 +31,8 @@
  *   This file implements the necessary hooks for mbedTLS.
  */
 
+#define WPP_NAME "dtls.tmh"
+
 #include <common/code_utils.hpp>
 #include <common/debug.hpp>
 #include <common/encoding.hpp>
@@ -56,6 +58,15 @@ Dtls::Dtls(ThreadNetif &aNetif):
     mTimerSet(false),
     mNetif(aNetif)
 {
+    mProvisioningUrl.Init();
+}
+
+Dtls::~Dtls(void)
+{
+    if (mStarted)
+    {
+        Close();
+    }
 }
 
 ThreadError Dtls::Start(bool aClient, ReceiveHandler aReceiveHandler, SendHandler aSendHandler, void *aContext)
@@ -67,6 +78,7 @@ ThreadError Dtls::Start(bool aClient, ReceiveHandler aReceiveHandler, SendHandle
     mSendHandler = aSendHandler;
     mContext = aContext;
     mClient = aClient;
+    mReceiveMessage = NULL;
 
     mbedtls_ssl_init(&mSsl);
     mbedtls_ssl_config_init(&mConf);
@@ -89,11 +101,7 @@ ThreadError Dtls::Start(bool aClient, ReceiveHandler aReceiveHandler, SendHandle
     mbedtls_ssl_conf_ciphersuites(&mConf, ciphersuites);
     mbedtls_ssl_conf_export_keys_cb(&mConf, HandleMbedtlsExportKeys, this);
     mbedtls_ssl_conf_handshake_timeout(&mConf, 8000, 60000);
-#ifdef WINDOWS_KERNEL
     mbedtls_ssl_conf_dbg(&mConf, HandleMbedtlsDebug, NULL);
-#else
-    mbedtls_ssl_conf_dbg(&mConf, HandleMbedtlsDebug, stdout);
-#endif
 
     if (!mClient)
     {
@@ -108,8 +116,8 @@ ThreadError Dtls::Start(bool aClient, ReceiveHandler aReceiveHandler, SendHandle
     rval = mbedtls_ssl_setup(&mSsl, &mConf);
     VerifyOrExit(rval == 0, ;);
 
-    mbedtls_ssl_set_bio(&mSsl, this, &Dtls::HandleMbedtlsTransmit, Dtls::HandleMbedtlsReceive, NULL);
-    mbedtls_ssl_set_timer_cb(&mSsl, this, &Dtls::HandleMbedtlsSetTimer, Dtls::HandleMbedtlsGetTimer);
+    mbedtls_ssl_set_bio(&mSsl, this, &Dtls::HandleMbedtlsTransmit, HandleMbedtlsReceive, NULL);
+    mbedtls_ssl_set_timer_cb(&mSsl, this, &Dtls::HandleMbedtlsSetTimer, HandleMbedtlsGetTimer);
 
     rval = mbedtls_ssl_set_hs_ecjpake_password(&mSsl, mPsk, mPskLength);
     VerifyOrExit(rval == 0, ;);
@@ -117,7 +125,7 @@ ThreadError Dtls::Start(bool aClient, ReceiveHandler aReceiveHandler, SendHandle
     mStarted = true;
     Process();
 
-    otLogInfoMeshCoP("DTLS started\r\n");
+    otLogInfoMeshCoP("DTLS started");
 
 exit:
     return MapError(rval);
@@ -125,14 +133,24 @@ exit:
 
 ThreadError Dtls::Stop(void)
 {
-    mStarted = false;
     mbedtls_ssl_close_notify(&mSsl);
+    Close();
+    return kThreadError_None;
+}
+
+void Dtls::Close(void)
+{
+    mStarted = false;
     mbedtls_ssl_free(&mSsl);
     mbedtls_ssl_config_free(&mConf);
     mbedtls_ctr_drbg_free(&mCtrDrbg);
     mbedtls_entropy_free(&mEntropy);
     mbedtls_ssl_cookie_free(&mCookieCtx);
-    return kThreadError_None;
+}
+
+bool Dtls::IsStarted(void)
+{
+    return mStarted;
 }
 
 ThreadError Dtls::SetPsk(const uint8_t *aPsk, uint8_t aPskLength)
@@ -186,7 +204,7 @@ int Dtls::HandleMbedtlsTransmit(const unsigned char *aBuf, size_t aLength)
     ThreadError error;
     int rval = 0;
 
-    otLogInfoMeshCoP("Dtls::HandleMbedtlsTransmit\r\n");
+    otLogInfoMeshCoP("Dtls::HandleMbedtlsTransmit");
 
     error = mSendHandler(mContext, aBuf, (uint16_t)aLength);
 
@@ -217,7 +235,7 @@ int Dtls::HandleMbedtlsReceive(unsigned char *aBuf, size_t aLength)
 {
     int rval;
 
-    otLogInfoMeshCoP("Dtls::HandleMbedtlsReceive\r\n");
+    otLogInfoMeshCoP("Dtls::HandleMbedtlsReceive");
 
     VerifyOrExit(mReceiveMessage != NULL && mReceiveLength != 0, rval = MBEDTLS_ERR_SSL_WANT_READ);
 
@@ -243,7 +261,7 @@ int Dtls::HandleMbedtlsGetTimer(void)
 {
     int rval;
 
-    otLogInfoMeshCoP("Dtls::HandleMbedtlsGetTimer\r\n");
+    otLogInfoMeshCoP("Dtls::HandleMbedtlsGetTimer");
 
     if (!mTimerSet)
     {
@@ -272,7 +290,7 @@ void Dtls::HandleMbedtlsSetTimer(void *aContext, uint32_t aIntermediate, uint32_
 
 void Dtls::HandleMbedtlsSetTimer(uint32_t aIntermediate, uint32_t aFinish)
 {
-    otLogInfoMeshCoP("Dtls::SetTimer\r\n");
+    otLogInfoMeshCoP("Dtls::SetTimer");
 
     if (aFinish == 0)
     {
@@ -306,7 +324,7 @@ int Dtls::HandleMbedtlsExportKeys(const unsigned char *aMasterSecret, const unsi
 
     mNetif.GetKeyManager().SetKek(kek);
 
-    otLogInfoMeshCoP("Generated KEK\r\n");
+    otLogInfoMeshCoP("Generated KEK");
 
     (void)aMasterSecret;
     return 0;
@@ -325,6 +343,7 @@ void Dtls::HandleTimer(void)
 void Dtls::Process(void)
 {
     uint8_t buf[MBEDTLS_SSL_MAX_CONTENT_LEN];
+    bool shouldClose = false;
     int rval;
 
     while (mStarted)
@@ -348,10 +367,52 @@ void Dtls::Process(void)
         }
         else
         {
+            switch (rval)
+            {
+            case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+                mbedtls_ssl_close_notify(&mSsl);
+                ExitNow(shouldClose = true);
+                break;
+
+            case MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED:
+                break;
+
+            case MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE:
+                ExitNow(shouldClose = true);
+                break;
+
+            case MBEDTLS_ERR_SSL_INVALID_MAC:
+                if (mSsl.state != MBEDTLS_SSL_HANDSHAKE_OVER)
+                {
+                    mbedtls_ssl_send_alert_message(&mSsl, MBEDTLS_SSL_ALERT_LEVEL_FATAL,
+                                                   MBEDTLS_SSL_ALERT_MSG_BAD_RECORD_MAC);
+                    ExitNow(shouldClose = true);
+                }
+
+                break;
+
+            default:
+                if (mSsl.state != MBEDTLS_SSL_HANDSHAKE_OVER)
+                {
+                    mbedtls_ssl_send_alert_message(&mSsl, MBEDTLS_SSL_ALERT_LEVEL_FATAL,
+                                                   MBEDTLS_SSL_ALERT_MSG_HANDSHAKE_FAILURE);
+                    ExitNow(shouldClose = true);
+                }
+
+                break;
+            }
+
             mbedtls_ssl_session_reset(&mSsl);
             mbedtls_ssl_set_hs_ecjpake_password(&mSsl, mPsk, mPskLength);
             break;
         }
+    }
+
+exit:
+
+    if (shouldClose)
+    {
+        Close();
     }
 }
 
@@ -377,14 +438,27 @@ ThreadError Dtls::MapError(int rval)
     return error;
 }
 
-void Dtls::HandleMbedtlsDebug(void *ctx, int level, const char *file, int line, const char *str)
+void Dtls::HandleMbedtlsDebug(void *, int level, const char *, int , const char *str)
 {
-    otLogInfoMeshCoP("%s:%04d: %s\r\n", file, line, str);
-    (void)ctx;
-    (void)level;
-    (void)file;
-    (void)line;
-    (void)str;
+    switch (level)
+    {
+    case 1:
+        otLogCritMbedTls("%s", str);
+        break;
+
+    case 2:
+        otLogWarnMbedTls("%s", str);
+        break;
+
+    case 3:
+        otLogInfoMbedTls("%s", str);
+        break;
+
+    case 4:
+    default:
+        otLogDebgMbedTls("%s", str);
+        break;
+    }
 }
 
 }  // namespace MeshCoP

@@ -37,6 +37,7 @@
 #include <openthread-types.h>
 
 #include <coap/coap_header.hpp>
+#include <coap/coap_client.hpp>
 #include <coap/coap_server.hpp>
 #include <common/message.hpp>
 #include <mac/mac_frame.hpp>
@@ -59,6 +60,24 @@ public:
      */
     JoinerRouter(ThreadNetif &aNetif);
 
+    /**
+     * This method returns the Joiner UDP Port.
+     *
+     * @returns The Joiner UDP Port number .
+     *
+     */
+    uint16_t GetJoinerUdpPort(void);
+
+    /**
+     * This method sets the Joiner UDP Port.
+     *
+     * @param[in]  The Joiner UDP Port number.
+     *
+     * @retval kThreadError_None    Successfully set the Joiner UDP Port.
+     *
+     */
+    ThreadError SetJoinerUdpPort(uint16_t aJoinerUdpPort);
+
 private:
     static void HandleNetifStateChanged(uint32_t aFlags, void *aContext);
     void HandleNetifStateChanged(uint32_t aFlags);
@@ -73,13 +92,16 @@ private:
     ThreadError SendJoinerEntrust(const Ip6::MessageInfo &aMessageInfo);
 
     ThreadError GetBorderAgentRloc(uint16_t &aRloc);
-    ThreadError GetJoinerPort(uint16_t &aRloc);
 
     Ip6::NetifCallback mNetifCallback;
 
     Ip6::UdpSocket mSocket;
     Coap::Resource mRelayTransmit;
+    Coap::Client &mCoapClient;
     ThreadNetif &mNetif;
+
+    uint16_t mJoinerUdpPort;
+    bool mIsJoinerPortConfigured;
 };
 
 }  // namespace MeshCoP

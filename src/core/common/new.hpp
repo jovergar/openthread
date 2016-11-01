@@ -35,11 +35,14 @@
 #define NEW_HPP_
 
 #include <stddef.h>
+#include <platform/toolchain.h>
 
 #ifdef _WIN32
 #pragma warning(disable:4291)  // no matching operator delete found
 #endif
 
 inline void *operator new(size_t, void *p) throw() { return p; }
+
+void OT_CDECL operator delete(void *, size_t) throw();
 
 #endif  // NEW_HPP_

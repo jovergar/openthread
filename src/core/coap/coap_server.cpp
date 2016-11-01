@@ -68,7 +68,7 @@ ThreadError Server::AddResource(Resource &aResource)
 
     for (Resource *cur = mResources; cur; cur = cur->mNext)
     {
-        VerifyOrExit(cur != &aResource, error = kThreadError_Busy);
+        VerifyOrExit(cur != &aResource, error = kThreadError_Already);
     }
 
     aResource.mNext = mResources;
@@ -102,8 +102,8 @@ exit:
 
 void Server::HandleUdpReceive(void *aContext, otMessage aMessage, const otMessageInfo *aMessageInfo)
 {
-    Server *obj = reinterpret_cast<Server *>(aContext);
-    obj->HandleUdpReceive(*static_cast<Message *>(aMessage), *static_cast<const Ip6::MessageInfo *>(aMessageInfo));
+    static_cast<Server *>(aContext)->HandleUdpReceive(*static_cast<Message *>(aMessage),
+                                                      *static_cast<const Ip6::MessageInfo *>(aMessageInfo));
 }
 
 void Server::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
@@ -122,14 +122,14 @@ void Server::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessag
     {
         switch (coapOption->mNumber)
         {
-        case Header::Option::kOptionUriPath:
+        case kCoapOptionUriPath:
             VerifyOrExit(coapOption->mLength < sizeof(uriPath) - static_cast<size_t>(curUriPath - uriPath), ;);
             memcpy(curUriPath, coapOption->mValue, coapOption->mLength);
             curUriPath[coapOption->mLength] = '/';
             curUriPath += coapOption->mLength + 1;
             break;
 
-        case Header::Option::kOptionContentFormat:
+        case kCoapOptionContentFormat:
             break;
 
         default:

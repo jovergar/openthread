@@ -79,10 +79,16 @@ public:
         kJoinerDtlsEncapsulation = OT_MESHCOP_TLV_JOINER_DTLS,       ///< Joiner DTLS Encapsulation TLV
         kJoinerUdpPort           = OT_MESHCOP_TLV_JOINER_UDP_PORT,   ///< Joiner UDP Port TLV
         kJoinerIid               = OT_MESHCOP_TLV_JOINER_IID,        ///< Joiner IID TLV
+        kJoinerRouterLocator     = OT_MESHCOP_TLV_JOINER_RLOC,       ///< Joiner Router Locator TLV
         kJoinerRouterKek         = OT_MESHCOP_TLV_JOINER_ROUTER_KEK, ///< Joiner Router KEK TLV
+        kProvisioningUrl         = OT_MESHCOP_TLV_PROVISIONING_URL,  ///< Provisioning URL TLV
         kPendingTimestamp        = OT_MESHCOP_TLV_PENDINGTIMESTAMP,  ///< Pending Timestamp TLV
         kDelayTimer              = OT_MESHCOP_TLV_DELAYTIMER,        ///< Delay Timer TLV
         kChannelMask             = OT_MESHCOP_TLV_CHANNELMASK,       ///< Channel Mask TLV
+        kCount                   = OT_MESHCOP_TLV_COUNT,             ///< Count TLV
+        kPeriod                  = OT_MESHCOP_TLV_PERIOD,            ///< Period TLV
+        kScanDuration            = OT_MESHCOP_TLV_SCAN_DURATION,     ///< Scan Duration TLV
+        kEnergyList              = OT_MESHCOP_TLV_ENERGY_LIST,       ///< Energy List TLV
         kDiscoveryRequest        = OT_MESHCOP_TLV_DISCOVERYREQUEST,  ///< Discovery Request TLV
         kDiscoveryResponse       = OT_MESHCOP_TLV_DISCOVERYRESPONSE, ///< Discovery Response TLV
     };
@@ -562,13 +568,27 @@ public:
      * @retval FALSE  If the TLV does not appear to be well-formed.
      *
      */
-    bool IsValid(void) const { return GetLength() == sizeof(*this) - sizeof(Tlv); }
+    bool IsValid(void) const { return GetLength() <= sizeof(*this) - sizeof(Tlv); }
 
     /**
      * This method sets all bits in the Bloom Filter to zero.
      *
      */
-    void Clear(void) { memset(mSteeringData, 0, sizeof(mSteeringData)); }
+    void Clear(void) { memset(mSteeringData, 0, GetLength()); }
+
+    /**
+     * Ths method sets all bits in the Bloom Filter to one.
+     *
+     */
+    void Set(void) { memset(mSteeringData, 0xff, GetLength()); }
+
+    /**
+     * This method returns the number of bits in the Bloom Filter.
+     *
+     * @returns The number of bits in the Bloom Filter.
+     *
+     */
+    uint8_t GetNumBits(void) const { return GetLength() * 8; }
 
     /**
      * This method indicates whether or not bit @p aBit is set.
@@ -579,7 +599,7 @@ public:
      * @retval FALSE  If bit @p aBit is not set.
      *
      */
-    bool GetBit(uint8_t aBit) const { return (mSteeringData[aBit / 8] & (1 << (aBit % 8))) != 0; }
+    bool GetBit(uint8_t aBit) const { return (mSteeringData[GetLength() - 1 - (aBit / 8)] & (1 << (aBit % 8))) != 0; }
 
     /**
      * This method clears bit @p aBit.
@@ -587,7 +607,7 @@ public:
      * @param[in]  aBit  The bit offset.
      *
      */
-    void ClearBit(uint8_t aBit) { mSteeringData[aBit / 8] &= ~(1 << (aBit % 8)); }
+    void ClearBit(uint8_t aBit) { mSteeringData[GetLength() - 1 - (aBit / 8)] &= ~(1 << (aBit % 8)); }
 
     /**
      * This method sets bit @p aBit.
@@ -595,14 +615,10 @@ public:
      * @param[in]  aBit  The bit offset.
      *
      */
-    void SetBit(uint8_t aBit) { mSteeringData[aBit / 8] |= 1 << (aBit % 8); }
+    void SetBit(uint8_t aBit) { mSteeringData[GetLength() - 1 - (aBit / 8)] |= 1 << (aBit % 8); }
 
 private:
-    enum
-    {
-        kMaxLength = 16,
-    };
-    uint8_t mSteeringData[kMaxLength];
+    uint8_t mSteeringData[OT_STEERING_DATA_MAX_LENGTH];
 } OT_TOOL_PACKED_END;
 
 /**
@@ -926,7 +942,7 @@ public:
      * This method initializes the TLV.
      *
      */
-    void Init(void) { SetType(kActiveTimestamp); SetLength(sizeof(*this) - sizeof(Tlv)); }
+    void Init(void) { SetType(kActiveTimestamp); SetLength(sizeof(*this) - sizeof(Tlv)); Timestamp::Init(); }
 
     /**
      * This method indicates whether or not the TLV appears to be well-formed.
@@ -1079,6 +1095,49 @@ private:
 } OT_TOOL_PACKED_END;
 
 /**
+ * This class implements Joiner Router Locator TLV generation and parsing.
+ *
+ */
+OT_TOOL_PACKED_BEGIN
+class JoinerRouterLocatorTlv: public Tlv
+{
+public:
+    /**
+     * This method initializes the TLV.
+     *
+     */
+    void Init(void) { SetType(kJoinerRouterLocator); SetLength(sizeof(*this) - sizeof(Tlv)); }
+
+    /**
+     * This method indicates whether or not the TLV appears to be well-formed.
+     *
+     * @retval TRUE   If the TLV appears to be well-formed.
+     * @retval FALSE  If the TLV does not appear to be well-formed.
+     *
+     */
+    bool IsValid(void) const { return GetLength() == sizeof(*this) - sizeof(Tlv); }
+
+    /**
+     * This method returns the Joiner Router Locator value.
+     *
+     * @returns The Joiner Router Locator value.
+     *
+     */
+    uint16_t GetJoinerRouterLocator(void) const { return HostSwap16(mLocator); }
+
+    /**
+     * This method sets the Joiner Router Locator value.
+     *
+     * @param[in]  aJoinerRouterLocator  The Joiner Router Locator value.
+     *
+     */
+    void SetJoinerRouterLocator(uint16_t aLocator) { mLocator = HostSwap16(aLocator); }
+
+private:
+    uint16_t mLocator;
+} OT_TOOL_PACKED_END;
+
+/**
  * This class implements Joiner Router KEK TLV generation and parsing.
  *
  */
@@ -1133,7 +1192,7 @@ public:
      * This method initializes the TLV.
      *
      */
-    void Init(void) { SetType(kPendingTimestamp); SetLength(sizeof(*this) - sizeof(Tlv)); }
+    void Init(void) { SetType(kPendingTimestamp); SetLength(sizeof(*this) - sizeof(Tlv)); Timestamp::Init(); }
 
     /**
      * This method indicates whether or not the TLV appears to be well-formed.
@@ -1258,7 +1317,7 @@ public:
      */
     bool IsChannelSet(uint8_t aChannel) const {
         const uint8_t *mask = reinterpret_cast<const uint8_t *>(this) + sizeof(*this);
-        return (aChannel < (mMaskLength * 8)) ? (mask[aChannel / 8] & (1 << (aChannel % 8))) != 0 : false;
+        return (aChannel < (mMaskLength * 8)) ? ((mask[aChannel / 8] & (1 << (aChannel % 8))) != 0) : false;
     }
 
 private:
@@ -1288,6 +1347,259 @@ public:
      *
      */
     bool IsValid(void) const { return true; }
+} OT_TOOL_PACKED_END;
+
+/**
+ * This class implements Channel Mask TLV generation and parsing.
+ *
+ */
+OT_TOOL_PACKED_BEGIN
+class ChannelMask0Tlv: public ChannelMaskTlv, public ChannelMaskEntry
+{
+public:
+    /**
+     * This method initializes the TLV.
+     *
+     */
+    void Init(void) {
+        SetType(kChannelMask);
+        SetLength(sizeof(*this) - sizeof(Tlv));
+        SetChannelPage(0);
+        SetMaskLength(sizeof(mMask));
+    }
+
+    /**
+     * This method returns the Channel Mask value.
+     *
+     * @returns The Channel Mask value.
+     *
+     */
+    uint32_t GetMask(void) { return Thread::Encoding::LittleEndian::HostSwap32(mMask); }
+
+    /**
+     * This method sets the Channel Mask value.
+     *
+     * @param[in]  aMask  The Channel Mask value.
+     *
+     */
+    void SetMask(uint32_t aMask) { mMask = Thread::Encoding::LittleEndian::HostSwap32(aMask); }
+
+private:
+    uint32_t mMask;
+} OT_TOOL_PACKED_END;
+
+/**
+ * This class implements Count TLV generation and parsing.
+ *
+ */
+OT_TOOL_PACKED_BEGIN
+class CountTlv: public Tlv
+{
+public:
+    /**
+     * This method initializes the TLV.
+     *
+     */
+    void Init(void) { SetType(kCount); SetLength(sizeof(*this) - sizeof(Tlv)); }
+
+    /**
+     * This method indicates whether or not the TLV appears to be well-formed.
+     *
+     * @retval TRUE   If the TLV appears to be well-formed.
+     * @retval FALSE  If the TLV does not appear to be well-formed.
+     *
+     */
+    bool IsValid(void) const { return GetLength() == sizeof(*this) - sizeof(Tlv); }
+
+    /**
+     * This method returns the Count value.
+     *
+     * @returns The Count value.
+     *
+     */
+    uint8_t GetCount(void) const { return mCount; }
+
+    /**
+     * This method sets the Count value.
+     *
+     * @param[in]  aCount  The Count value.
+     *
+     */
+    void SetCount(uint8_t aCount) { mCount = aCount; }
+
+private:
+    uint8_t mCount;
+} OT_TOOL_PACKED_END;
+
+/**
+ * This class implements Period TLV generation and parsing.
+ *
+ */
+OT_TOOL_PACKED_BEGIN
+class PeriodTlv: public Tlv
+{
+public:
+    /**
+     * This method initializes the TLV.
+     *
+     */
+    void Init(void) { SetType(kPeriod); SetLength(sizeof(*this) - sizeof(Tlv)); }
+
+    /**
+     * This method indicates whether or not the TLV appears to be well-formed.
+     *
+     * @retval TRUE   If the TLV appears to be well-formed.
+     * @retval FALSE  If the TLV does not appear to be well-formed.
+     *
+     */
+    bool IsValid(void) const { return GetLength() == sizeof(*this) - sizeof(Tlv); }
+
+    /**
+     * This method returns the Period value.
+     *
+     * @returns The Period value.
+     *
+     */
+    uint16_t GetPeriod(void) const { return HostSwap16(mPeriod); }
+
+    /**
+     * This method sets the Period value.
+     *
+     * @param[in]  aPeriod  The Period value.
+     *
+     */
+    void SetPeriod(uint16_t aPeriod) { mPeriod = HostSwap16(aPeriod); }
+
+private:
+    uint16_t mPeriod;
+} OT_TOOL_PACKED_END;
+
+/**
+ * This class implements Scan Duration TLV generation and parsing.
+ *
+ */
+OT_TOOL_PACKED_BEGIN
+class ScanDurationTlv: public Tlv
+{
+public:
+    /**
+     * This method initializes the TLV.
+     *
+     */
+    void Init(void) { SetType(kScanDuration); SetLength(sizeof(*this) - sizeof(Tlv)); }
+
+    /**
+     * This method indicates whether or not the TLV appears to be well-formed.
+     *
+     * @retval TRUE   If the TLV appears to be well-formed.
+     * @retval FALSE  If the TLV does not appear to be well-formed.
+     *
+     */
+    bool IsValid(void) const { return GetLength() == sizeof(*this) - sizeof(Tlv); }
+
+    /**
+     * This method returns the Scan Duration value.
+     *
+     * @returns The Scan Duration value.
+     *
+     */
+    uint16_t GetScanDuration(void) const { return HostSwap16(mScanDuration); }
+
+    /**
+     * This method sets the Scan Duration value.
+     *
+     * @param[in]  aScanDuration  The Scan Duration value.
+     *
+     */
+    void SetScanDuration(uint16_t aScanDuration) { mScanDuration = HostSwap16(aScanDuration); }
+
+private:
+    uint16_t mScanDuration;
+} OT_TOOL_PACKED_END;
+
+/**
+ * This class implements Energy List TLV generation and parsing.
+ *
+ */
+OT_TOOL_PACKED_BEGIN
+class EnergyListTlv: public Tlv
+{
+public:
+    /**
+     * This method initializes the TLV.
+     *
+     */
+    void Init(void) { SetType(kEnergyList); SetLength(sizeof(*this) - sizeof(Tlv)); }
+
+    /**
+     * This method indicates whether or not the TLV appears to be well-formed.
+     *
+     * @retval TRUE   If the TLV appears to be well-formed.
+     * @retval FALSE  If the TLV does not appear to be well-formed.
+     *
+     */
+    bool IsValid(void) const { return true; }
+} OT_TOOL_PACKED_END;
+
+/**
+ * This class implements Provisioning URL TLV generation and parsing.
+ *
+ */
+OT_TOOL_PACKED_BEGIN
+class ProvisioningUrlTlv: public Tlv
+{
+public:
+    /**
+     * This method initializes the TLV.
+     *
+     */
+    void Init(void) { SetType(kProvisioningUrl); SetLength(0); }
+
+    /**
+     * This method indicates whether or not the TLV appears to be well-formed.
+     *
+     * @retval TRUE   If the TLV appears to be well-formed.
+     * @retval FALSE  If the TLV does not appear to be well-formed.
+     *
+     */
+    bool IsValid(void) const { return GetLength() <= sizeof(*this) - sizeof(Tlv); }
+
+    /**
+     * This method returns the Provisioning URL value.
+     *
+     * @returns The Provisioning URL value.
+     *
+     */
+    const char *GetProvisioningUrl(void) const { return mProvisioningUrl; }
+
+    /**
+     * This method sets the Provisioning URL value.
+     *
+     * @param[in]  aProvisioningUrl  A pointer to the Provisioning URL value.
+     *
+     */
+    ThreadError SetProvisioningUrl(const char *aProvisioningUrl) {
+        ThreadError error = kThreadError_None;
+        size_t len = aProvisioningUrl ? strnlen(aProvisioningUrl, kMaxLength + 1) : 0;
+
+        VerifyOrExit(len <= kMaxLength, error = kThreadError_InvalidArgs);
+        SetLength(static_cast<uint8_t>(len));
+
+        if (len > 0) {
+            memcpy(mProvisioningUrl, aProvisioningUrl, len);
+        }
+
+exit:
+        return error;
+    }
+
+private:
+    enum
+    {
+        kMaxLength = 64,
+    };
+
+    char mProvisioningUrl[kMaxLength];
 } OT_TOOL_PACKED_END;
 
 /**

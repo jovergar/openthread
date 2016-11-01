@@ -37,6 +37,8 @@
 
 #include <openthread-std-types.h>
 
+#include <openthread-types.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

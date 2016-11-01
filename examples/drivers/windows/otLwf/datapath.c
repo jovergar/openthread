@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@ __forceinline CHAR ToHex(CHAR n)
     else       return '0' + n;
 }
 
-const ULONG otLogLineLength = 32;
+#define otLogLineLength 32
 
 // Helper to log a buffer
 void
@@ -545,7 +545,7 @@ otLwfReceiveIp6DatagramCallback(
         }
     }
     
-    LogVerbose(DRIVER_DATA_PATH, "Filter: %p, RECV: %p : %!IPV6ADDR! => %!IPV6ADDR! (%u bytes)", 
+    LogVerbose(DRIVER_DATA_PATH, "Filter: %p, IP6_RECV: %p : %!IPV6ADDR! => %!IPV6ADDR! (%u bytes)", 
                pFilter, NetBufferList, &v6Header->SourceAddress, &v6Header->DestinationAddress,
                messageLength);
 

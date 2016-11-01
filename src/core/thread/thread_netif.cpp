@@ -41,7 +41,7 @@
 #include <thread/thread_netif.hpp>
 #include <thread/thread_tlvs.hpp>
 #include <thread/thread_uris.hpp>
-#include <openthreadinstance.h>
+#include <openthread-instance.h>
 
 using Thread::Encoding::BigEndian::HostSwap16;
 
@@ -53,11 +53,10 @@ static const uint8_t kThreadMasterKey[] =
     0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
 };
 
-static const char name[] = "thread";
-
 ThreadNetif::ThreadNetif(Ip6::Ip6 &aIp6):
-    Netif(aIp6),
+    Netif(aIp6, OT_NETIF_INTERFACE_ID_THREAD),
     mCoapServer(aIp6.mUdp, kCoapUdpPort),
+    mCoapClient(*this),
     mAddressResolver(*this),
     mActiveDataset(*this),
     mPendingDataset(*this),
@@ -68,6 +67,7 @@ ThreadNetif::ThreadNetif(Ip6::Ip6 &aIp6):
     mMleRouter(*this),
     mNetworkDataLocal(*this),
     mNetworkDataLeader(*this),
+    mNetworkDiagnostic(*this),
 #if OPENTHREAD_ENABLE_COMMISSIONER
     mCommissioner(*this),
 #endif  // OPENTHREAD_ENABLE_COMMISSIONER
@@ -79,35 +79,32 @@ ThreadNetif::ThreadNetif(Ip6::Ip6 &aIp6):
 #endif  // OPENTHREAD_ENABLE_JOINER
     mJoinerRouter(*this),
     mLeader(*this),
-    mPanIdQuery(*this)
+    mAnnounceBegin(*this),
+    mPanIdQuery(*this),
+    mEnergyScan(*this)
 {
     mKeyManager.SetMasterKey(kThreadMasterKey, sizeof(kThreadMasterKey));
 }
 
-const char *ThreadNetif::GetName(void) const
-{
-    return name;
-}
-
 ThreadError ThreadNetif::Up(void)
 {
-    ThreadError error = kThreadError_None;
+    if (!mIsUp)
+    {
+        mIp6.AddNetif(*this);
+        mMeshForwarder.Start();
+        mCoapServer.Start();
+        mMleRouter.Enable();
+        mIsUp = true;
+    }
 
-    VerifyOrExit(!mIsUp, error = kThreadError_Already);
-
-    mIp6.AddNetif(*this);
-    mMeshForwarder.Start();
-    mCoapServer.Start();
-    mMleRouter.Enable();
-    mIsUp = true;
-
-exit:
-    return error;
+    mCoapClient.Start();
+    return kThreadError_None;
 }
 
 ThreadError ThreadNetif::Down(void)
 {
     mCoapServer.Stop();
+    mCoapClient.Stop();
     mMleRouter.Disable();
     mMeshForwarder.Stop();
     mIp6.RemoveNetif(*this);
@@ -130,7 +127,18 @@ ThreadError ThreadNetif::GetLinkAddress(Ip6::LinkAddress &address) const
 
 ThreadError ThreadNetif::RouteLookup(const Ip6::Address &source, const Ip6::Address &destination, uint8_t *prefixMatch)
 {
-    return mNetworkDataLeader.RouteLookup(source, destination, prefixMatch, NULL);
+    ThreadError error;
+    uint16_t rloc;
+
+    SuccessOrExit(error = mNetworkDataLeader.RouteLookup(source, destination, prefixMatch, &rloc));
+
+    if (rloc == mMleRouter.GetRloc16())
+    {
+        error = kThreadError_NoRoute;
+    }
+
+exit:
+    return error;
 }
 
 ThreadError ThreadNetif::SendMessage(Message &message)

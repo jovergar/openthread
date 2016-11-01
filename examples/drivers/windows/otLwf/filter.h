@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -37,6 +37,7 @@
 
 // The maximum allowed addresses an OpenThread interface
 #define OT_MAX_ADDRESSES 10
+#define OT_MAX_AUTO_ADDRESSES (OT_MAX_ADDRESSES - 4)
 
 #define OTLWF_ALLOC_TAG 'mFto' // otFm
 
@@ -130,9 +131,7 @@ typedef struct _MS_FILTER
     KEVENT                          EventWorkerThreadProcessAddressChanges;
     KEVENT                          EventWorkerThreadProcessNBLs;
     NDIS_SPIN_LOCK                  EventsLock;
-    _Guarded_by_(EventsLock)
     LIST_ENTRY                      AddressChangesHead;
-    _Guarded_by_(EventsLock)
     LIST_ENTRY                      NBLsHead;
     ULONG                           CountPendingRecvNBLs;
     LARGE_INTEGER                   NextAlarmTickCount;
@@ -142,6 +141,7 @@ typedef struct _MS_FILTER
     UCHAR                           EventTimerState;
     LIST_ENTRY                      EventIrpListHead;
     KEVENT                          EventWorkerThreadProcessIrp;
+    KEVENT                          EventWorkerThreadEnergyScanComplete;
 
     //
     // Data Path Synchronization
@@ -163,28 +163,46 @@ typedef struct _MS_FILTER
     IN6_ADDR                        otCachedAddr[OT_MAX_ADDRESSES];
     ULONG                           otCachedAddrCount;
     IN6_ADDR                        otLinkLocalAddr;
+    otNetifAddress                  otAutoAddresses[OT_MAX_AUTO_ADDRESSES];
     
     //
     // OpenThread radio variables
     //
+    otRadioCaps                     otRadioCapabilities;
     PhyState                        otPhyState;
     uint8_t                         otCurrentListenChannel;
     uint8_t                         otReceiveMessage[kMaxPHYPacketSize];
     uint8_t                         otTransmitMessage[kMaxPHYPacketSize];
     RadioPacket                     otReceiveFrame;
     RadioPacket                     otTransmitFrame;
+    CHAR                            otLastEnergyScanMaxRssi;
 
     BOOLEAN                         otPromiscuous;
     uint16_t                        otPanID;
+    uint64_t                        otFactoryAddress;
     uint64_t                        otExtendedAddress;
     uint16_t                        otShortAddress;
+
+    BOOLEAN                         otPendingMacOffloadEnabled;
+    uint8_t                         otPendingShortAddressCount;
+    uint16_t                        otPendingShortAddresses[MAX_PENDING_MAC_SIZE];
+    uint8_t                         otPendingExtendedAddressCount;
+    uint64_t                        otPendingExtendedAddresses[MAX_PENDING_MAC_SIZE];
+
+#if DBG
+    // Used for tracking memory allocations
+    HANDLE                          otThreadId;
+    volatile LONG                   otOutstandingAllocationCount;
+    volatile LONG                   otOutstandingMemoryAllocated;
+    LIST_ENTRY                      otOutStandingAllocations;
+    ULONG                           otAllocationID;
+#endif
 
     //
     // OpenThread context buffer
     //
     otInstance*                     otCtx;
     PUCHAR                          otInstanceBuffer;
-
 
 } MS_FILTER, * PMS_FILTER;
 
@@ -290,7 +308,7 @@ otLwfEventProcessingIndicateNewNetBufferLists(
     _In_ PNET_BUFFER_LIST       NetBufferLists
     );
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_max_(DISPATCH_LEVEL)
 VOID
 otLwfEventProcessingIndicateNetBufferListsCancelled(
     _In_ PMS_FILTER             pFilter,
@@ -302,6 +320,13 @@ VOID
 otLwfEventProcessingIndicateIrp(
     _In_ PMS_FILTER pFilter,
     _In_ PIRP       Irp
+    );
+
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID
+otLwfEventProcessingIndicateEnergyScanResult(
+    _In_ PMS_FILTER pFilter,
+    _In_ CHAR       MaxRssi
     );
 
 //
@@ -327,7 +352,10 @@ otLwfDisableDataPath(
 void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext);
 void otLwfReceiveIp6DatagramCallback(_In_ otMessage aMessage, _In_ void *aContext);
 void otLwfActiveScanCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext);
+void otLwfEnergyScanCallback(_In_ otEnergyScanResult *aResult, _In_ void *aContext);
 void otLwfDiscoverCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext);
+void otLwfCommissionerEnergyReportCallback(uint32_t aChannelMask, const uint8_t *aEnergyList, uint8_t aEnergyListLength, void *aContext);
+void otLwfCommissionerPanIdConflictCallback(uint16_t aPanId, uint32_t aChannelMask, _In_ void *aContext);
 
 //
 // Address Functions
@@ -378,6 +406,24 @@ otLogBuffer(
     _In_reads_bytes_(BufferLength) PUCHAR Buffer,
     _In_                           ULONG  BufferLength
     );
+#endif
+
+//
+// Debug Helpers
+//
+
+#if DBG
+
+typedef struct _OT_ALLOC
+{
+    LIST_ENTRY Link;
+    LONG Length;
+    ULONG ID;
+} OT_ALLOC;
+
+PMS_FILTER
+otLwfFindFromCurrentThread();
+
 #endif
 
 #endif  //_FILT_H

@@ -70,6 +70,7 @@ check_PROGRAMS                                                      = \
     test-link-quality                                                 \
     test-mac-frame                                                    \
     test-message                                                      \
+    test-settings                                                     \
     test-timer                                                        \
     test-toolchain                                                    \
     $(NULL)
@@ -108,31 +109,34 @@ TESTS_ENVIRONMENT                                                   = \
 # Source, compiler, and linker options for test programs.
 
 test_aes_LDADD               = $(COMMON_LDADD)
-test_aes_SOURCES             = test_aes.cpp
+test_aes_SOURCES             = test_platform.cpp test_aes.cpp
 
 test_hmac_sha256_LDADD       = $(COMMON_LDADD)
-test_hmac_sha256_SOURCES     = test_hmac_sha256.cpp
+test_hmac_sha256_SOURCES     = test_platform.cpp test_hmac_sha256.cpp
 
 test_link_quality_LDADD      = $(COMMON_LDADD)
-test_link_quality_SOURCES    = test_link_quality.cpp test_platform.cpp
+test_link_quality_SOURCES    = test_platform.cpp test_link_quality.cpp
 
 test_lowpan_LDADD            = $(COMMON_LDADD)
-test_lowpan_SOURCES          = test_lowpan.cpp test_util.cpp test_vector.c test_platform.cpp
+test_lowpan_SOURCES          = test_platform.cpp test_lowpan.cpp test_util.cpp test_vector.c
 
 test_mac_frame_LDADD         = $(COMMON_LDADD)
-test_mac_frame_SOURCES       = test_mac_frame.cpp
+test_mac_frame_SOURCES       = test_platform.cpp test_mac_frame.cpp
 
 test_message_LDADD           = $(COMMON_LDADD)
-test_message_SOURCES         = test_message.cpp test_platform.cpp
+test_message_SOURCES         = test_platform.cpp test_message.cpp
 
 test_ncp_buffer_LDADD        = $(COMMON_LDADD)
-test_ncp_buffer_SOURCES      = test_ncp_buffer.cpp test_platform.cpp
+test_ncp_buffer_SOURCES      = test_platform.cpp test_ncp_buffer.cpp
+
+test_settings_LDADD          = $(COMMON_LDADD)
+test_settings_SOURCES        = test_platform.cpp test_settings.cpp
 
 test_timer_LDADD             = $(COMMON_LDADD)
-test_timer_SOURCES           = test_timer.cpp test_platform.cpp
+test_timer_SOURCES           = test_platform.cpp test_timer.cpp
 
 test_toolchain_LDADD         = $(COMMON_LDADD)
-test_toolchain_SOURCES       = test_toolchain.cpp
+test_toolchain_SOURCES       = test_platform.cpp test_toolchain.cpp
 
 if OPENTHREAD_ENABLE_DIAG
 test_diag_LDADD              = $(top_builddir)/src/core/libopenthread.a                       \

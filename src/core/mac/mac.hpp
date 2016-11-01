@@ -66,22 +66,13 @@ namespace Mac {
  */
 enum
 {
-#ifdef WINDOWS_KERNEL
     kMinBE                = 1,                     ///< macMinBE (IEEE 802.15.4-2006)
     kMaxBE                = 5,                     ///< macMaxBE (IEEE 802.15.4-2006)
-#else
-    kMinBE                = 3,                     ///< macMinBE (IEEE 802.15.4-2006)
-    kMaxBE                = 6,                     ///< macMaxBE (IEEE 802.15.4-2006)
-#endif
     kMaxCSMABackoffs      = 4,                     ///< macMaxCSMABackoffs (IEEE 802.15.4-2006)
-    kMaxFrameRetries      = 15,                    ///< macMaxFrameRetries (IEEE 802.15.4-2006)
+    kMaxFrameRetries      = 3,                     ///< macMaxFrameRetries (IEEE 802.15.4-2006)
     kUnitBackoffPeriod    = 20,                    ///< Number of symbols (IEEE 802.15.4-2006)
 
-#ifdef WINDOWS_KERNEL
     kMinBackoff           = 1,                     ///< Minimum backoff (milliseconds).
-#else
-    kMinBackoff           = 16,                    ///< Minimum backoff (milliseconds).
-#endif
     kMaxFrameAttempts     = kMaxFrameRetries + 1,  ///< Number of transmission attempts.
 
     kAckTimeout           = 16,                    ///< Timeout for waiting on an ACK (milliseconds).
@@ -155,9 +146,10 @@ public:
      *
      * @param[in]  aContext  A pointer to arbitrary context information.
      * @param[in]  aFrame    A reference to the MAC frame buffer that was sent.
+     * @param[in]  aError    The status of the last MSDU transmission.
      *
      */
-    typedef void (*SentFrameHandler)(void *aContext, Frame &aFrame);
+    typedef void (*SentFrameHandler)(void *aContext, Frame &aFrame, ThreadError aError);
 
     /**
      * This constructor creates a MAC sender client.
@@ -176,7 +168,7 @@ public:
 
 private:
     ThreadError HandleFrameRequest(Frame &frame) { return mFrameRequestHandler(mContext, frame); }
-    void HandleSentFrame(Frame &frame) { mSentFrameHandler(mContext, frame); }
+    void HandleSentFrame(Frame &frame, ThreadError error) { mSentFrameHandler(mContext, frame, error); }
 
     FrameRequestHandler mFrameRequestHandler;
     SentFrameHandler mSentFrameHandler;
@@ -244,6 +236,14 @@ public:
     ThreadError EnergyScan(uint32_t aScanChannels, uint16_t aScanDuration, EnergyScanHandler aHandler, void *aContext);
 
     /**
+     * This function indicates the energy scan for the current channel is complete.
+     *
+     * @param[in]  aEnergyScanMaxRssi  The maximum RSSI encountered on the scanned channel.
+     *
+     */
+    void EnergyScanDone(int8_t aEnergyScanMaxRssi);
+
+    /**
      * This method indicates whether or not rx-on-when-idle is enabled.
      *
      * @retval TRUE   If rx-on-when-idle is enabled.
@@ -265,7 +265,7 @@ public:
      * @param[in]  aReceiver  A reference to the MAC receiver client.
      *
      * @retval kThreadError_None  Successfully registered the receiver.
-     * @retval kThreadError_Busy  The receiver was already registered.
+     * @retval kThreadError_Already  The receiver was already registered.
      *
      */
     ThreadError RegisterReceiver(Receiver &aReceiver);
@@ -276,7 +276,7 @@ public:
      * @param[in]  aSender  A reference to the MAC sender client.
      *
      * @retval kThreadError_None  Successfully registered the sender.
-     * @retval kThreadError_Busy  The sender was already registered.
+     * @retval kThreadError_Already  The sender was already registered.
      *
      */
     ThreadError SendFrameRequest(Sender &aSender);
@@ -294,10 +294,19 @@ public:
      *
      * @param[in]  aExtAddress  A reference to the IEEE 802.15.4 Extended Address.
      *
-     * @retval kThreadError_None  Successfully set the IEEE 802.15.4 Extended Address.
+     */
+    void SetExtAddress(const ExtAddress &aExtAddress);
+
+    /**
+     * This method gets the Hash Mac Address.
+     *
+     * Hash Mac Address is the first 64 bits of the result of computing SHA-256 over factory-assigned
+     * IEEE EUI-64, which is used as IEEE 802.15.4 Extended Address during commissioning process.
+     *
+     * @param[out]  aHashMacAddress    A pointer to where the Hash Mac Address is placed.
      *
      */
-    ThreadError SetExtAddress(const ExtAddress &aExtAddress);
+    void GetHashMacAddress(ExtAddress *aHashMacAddress);
 
     /**
      * This method returns the IEEE 802.15.4 Short Address.
@@ -500,6 +509,42 @@ public:
      */
     LinkQualityInfo &GetNoiseFloor(void) { return mNoiseFloor; }
 
+    /**
+     * This function enable/disable source match.
+     *
+     * @param[in]  aEnable  Enable/disable source match for automatical pending.
+     *
+     */
+    void EnableSrcMatch(bool aEnable);
+
+    /**
+     * This function adds the address into the source match table.
+     *
+     * @param[in]  aAddr  The address to be added into the source match table.
+     *
+     * @retval ::kThreadError_None  Successfully added the address into the source match table.
+     * @retval ::kThreadError_NoBufs No available entry in the source match table
+     *
+     */
+    ThreadError AddSrcMatchEntry(Address &aAddr);
+
+    /**
+     * This function removes the address from the source match table.
+     *
+     * @param[in]  aAddr  The address to be removed from the source match table.
+     *
+     * @retval ::kThreadError_None  Successfully removed the address from the source match table.
+     * @retval ::kThreadError_NoAddress  The address is not in the source match table.
+     *
+     */
+    ThreadError ClearSrcMatchEntry(Address &aAddr);
+
+    /**
+     * This function emptys the source match table.
+     *
+     */
+    void ClearSrcMatchEntries();
+
 private:
     enum ScanType
     {
@@ -518,15 +563,15 @@ private:
     void ProcessTransmitSecurity(Frame &aFrame);
     ThreadError ProcessReceiveSecurity(Frame &aFrame, const Address &aSrcAddr, Neighbor *aNeighbor);
     void ScheduleNextTransmission(void);
-    void SentFrame(bool aAcked);
+    void SentFrame(ThreadError aError);
     void SendBeaconRequest(Frame &aFrame);
     void SendBeacon(Frame &aFrame);
     void StartBackoff(void);
     void StartEnergyScan(void);
     ThreadError HandleMacCommand(Frame &aFrame);
 
-    static void HandleAckTimer(void *aContext);
-    void HandleAckTimer(void);
+    static void HandleMacTimer(void *aContext);
+    void HandleMacTimer(void);
     static void HandleBeginTransmit(void *aContext);
     void HandleBeginTransmit(void);
     static void HandleReceiveTimer(void *aContext);
@@ -537,8 +582,7 @@ private:
     void StartCsmaBackoff(void);
     ThreadError Scan(ScanType aType, uint32_t aScanChannels, uint16_t aScanDuration, void *aContext);
 
-    Tasklet mBeginTransmit;
-    Timer mAckTimer;
+    Timer mMacTimer;
     Timer mBackoffTimer;
     Timer mReceiveTimer;
 

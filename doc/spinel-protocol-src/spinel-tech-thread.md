@@ -172,3 +172,40 @@ Default value is `false`.
 Allow the HOST to indicate whether or not the router role is enabled.
 If current role is a router, setting this property to `false` starts
 a re-attach process as an end-device.
+
+### PROP 5384: PROP_THREAD_ROUTER_DOWNGRADE_THRESHOLD
+* Type: Read-Write
+* Packed-Encoding: `C`
+
+### PROP 5385: PROP_THREAD_ROUTER_SELECTION_JITTER
+* Type: Read-Write
+* Packed-Encoding: `C`
+
+Specifies the self imposed random delay in seconds a REED waits before
+registering to become an Active Router.
+
+### PROP 5386: PROP_THREAD_PREFERRED_ROUTER_ID
+* Type: Write-Only
+* Packed-Encoding: `C`
+
+Specifies the preferred Router Id. Upon becoming a router/leader the node
+attempts to use this Router Id. If the preferred Router Id is not set or
+if it can not be used, a randomly generated router id is picked. This
+property can be set only when the device role is either detached or
+disabled.
+
+### PROP 5387: SPINEL_PROP_THREAD_NEIGHBOR_TABLE
+* Type: Read-Only
+* Packed-Encoding: `A(T(ESLCcCbLL))`
+
+Data per item is:
+
+* `E`: Extended/long address
+* `S`: RLOC16
+* `L`: Age
+* `C`: Link Quality In
+* `c`: Average RSS
+* `C`: Mode (bit-flags)
+* `b`: `true` if neighbor is a child, `false` otherwise.
+* `L`: Link Frame Counter
+* `L`: MLE Frame Counter

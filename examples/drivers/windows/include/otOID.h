@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -48,6 +48,17 @@
 #define OT_OPTIONAL_OID         (0x02U)
 
 #define OT_DEFINE_OID(Seq,o,m)  ((0xD0000000U) | ((o) << 16) | ((m) << 8) | (Seq))
+
+//
+// OpenThread Status Indication codes (and associated payload types)
+//
+
+#define NDIS_STATUS_OT_ENERGY_SCAN_RESULT           ((NDIS_STATUS)0x40050000L)
+    typedef struct _OT_ENERGY_SCAN_RESULT
+    {
+        NDIS_STATUS         Status;
+        CHAR                MaxRssi;
+    } OT_ENERGY_SCAN_RESULT, * POT_ENERGY_SCAN_RESULT;
 
 //
 // General OID Definitions
@@ -170,7 +181,7 @@
 #define SIZEOF_OT_CURRENT_CHANNEL_REVISION_1 \
     RTL_SIZEOF_THROUGH_FIELD(OT_CURRENT_CHANNEL, Channel)
 
-// Used to query the current RSSI (not currently used?)
+// Used to query the current RSSI for the current channel
 #define OID_OT_RSSI                                 OT_DEFINE_OID(107, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
     typedef struct _OT_RSSI
     {
@@ -181,6 +192,40 @@
 
 #define SIZEOF_OT_RSSI_REVISION_1 \
     RTL_SIZEOF_THROUGH_FIELD(OT_RSSI, Rssi)
+
+// The maximum of each type (short or extended) of MAC address to pend
+#define MAX_PENDING_MAC_SIZE    32
+
+// Used to set the list of MAC addresses for SEDs we currently have packets pending
+#define OID_OT_PENDING_MAC_OFFLOAD                  OT_DEFINE_OID(108, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
+    typedef struct _OT_PENDING_MAC_OFFLOAD
+    {
+        #define OT_PENDING_MAC_OFFLOAD_REVISION_1 1
+        NDIS_OBJECT_HEADER Header;
+        UCHAR              ShortAddressCount;
+        UCHAR              ExtendedAddressCount;
+        // Dynamic array of USHORT ShortAddresses of count ShortAddressCount
+        // Dynamic array of ULONGLONG ExtendedAddresses of count ExtendedAddressCount
+    } OT_PENDING_MAC_OFFLOAD, * POT_PENDING_MAC_OFFLOAD;
+
+#define SIZEOF_OT_PENDING_MAC_OFFLOAD_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(OT_PENDING_MAC_OFFLOAD, ExtendedAddressCount)
+
+#define COMPLETE_SIZEOF_OT_PENDING_MAC_OFFLOAD_REVISION_1(ShortAddressCount, ExtendedAddressCount) \
+    (SIZEOF_OT_PENDING_MAC_OFFLOAD_REVISION_1 + sizeof(USHORT) * ShortAddressCount + sizeof(ULONGLONG) * ExtendedAddressCount)
+
+// Used to issue an energy scan request for the given channel
+#define OID_OT_ENERGY_SCAN                          OT_DEFINE_OID(109, OT_OPERATIONAL_OID, OT_MANDATORY_OID)
+    typedef struct _OT_ENERGY_SCAN
+    {
+        #define OT_ENERGY_SCAN_REVISION_1 1
+        NDIS_OBJECT_HEADER Header;
+        UCHAR              Channel;
+        USHORT             DurationMs;
+    } OT_ENERGY_SCAN, * POT_ENERGY_SCAN;
+
+#define SIZEOF_OT_ENERGY_SCAN_REVISION_1 \
+    RTL_SIZEOF_THROUGH_FIELD(OT_ENERGY_SCAN, DurationMs)
 
 //
 // Thread Mode OIDs

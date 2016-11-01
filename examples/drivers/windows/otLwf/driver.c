@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -224,12 +224,8 @@ Return Value:
     //
     NdisFDeregisterFilterDriver(FilterDriverHandle);
 
-#if DBG
     // Validate we have no outstanding filter instances
-    FILTER_ACQUIRE_LOCK(&FilterListLock, FALSE);
-    ASSERT(IsListEmpty(&FilterModuleList));
-    FILTER_RELEASE_LOCK(&FilterListLock, FALSE);
-#endif
+    NT_ASSERT(IsListEmpty(&FilterModuleList));
 
     //
     // Clean up global variables

@@ -63,12 +63,13 @@ public:
     /**
      * This method starts the Joiner service.
      *
-     * @param[in]  aPSKd  A pointer to the PSKd.
+     * @param[in]  aPSKd             A pointer to the PSKd.
+     * @param[in]  aProvisioningUrl  A pointer to the Provisioning URL (may be NULL).
      *
      * @retval kThreadError_None  Successfully started the Joiner service.
      *
      */
-    ThreadError Start(const char *aPSKd);
+    ThreadError Start(const char *aPSKd, const char *aProvisioningUrl);
 
     /**
      * This method stops the Joiner service.
@@ -79,6 +80,11 @@ public:
     ThreadError Stop(void);
 
 private:
+    enum
+    {
+        kConfigExtAddressDelay = 100,  ///< milliseconds
+    };
+
     static void HandleDiscoverResult(otActiveScanResult *aResult, void *aContext);
     void HandleDiscoverResult(otActiveScanResult *aResult);
 
@@ -98,17 +104,26 @@ private:
                                     Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     void HandleJoinerEntrust(Coap::Header &aHeader, Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
 
+    void SendJoinerEntrustResponse(const Coap::Header &aRequestHeader, const Ip6::MessageInfo &aRequestInfo);
+
+    static void HandleTimer(void *aContext);
+    void HandleTimer(void);
+
     void Close(void);
     void ReceiveJoinerFinalizeResponse(uint8_t *buf, uint16_t length);
     void SendJoinerFinalize(void);
 
     uint8_t mJoinerRouterChannel;
+    uint16_t mJoinerRouterPanId;
+    uint16_t mJoinerUdpPort;
     Mac::ExtAddress mJoinerRouter;
     Message *mTransmitMessage;
     Ip6::UdpSocket mSocket;
 
     Tasklet mTransmitTask;
+    Timer mTimer;
     Coap::Resource mJoinerEntrust;
+    Coap::Server &mCoapServer;
     ThreadNetif &mNetif;
 };
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -95,7 +95,6 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
     ULONG                   Size;
     PNET_BUFFER             SendNetBuffer;
     ULONG                   bytesProcessed = 0;
-    size_t                  otInstanceSize = 0;
     COMPARTMENT_ID          OriginalCompartmentID;
 
     LogFuncEntry(DRIVER_DEFAULT);
@@ -283,6 +282,11 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             SynchronizationEvent, // auto-clearing event
             FALSE                 // event initially non-signalled
             );
+        KeInitializeEvent(
+            &pFilter->EventWorkerThreadEnergyScanComplete,
+            SynchronizationEvent, // auto-clearing event
+            FALSE                 // event initially non-signalled
+            );
         pFilter->EventHighPrecisionTimer = 
             ExAllocateTimer(
                 otLwfEventProcessingTimer, 
@@ -336,55 +340,6 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
         // Query the compartment ID for this interface to use for the IP stack
         pFilter->InterfaceCompartmentID = GetInterfaceCompartmentID(&pFilter->InterfaceLuid);
         LogVerbose(DRIVER_DEFAULT, "Interface %!GUID! is in Compartment %u", &pFilter->InterfaceGuid, (ULONG)pFilter->InterfaceCompartmentID);
-
-        // Initialize the radio layer
-        otLwfRadioInit(pFilter);
-
-        // Calculate the size of the otInstance and allocate it
-        (VOID)otInstanceInit(NULL, &otInstanceSize);
-        NT_ASSERT(otInstanceSize != 0);
-
-        // Add space for a pointer back to the filter
-        otInstanceSize += sizeof(PMS_FILTER);
-
-        // Allocate the buffer
-        pFilter->otInstanceBuffer = (PUCHAR)FILTER_ALLOC_MEM(NdisFilterHandle, (ULONG)otInstanceSize);
-        if (pFilter == NULL)
-        {
-            LogWarning(DRIVER_DEFAULT, "Failed to allocate otInstance buffer, 0x%x bytes", (ULONG)otInstanceSize);
-            Status = NDIS_STATUS_RESOURCES;
-            break;
-        }
-        RtlZeroMemory(pFilter->otInstanceBuffer, otInstanceSize);
-
-        // Store the pointer and decrement the size
-        memcpy(pFilter->otInstanceBuffer, &pFilter, sizeof(PMS_FILTER));
-        otInstanceSize -= sizeof(PMS_FILTER);
-
-        // Initialize the OpenThread library
-        pFilter->otCachedRole = kDeviceRoleDisabled;
-        pFilter->otCtx = otInstanceInit(pFilter->otInstanceBuffer + sizeof(PMS_FILTER), &otInstanceSize);
-        NT_ASSERT(pFilter->otCtx);
-        if (pFilter->otCtx == NULL)
-        {
-            LogError(DRIVER_DEFAULT, "otInstanceInit failed, otInstanceSize = %u bytes", (ULONG)otInstanceSize);
-            Status = NDIS_STATUS_RESOURCES;
-            break;
-        }
-
-        // Make sure our helper function returns the right pointer for the filter, given the openthread instance
-        NT_ASSERT(otCtxToFilter(pFilter->otCtx) == pFilter);
-
-        // Register callbacks with OpenThread
-        otSetStateChangedCallback(pFilter->otCtx, otLwfStateChangedCallback, pFilter);
-        otSetReceiveIp6DatagramCallback(pFilter->otCtx, otLwfReceiveIp6DatagramCallback, pFilter);
-
-        // Initialize the event processing thread
-        if (!NT_SUCCESS(otLwfEventProcessingStart(pFilter)))
-        {
-            Status = NDIS_STATUS_RESOURCES;
-            break;
-        }
     
         // Make sure we are in the right compartment
         (VOID)otLwfSetCompartment(pFilter, &OriginalCompartmentID);
@@ -414,6 +369,16 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
         InsertTailList(&FilterModuleList, &pFilter->FilterModuleLink);
         NdisReleaseSpinLock(&FilterListLock);
 
+        // Initialize the event processing thread
+        if (!NT_SUCCESS(otLwfEventProcessingStart(pFilter)))
+        {
+            NdisAcquireSpinLock(&FilterListLock);
+            RemoveEntryList(&pFilter->FilterModuleLink);
+            NdisReleaseSpinLock(&FilterListLock);
+            Status = NDIS_STATUS_RESOURCES;
+            break;
+        }
+
         LogVerbose(DRIVER_DEFAULT, "Created Filter: %p", pFilter);
 
     } while (FALSE);
@@ -427,20 +392,9 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
                 CancelMibChangeNotify2(pFilter->AddressChangeHandle);
                 pFilter->AddressChangeHandle = NULL;
             }
-
-            if (pFilter->otCtx != NULL)
-            {
-                // Stop event processing thread
-                otLwfEventProcessingStop(pFilter);
-
-                otInstanceFinalize(pFilter->otCtx);
-                pFilter->otCtx = NULL;
-            }
-
-            if (pFilter->otInstanceBuffer != NULL)
-            {
-                NdisFreeMemory(pFilter->otInstanceBuffer, 0, 0);
-            }
+            
+            // Stop event processing thread
+            otLwfEventProcessingStop(pFilter);
 
             if (pFilter->EventHighPrecisionTimer) ExDeleteTimer(pFilter->EventHighPrecisionTimer, TRUE, FALSE, NULL);
             NdisFreeMemory(pFilter, 0, 0);
@@ -488,11 +442,6 @@ NOTE: Called at PASSIVE_LEVEL and the filter is in paused state
     // Detach must not fail, so do not put any code here that can possibly fail.
     //
 
-    // Remove this Filter from the global list
-    NdisAcquireSpinLock(&FilterListLock);
-    RemoveEntryList(&pFilter->FilterModuleLink);
-    NdisReleaseSpinLock(&FilterListLock);
-
     // Release IoControl reference and wait for shutdown if there are active refernces
     NdisResetEvent(&pFilter->IoControlShutdownComplete);
     if (!RtlDecrementReferenceCount(&pFilter->IoControlReferences))
@@ -509,12 +458,11 @@ NOTE: Called at PASSIVE_LEVEL and the filter is in paused state
 
     // Stop event processing thread
     otLwfEventProcessingStop(pFilter);
-    
-    // Free OpenThread context memory
-    otInstanceFinalize(pFilter->otCtx);
-    pFilter->otCtx = NULL;
-    NdisFreeMemory(pFilter->otInstanceBuffer, 0, 0);
-    pFilter->otInstanceBuffer = NULL;
+
+    // Remove this Filter from the global list
+    NdisAcquireSpinLock(&FilterListLock);
+    RemoveEntryList(&pFilter->FilterModuleLink);
+    NdisReleaseSpinLock(&FilterListLock);
 
     // Free NBL & Pools
     NdisAdvanceNetBufferDataStart(NET_BUFFER_LIST_FIRST_NB(pFilter->SendNetBufferList), kMaxPHYPacketSize, TRUE, NULL);
@@ -739,6 +687,20 @@ NOTE: called at <= DISPATCH_LEVEL
         // Cache the link state from the miniport
         memcpy(&pFilter->MiniportLinkState, LinkState, sizeof(NDIS_LINK_STATE));
     }
+    else if (StatusIndication->StatusCode == NDIS_STATUS_OT_ENERGY_SCAN_RESULT)
+    {
+        NT_ASSERT(StatusIndication->StatusBufferSize == sizeof(OT_ENERGY_SCAN_RESULT));
+        if (StatusIndication->StatusBufferSize != sizeof(OT_ENERGY_SCAN_RESULT)) goto exit;
+
+        POT_ENERGY_SCAN_RESULT ScanResult = (POT_ENERGY_SCAN_RESULT)StatusIndication->StatusBuffer;
+
+        LogInfo(DRIVER_DEFAULT, "Filter: %p, completed energy scan: Rssi:%d, Status:%!NDIS_STATUS!", FilterModuleContext, ScanResult->MaxRssi, ScanResult->Status);
+
+        // Marshal to OpenThread worker to indicate back
+        otLwfEventProcessingIndicateEnergyScanResult(pFilter, ScanResult->MaxRssi);
+    }
+
+exit:
 
     NdisFIndicateStatus(pFilter->FilterHandle, StatusIndication);
     
@@ -831,7 +793,7 @@ NOTE: called at PASSIVE_LEVEL
 
         default:
             LogError(DRIVER_DEFAULT, "FilterDevicePnPEventNotify: Invalid event.\n");
-            FILTER_ASSERT(bFalse);
+            NT_ASSERT(bFalse);
             break;
     }
 
@@ -918,6 +880,77 @@ otLwfRevertCompartment(
     }
 }
 
+#if DBG
+PMS_FILTER
+otLwfFindFromCurrentThread()
+{
+    PMS_FILTER pOutput = NULL;
+    HANDLE CurThreadId = PsGetCurrentThreadId();
+
+    NdisAcquireSpinLock(&FilterListLock);
+
+    for (PLIST_ENTRY Link = FilterModuleList.Flink; Link != &FilterModuleList; Link = Link->Flink)
+    {
+        PMS_FILTER pFilter = CONTAINING_RECORD(Link, MS_FILTER, FilterModuleLink);
+
+        if (pFilter->otThreadId == CurThreadId)
+        {
+            pOutput = pFilter;
+            break;
+        }
+    }
+
+    NdisReleaseSpinLock(&FilterListLock);
+
+    NT_ASSERT(pOutput);
+    return pOutput;
+}
+#endif
+
+void *otPlatCAlloc(size_t aNum, size_t aSize)
+{
+    size_t totalSize = aNum * aSize;
+#if DBG
+    totalSize += sizeof(OT_ALLOC);
+#endif
+    PVOID mem = ExAllocatePoolWithTag(NonPagedPoolNx, totalSize, 'OTDM');
+    if (mem)
+    {
+        RtlZeroMemory(mem, totalSize);
+#if DBG
+        PMS_FILTER pFilter = otLwfFindFromCurrentThread();
+        //LogVerbose(DRIVER_DEFAULT, "otPlatAlloc(%u) = ID:%u %p", (ULONG)totalSize, pFilter->otAllocationID, mem);
+
+        OT_ALLOC* AllocHeader = (OT_ALLOC*)mem;
+        AllocHeader->Length = (LONG)totalSize;
+        AllocHeader->ID = pFilter->otAllocationID++;
+        InsertTailList(&pFilter->otOutStandingAllocations, &AllocHeader->Link);
+
+        InterlockedIncrement(&pFilter->otOutstandingAllocationCount);
+        InterlockedAdd(&pFilter->otOutstandingMemoryAllocated, AllocHeader->Length);
+        
+        mem = (PUCHAR)(mem) + sizeof(OT_ALLOC);
+#endif
+    }
+    return mem;
+}
+
+void otPlatFree(void *aPtr)
+{
+    if (aPtr == NULL) return;
+#if DBG
+    aPtr = (PUCHAR)(aPtr) - sizeof(OT_ALLOC);
+    //LogVerbose(DRIVER_DEFAULT, "otPlatFree(%p)", aPtr);
+    OT_ALLOC* AllocHeader = (OT_ALLOC*)aPtr;
+
+    PMS_FILTER pFilter = otLwfFindFromCurrentThread();
+    InterlockedDecrement(&pFilter->otOutstandingAllocationCount);
+    InterlockedAdd(&pFilter->otOutstandingMemoryAllocated, -AllocHeader->Length);
+    RemoveEntryList(&AllocHeader->Link);
+#endif
+    ExFreePoolWithTag(aPtr, 'OTDM');
+}
+
 uint32_t otPlatRandomGet()
 {
     LARGE_INTEGER Counter = KeQueryPerformanceCounter(NULL);
@@ -976,6 +1009,8 @@ otLwfProcessRoleStateChange(
 
 void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
 {
+    LogFuncEntry(DRIVER_DEFAULT);
+
     PMS_FILTER pFilter = (PMS_FILTER)aContext;
     PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
 
@@ -1006,9 +1041,9 @@ void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
         LogVerbose(DRIVER_DEFAULT, "Filter %p received OT_NET_PARTITION_ID", pFilter);
     }
 
-    if ((aFlags & OT_NET_KEY_SEQUENCE) != 0)
+    if ((aFlags & OT_NET_KEY_SEQUENCE_COUNTER) != 0)
     {
-        LogVerbose(DRIVER_DEFAULT, "Filter %p received OT_NET_KEY_SEQUENCE", pFilter);
+        LogVerbose(DRIVER_DEFAULT, "Filter %p received OT_NET_KEY_SEQUENCE_COUNTER", pFilter);
     }
 
     if ((aFlags & OT_THREAD_CHILD_ADDED) != 0)
@@ -1019,6 +1054,12 @@ void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
     if ((aFlags & OT_THREAD_CHILD_REMOVED) != 0)
     {
         LogVerbose(DRIVER_DEFAULT, "Filter %p received OT_THREAD_CHILD_REMOVED", pFilter);
+    }
+
+    if ((aFlags & OT_THREAD_NETDATA_UPDATED) != 0)
+    {
+        LogVerbose(DRIVER_DEFAULT, "Filter %p received OT_THREAD_NETDATA_UPDATED", pFilter);
+        otSlaacUpdate(pFilter->otCtx, pFilter->otAutoAddresses, ARRAYSIZE(pFilter->otAutoAddresses), otCreateRandomIid, NULL);
     }
 
     if ((aFlags & OT_IP6_ML_ADDR_CHANGED) != 0)
@@ -1039,6 +1080,8 @@ void otLwfStateChangedCallback(uint32_t aFlags, _In_ void *aContext)
 
         otLwfIndicateNotification(NotifEntry);
     }
+
+    LogFuncExit(DRIVER_DEFAULT);
 }
 
 void otLwfActiveScanCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext)
@@ -1069,6 +1112,34 @@ void otLwfActiveScanCallback(_In_ otActiveScanResult *aResult, _In_ void *aConte
     LogFuncExit(DRIVER_DEFAULT);
 }
 
+void otLwfEnergyScanCallback(_In_ otEnergyScanResult *aResult, _In_ void *aContext)
+{
+    LogFuncEntry(DRIVER_DEFAULT);
+
+    PMS_FILTER pFilter = (PMS_FILTER)aContext;
+    PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
+    if (NotifEntry)
+    {
+        RtlZeroMemory(NotifEntry, sizeof(FILTER_NOTIFICATION_ENTRY));
+        NotifEntry->Notif.InterfaceGuid = pFilter->InterfaceGuid;
+        NotifEntry->Notif.NotifType = OTLWF_NOTIF_ENERGY_SCAN;
+
+        if (aResult)
+        {
+            NotifEntry->Notif.EnergyScanPayload.Valid = TRUE;
+            NotifEntry->Notif.EnergyScanPayload.Results = *aResult;
+        }
+        else
+        {
+            NotifEntry->Notif.EnergyScanPayload.Valid = FALSE;
+        }
+        
+        otLwfIndicateNotification(NotifEntry);
+    }
+
+    LogFuncExit(DRIVER_DEFAULT);
+}
+
 void otLwfDiscoverCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext)
 {
     LogFuncEntry(DRIVER_DEFAULT);
@@ -1090,6 +1161,52 @@ void otLwfDiscoverCallback(_In_ otActiveScanResult *aResult, _In_ void *aContext
         {
             NotifEntry->Notif.DiscoverPayload.Valid = FALSE;
         }
+        
+        otLwfIndicateNotification(NotifEntry);
+    }
+
+    LogFuncExit(DRIVER_DEFAULT);
+}
+
+void otLwfCommissionerEnergyReportCallback(uint32_t aChannelMask, const uint8_t *aEnergyList, uint8_t aEnergyListLength, void *aContext)
+{
+    LogFuncEntry(DRIVER_DEFAULT);
+    
+    PMS_FILTER pFilter = (PMS_FILTER)aContext;
+    PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
+    if (NotifEntry)
+    {
+        RtlZeroMemory(NotifEntry, sizeof(FILTER_NOTIFICATION_ENTRY));
+        NotifEntry->Notif.InterfaceGuid = pFilter->InterfaceGuid;
+        NotifEntry->Notif.NotifType = OTLWF_NOTIF_COMMISSIONER_ENERGY_REPORT;
+
+        // Limit the number of reports if necessary
+        if (aEnergyListLength > MAX_ENERGY_REPORT_LENGTH) aEnergyListLength = MAX_ENERGY_REPORT_LENGTH;
+        
+        NotifEntry->Notif.CommissionerEnergyReportPayload.ChannelMask = aChannelMask;
+        NotifEntry->Notif.CommissionerEnergyReportPayload.EnergyListLength = aEnergyListLength;
+        memcpy(NotifEntry->Notif.CommissionerEnergyReportPayload.EnergyList, aEnergyList, aEnergyListLength);
+        
+        otLwfIndicateNotification(NotifEntry);
+    }
+
+    LogFuncExit(DRIVER_DEFAULT);
+}
+
+void otLwfCommissionerPanIdConflictCallback(uint16_t aPanId, uint32_t aChannelMask, _In_ void *aContext)
+{
+    LogFuncEntry(DRIVER_DEFAULT);
+    
+    PMS_FILTER pFilter = (PMS_FILTER)aContext;
+    PFILTER_NOTIFICATION_ENTRY NotifEntry = FILTER_ALLOC_NOTIF(pFilter);
+    if (NotifEntry)
+    {
+        RtlZeroMemory(NotifEntry, sizeof(FILTER_NOTIFICATION_ENTRY));
+        NotifEntry->Notif.InterfaceGuid = pFilter->InterfaceGuid;
+        NotifEntry->Notif.NotifType = OTLWF_NOTIF_COMMISSIONER_PANID_QUERY;
+        
+        NotifEntry->Notif.CommissionerPanIdQueryPayload.PanId = aPanId;
+        NotifEntry->Notif.CommissionerPanIdQueryPayload.ChannelMask = aChannelMask;
         
         otLwfIndicateNotification(NotifEntry);
     }

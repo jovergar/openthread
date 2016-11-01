@@ -31,6 +31,8 @@
  *   This file implements ICMPv6.
  */
 
+#define WPP_NAME "icmp6.tmh"
+
 #include <string.h>
 
 #include <common/code_utils.hpp>
@@ -72,7 +74,7 @@ ThreadError Icmp::RegisterCallbacks(IcmpHandler &aHandler)
     {
         if (cur == &aHandler)
         {
-            ExitNow(error = kThreadError_Busy);
+            ExitNow(error = kThreadError_Already);
         }
     }
 
@@ -106,7 +108,7 @@ ThreadError Icmp::SendEchoRequest(Message &aMessage, const MessageInfo &aMessage
     aMessage.SetOffset(0);
     SuccessOrExit(error = mIp6.SendDatagram(aMessage, messageInfoLocal, kProtoIcmp6));
 
-    otLogInfoIcmp("Sent echo request\n");
+    otLogInfoIcmp("Sent echo request: (seq = %d)", icmpHeader.GetSequence());
 
 exit:
     return error;
@@ -135,7 +137,7 @@ ThreadError Icmp::SendError(const Address &aDestination, IcmpHeader::Type aType,
 
     SuccessOrExit(error = mIp6.SendDatagram(*message, messageInfo, kProtoIcmp6));
 
-    otLogInfoIcmp("Sent ICMPv6 Error\n");
+    otLogInfoIcmp("Sent ICMPv6 Error");
 
 exit:
 
@@ -205,19 +207,19 @@ ThreadError Icmp::HandleEchoRequest(Message &aRequestMessage, const MessageInfo 
 
     VerifyOrExit(mIsEchoEnabled, ;);
 
-    otLogInfoIcmp("Received Echo Request\n");
+    otLogInfoIcmp("Received Echo Request");
 
     icmp6Header.Init();
     icmp6Header.SetType(IcmpHeader::kTypeEchoReply);
 
     if ((replyMessage = mIp6.NewMessage(0)) == NULL)
     {
-        otLogDebgIcmp("icmp fail\n");
-        goto exit;
+        otLogDebgIcmp("icmp fail");
+        ExitNow();
     }
 
     payloadLength = aRequestMessage.GetLength() - aRequestMessage.GetOffset() - IcmpHeader::GetDataOffset();
-    SuccessOrExit(replyMessage->SetLength(IcmpHeader::GetDataOffset() + payloadLength));
+    SuccessOrExit(error = replyMessage->SetLength(IcmpHeader::GetDataOffset() + payloadLength));
 
     replyMessage->Write(0, IcmpHeader::GetDataOffset(), &icmp6Header);
     aRequestMessage.CopyTo(aRequestMessage.GetOffset() + IcmpHeader::GetDataOffset(),
@@ -235,7 +237,8 @@ ThreadError Icmp::HandleEchoRequest(Message &aRequestMessage, const MessageInfo 
 
     SuccessOrExit(error = mIp6.SendDatagram(*replyMessage, replyMessageInfo, kProtoIcmp6));
 
-    otLogInfoIcmp("Sent Echo Reply\n");
+    replyMessage->Read(replyMessage->GetOffset(), sizeof(icmp6Header), &icmp6Header);
+    otLogInfoIcmp("Sent Echo Reply (seq = %d)", icmp6Header.GetSequence());
 
 exit:
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -64,3 +64,20 @@
 
 /* Platform version information */
 #define PLATFORM_INFO "Windows"
+
+// Windows Kernel only has sprintf_s
+#ifdef _KERNEL_MODE
+#define snprintf sprintf_s
+#endif // _KERNEL_MODE
+
+// Redefine rand to random for test code
+#define random rand
+
+// Temporary !!! TODO - Remove this once we figure out the strncpy issue
+#define _CRT_SECURE_NO_WARNINGS
+
+// Disable a few warnings that we don't care about
+#pragma warning(disable:4200)  // nonstandard extension used: zero-sized array in struct/union
+#pragma warning(disable:4201)  // nonstandard extension used : nameless struct/union
+#pragma warning(disable:4291)  // no matching operator delete found 
+#pragma warning(disable:4815)  // zero-sized array in stack object will have no elements

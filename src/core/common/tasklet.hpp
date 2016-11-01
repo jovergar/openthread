@@ -113,7 +113,7 @@ public:
      * @param[in]  aTasklet  A reference to the tasklet to enqueue.
      *
      * @retval kThreadError_None  Successfully enqueued the tasklet.
-     * @retval kThreadError_Busy  The tasklet was already enqueued.
+     * @retval kThreadError_Already  The tasklet was already enqueued.
      */
     ThreadError Post(Tasklet &aTasklet);
 
@@ -127,10 +127,18 @@ public:
     bool AreTaskletsPending(void);
 
     /**
-     * This method runs the next tasklet.
+     * This method processes all tasklets queued when this is called.
      *
      */
-    void RunNextTasklet(void);
+    void ProcessQueuedTasklets(void);
+
+    /**
+     * This method returns the pointer to the parent Ip6 structure.
+     *
+     * @returns The pointer to the parent Ip6 structure.
+     *
+     */
+    Ip6::Ip6 *GetIp6();
 
     /**
      * This method returns the pointer to the parent Ip6 structure.

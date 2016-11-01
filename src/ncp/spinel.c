@@ -105,13 +105,21 @@ static size_t spinel_strnlen_(const char *s, size_t maxlen)
 #endif
 
 #ifndef require_action
+#if SPINEL_PLATFORM_SHOULD_LOG_ASSERTS
 #define require_action(c, l, a) \
     do { if (!(c)) { \
         assert_printf("Requirement Failed (%s)", # c); \
         a; \
         goto l; \
     } } while (0)
-#endif
+#else // if DEBUG
+#define require_action(c, l, a) \
+    do { if (!(c)) { \
+        a; \
+        goto l; \
+    } } while (0)
+#endif // else DEBUG
+#endif // ifndef require_action
 
 #ifndef require
 #define require(c, l)   require_action(c, l, {})
@@ -964,8 +972,8 @@ spinel_prop_key_to_cstr(spinel_prop_key_t prop_key)
         ret = "PROP_MAC_RAW_STREAM_ENABLED";
         break;
 
-    case SPINEL_PROP_MAC_FILTER_MODE:
-        ret = "PROP_MAC_FILTER_MODE";
+    case SPINEL_PROP_MAC_PROMISCUOUS_MODE:
+        ret = "PROP_MAC_PROMISCUOUS_MODE";
         break;
 
     case SPINEL_PROP_MAC_SCAN_STATE:
@@ -978,6 +986,10 @@ spinel_prop_key_to_cstr(spinel_prop_key_t prop_key)
 
     case SPINEL_PROP_MAC_SCAN_BEACON:
         ret = "PROP_MAC_SCAN_BEACON";
+        break;
+
+    case SPINEL_PROP_MAC_ENERGY_SCAN_RESULT:
+        ret = "PROP_MAC_SCAN_ENERGY_SCAN_RESULT";
         break;
 
     case SPINEL_PROP_MAC_SCAN_PERIOD:
@@ -1024,12 +1036,16 @@ spinel_prop_key_to_cstr(spinel_prop_key_t prop_key)
         ret = "PROP_NET_MASTER_KEY";
         break;
 
-    case SPINEL_PROP_NET_KEY_SEQUENCE:
-        ret = "PROP_NET_KEY_SEQUENCE";
+    case SPINEL_PROP_NET_KEY_SEQUENCE_COUNTER:
+        ret = "PROP_NET_KEY_SEQUENCE_COUNTER";
         break;
 
     case SPINEL_PROP_NET_PARTITION_ID:
         ret = "PROP_NET_PARTITION_ID";
+        break;
+
+    case SPINEL_PROP_NET_KEY_SWITCH_GUARDTIME:
+        ret = "PROP_NET_KEY_SWITCH_GUARDTIME";
         break;
 
     case SPINEL_PROP_THREAD_LEADER_ADDR:
@@ -1120,6 +1136,14 @@ spinel_prop_key_to_cstr(spinel_prop_key_t prop_key)
         ret = "SPINEL_PROP_THREAD_ROUTER_ROLE_ENABLED";
         break;
 
+    case SPINEL_PROP_THREAD_ROUTER_UPGRADE_THRESHOLD:
+        ret = "PROP_THREAD_ROUTER_UPGRADE_THRESHOLD";
+        break;
+
+    case SPINEL_PROP_THREAD_CONTEXT_REUSE_DELAY:
+        ret = "PROP_THREAD_CONTEXT_REUSE_DELAY";
+        break;
+
     case SPINEL_PROP_MAC_WHITELIST:
         ret = "PROP_MAC_WHITELIST";
         break;
@@ -1136,21 +1160,37 @@ spinel_prop_key_to_cstr(spinel_prop_key_t prop_key)
         ret = "PROP_THREAD_CHILD_TIMEOUT";
         break;
 
-    case SPINEL_PROP_THREAD_ROUTER_UPGRADE_THRESHOLD:
-        ret = "PROP_THREAD_ROUTER_UPGRADE_THRESHOLD";
-        break;
-
-    case SPINEL_PROP_THREAD_CONTEXT_REUSE_DELAY:
-        ret = "PROP_THREAD_CONTEXT_REUSE_DELAY";
-        break;
 
     case SPINEL_PROP_NET_REQUIRE_JOIN_EXISTING:
         ret = "PROP_NET_REQUIRE_JOIN_EXISTING";
         break;
 
-
     case SPINEL_PROP_NEST_STREAM_MFG:
         ret = "SPINEL_PROP_NEST_STREAM_MFG";
+        break;
+
+    case SPINEL_PROP_THREAD_NETWORK_ID_TIMEOUT:
+        ret = "SPINEL_PROP_THREAD_NETWORK_ID_TIMEOUT";
+        break;
+
+    case SPINEL_PROP_THREAD_ACTIVE_ROUTER_IDS:
+        ret = "SPINEL_PROP_THREAD_ACTIVE_ROUTER_IDS";
+        break;
+
+    case SPINEL_PROP_THREAD_ROUTER_DOWNGRADE_THRESHOLD:
+        ret = "SPINEL_PROP_THREAD_ROUTER_DOWNGRADE_THRESHOLD";
+        break;
+
+    case SPINEL_PROP_THREAD_ROUTER_SELECTION_JITTER:
+        ret = "SPINEL_PROP_THREAD_ROUTER_SELECTION_JITTER";
+        break;
+
+    case SPINEL_PROP_THREAD_PREFERRED_ROUTER_ID:
+        ret = "SPINEL_PROP_THREAD_PREFERRED_ROUTER_ID";
+        break;
+
+    case SPINEL_PROP_THREAD_NEIGHBOR_TABLE:
+        ret = "SPINEL_PROP_THREAD_NEIGHBOR_TABLE";
         break;
 
     default:

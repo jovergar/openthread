@@ -27,7 +27,6 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-import pexpect
 import time
 import unittest
 
@@ -46,11 +45,13 @@ class Cert_5_8_1_KeySynchronization(unittest.TestCase):
         self.nodes[LEADER].set_mode('rsdn')
         self.nodes[LEADER].add_whitelist(self.nodes[ED].get_addr64())
         self.nodes[LEADER].enable_whitelist()
+        self.nodes[LEADER].set_key_switch_guardtime(0)
 
         self.nodes[ED].set_panid(0xface)
         self.nodes[ED].set_mode('rsn')
         self.nodes[ED].add_whitelist(self.nodes[LEADER].get_addr64())
         self.nodes[ED].enable_whitelist()
+        self.nodes[ED].set_key_switch_guardtime(0)
 
     def tearDown(self):
         for node in list(self.nodes.values()):
@@ -63,24 +64,21 @@ class Cert_5_8_1_KeySynchronization(unittest.TestCase):
         self.assertEqual(self.nodes[LEADER].get_state(), 'leader')
 
         self.nodes[ED].start()
-        time.sleep(3)
+        time.sleep(5)
         self.assertEqual(self.nodes[ED].get_state(), 'child')
 
         addrs = self.nodes[LEADER].get_addrs()
         for addr in addrs:
             if 'ff:fe00' not in addr:
-                self.nodes[ED].ping(addr)
+                self.assertTrue(self.nodes[ED].ping(addr))
 
-        key_sequence = self.nodes[ED].get_key_sequence()
-        self.nodes[ED].set_key_sequence(key_sequence + 10)
+        key_sequence_counter = self.nodes[ED].get_key_sequence_counter()
+        self.nodes[ED].set_key_sequence_counter(key_sequence_counter + 10)
 
         addrs = self.nodes[LEADER].get_addrs()
         for addr in addrs:
             if 'ff:fe00' not in addr:
-                try:
-                    self.nodes[ED].ping(addr)
-                except pexpect.TIMEOUT:
-                    pass
+                self.assertFalse(self.nodes[ED].ping(addr))
 
 if __name__ == '__main__':
     unittest.main()

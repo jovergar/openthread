@@ -82,7 +82,6 @@ public:
      * This method enables mesh forwarding and the IEEE 802.15.4 MAC layer.
      *
      * @retval kThreadError_None          Successfully enabled the mesh forwarder.
-     * @retval kThreadError_InvalidState  The mesh forwarder was already enabled.
      *
      */
     ThreadError Start(void);
@@ -91,7 +90,6 @@ public:
      * This method disables mesh forwarding and the IEEE 802.15.4 MAC layer.
      *
      * @retval kThreadError_None          Successfully disabled the mesh forwarder.
-     * @retval kThreadError_InvalidState  The mesh forwarder was already disabled.
      *
      */
     ThreadError Stop(void);
@@ -208,8 +206,8 @@ private:
     static ThreadError HandleFrameRequest(void *aContext, Mac::Frame &aFrame);
     ThreadError HandleFrameRequest(Mac::Frame &aFrame);
 
-    static void HandleSentFrame(void *aContext, Mac::Frame &aFrame);
-    void HandleSentFrame(Mac::Frame &aFrame);
+    static void HandleSentFrame(void *aContext, Mac::Frame &aFrame, ThreadError aError);
+    void HandleSentFrame(Mac::Frame &aFrame, ThreadError aError);
 
     static void HandleDiscoverTimer(void *aContext);
     void HandleDiscoverTimer(void);
@@ -220,6 +218,10 @@ private:
 
     static void ScheduleTransmissionTask(void *aContext);
     void ScheduleTransmissionTask(void);
+
+    ThreadError AddPendingSrcMatchEntries();
+    ThreadError AddSrcMatchEntry(Child &aChild);
+    void ClearSrcMatchEntry(Child &aChild);
 
     Mac::Receiver mMacReceiver;
     Mac::Sender mMacSender;
@@ -259,6 +261,8 @@ private:
     Mac::Mac &mMac;
     Mle::MleRouter &mMle;
     NetworkData::Leader &mNetworkData;
+
+    bool mSrcMatchEnabled;
 };
 
 /**

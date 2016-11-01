@@ -45,14 +45,14 @@
 namespace Thread {
 namespace Ip6 {
 
-Netif::Netif(Ip6 &aIp6):
+Netif::Netif(Ip6 &aIp6, int8_t aInterfaceId):
     mIp6(aIp6),
     mStateChangedTask(aIp6.mTaskletScheduler, &Netif::HandleStateChangedTask, this)
 {
     mCallbacks = NULL;
     mUnicastAddresses = NULL;
     mMulticastAddresses = NULL;
-    mInterfaceId = -1;
+    mInterfaceId = aInterfaceId;
     mAllRoutersSubscribed = false;
     mNext = NULL;
     mMaskExtUnicastAddresses = 0;
@@ -68,7 +68,7 @@ ThreadError Netif::RegisterCallback(NetifCallback &aCallback)
     {
         if (cur == &aCallback)
         {
-            ExitNow(error = kThreadError_Busy);
+            ExitNow(error = kThreadError_Already);
         }
     }
 
@@ -76,6 +76,35 @@ ThreadError Netif::RegisterCallback(NetifCallback &aCallback)
     mCallbacks = &aCallback;
 
 exit:
+    return error;
+}
+
+ThreadError Netif::RemoveCallback(NetifCallback &aCallback)
+{
+    ThreadError error = kThreadError_Already;
+    NetifCallback *prev = NULL;
+
+    for (NetifCallback *cur = mCallbacks; cur; cur = cur->mNext)
+    {
+        if (cur == &aCallback)
+        {
+            if (prev)
+            {
+                prev->mNext = cur->mNext;
+            }
+            else
+            {
+                mCallbacks = mCallbacks->mNext;
+            }
+
+            cur->mNext = NULL;
+            error = kThreadError_None;
+            break;
+        }
+
+        prev = cur;
+    }
+
     return error;
 }
 
@@ -137,7 +166,7 @@ ThreadError Netif::SubscribeMulticast(NetifMulticastAddress &aAddress)
     {
         if (cur == &aAddress)
         {
-            ExitNow(error = kThreadError_Busy);
+            ExitNow(error = kThreadError_Already);
         }
     }
 
@@ -188,17 +217,14 @@ ThreadError Netif::AddUnicastAddress(NetifUnicastAddress &aAddress)
     {
         if (cur == &aAddress)
         {
-            ExitNow(error = kThreadError_Busy);
+            ExitNow(error = kThreadError_Already);
         }
     }
 
     aAddress.mNext = mUnicastAddresses;
     mUnicastAddresses = &aAddress;
 
-    if (!aAddress.GetAddress().IsRoutingLocator())
-    {
-        SetStateChangedFlags(OT_IP6_ADDRESS_ADDED);
-    }
+    SetStateChangedFlags(OT_IP6_ADDRESS_ADDED);
 
 exit:
     return error;
@@ -229,7 +255,7 @@ ThreadError Netif::RemoveUnicastAddress(const NetifUnicastAddress &aAddress)
 
 exit:
 
-    if (!aAddress.GetAddress().IsRoutingLocator())
+    if (error != kThreadError_NotFound)
     {
         SetStateChangedFlags(OT_IP6_ADDRESS_REMOVED);
     }
@@ -356,8 +382,7 @@ void Netif::SetStateChangedFlags(uint32_t aFlags)
 
 void Netif::HandleStateChangedTask(void *aContext)
 {
-    Netif *obj = reinterpret_cast<Netif *>(aContext);
-    obj->HandleStateChangedTask();
+    static_cast<Netif *>(aContext)->HandleStateChangedTask();
 }
 
 void Netif::HandleStateChangedTask(void)

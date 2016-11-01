@@ -43,6 +43,7 @@
 #include <common/encoding.hpp>
 #include <common/new.hpp>
 #include <common/tasklet.hpp>
+#include <platform/logging.h>
 #include <platform/uart.h>
 
 namespace Thread {
@@ -127,8 +128,12 @@ void Uart::ReceiveTask(const uint8_t *aBuf, uint16_t aBufLength)
             break;
 
         default:
-            Output(reinterpret_cast<const char *>(aBuf), 1);
-            mRxBuffer[mRxLength++] = static_cast<char>(*aBuf);
+            if (mRxLength < kRxBufferSize)
+            {
+                Output(reinterpret_cast<const char *>(aBuf), 1);
+                mRxBuffer[mRxLength++] = static_cast<char>(*aBuf);
+            }
+
             break;
         }
     }
@@ -189,6 +194,15 @@ int Uart::OutputFormat(const char *fmt, ...)
     return Output(buf, static_cast<uint16_t>(strlen(buf)));
 }
 
+int Uart::OutputFormatV(const char *aFmt, va_list aAp)
+{
+    char buf[kMaxLineLength];
+
+    vsnprintf(buf, sizeof(buf), aFmt, aAp);
+
+    return Output(buf, static_cast<uint16_t>(strlen(buf)));
+}
+
 void Uart::Send(void)
 {
     VerifyOrExit(mSendLength == 0, ;);
@@ -224,6 +238,97 @@ void Uart::SendDoneTask(void)
 
     Send();
 }
+
+#if OPENTHREAD_ENABLE_CLI_LOGGING
+#ifdef __cplusplus
+extern "C" {
+#endif
+void otCliLog(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aFormat, va_list aAp)
+{
+    if (NULL == Uart::sUartServer)
+    {
+        return;
+    }
+
+    switch (aLogLevel)
+    {
+    case kLogLevelNone:
+        Uart::sUartServer->OutputFormat("NONE ");
+        break;
+
+    case kLogLevelCrit:
+        Uart::sUartServer->OutputFormat("CRIT ");
+        break;
+
+    case kLogLevelWarn:
+        Uart::sUartServer->OutputFormat("WARN ");
+        break;
+
+    case kLogLevelInfo:
+        Uart::sUartServer->OutputFormat("INFO ");
+        break;
+
+    case kLogLevelDebg:
+        Uart::sUartServer->OutputFormat("DEBG ");
+        break;
+
+    default:
+        return;
+    }
+
+    switch (aLogRegion)
+    {
+    case kLogRegionApi:
+        Uart::sUartServer->OutputFormat("API  ");
+        break;
+
+    case kLogRegionMle:
+        Uart::sUartServer->OutputFormat("MLE  ");
+        break;
+
+    case kLogRegionArp:
+        Uart::sUartServer->OutputFormat("ARP  ");
+        break;
+
+    case kLogRegionNetData:
+        Uart::sUartServer->OutputFormat("NETD ");
+        break;
+
+    case kLogRegionIp6:
+        Uart::sUartServer->OutputFormat("IPV6 ");
+        break;
+
+    case kLogRegionIcmp:
+        Uart::sUartServer->OutputFormat("ICMP ");
+        break;
+
+    case kLogRegionMac:
+        Uart::sUartServer->OutputFormat("MAC  ");
+        break;
+
+    case kLogRegionMem:
+        Uart::sUartServer->OutputFormat("MEM  ");
+        break;
+
+    case kLogRegionNcp:
+        Uart::sUartServer->OutputFormat("NCP  ");
+        break;
+
+    case kLogRegionMeshCoP:
+        Uart::sUartServer->OutputFormat("MCOP ");
+        break;
+
+    default:
+        return;
+    }
+
+    Uart::sUartServer->OutputFormatV(aFormat, aAp);
+    Uart::sUartServer->OutputFormat("\r\n");
+}
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+#endif // OPENTHREAD_ENABLE_CLI_LOGGING
 
 }  // namespace Cli
 }  // namespace Thread

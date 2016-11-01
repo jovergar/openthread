@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -56,9 +56,14 @@ typedef enum _OTLWF_NOTIF_TYPE
     OTLWF_NOTIF_DEVICE_AVAILABILITY,
     OTLWF_NOTIF_STATE_CHANGE,
     OTLWF_NOTIF_DISCOVER,
-    OTLWF_NOTIF_ACTIVE_SCAN
+    OTLWF_NOTIF_ACTIVE_SCAN,
+    OTLWF_NOTIF_ENERGY_SCAN,
+    OTLWF_NOTIF_COMMISSIONER_ENERGY_REPORT,
+    OTLWF_NOTIF_COMMISSIONER_PANID_QUERY
 
 } OTLWF_NOTIF_TYPE;
+
+#define MAX_ENERGY_REPORT_LENGTH    64
 
 //
 // Queries (async) the next notification in the queue
@@ -95,6 +100,29 @@ typedef enum _OTLWF_NOTIF_TYPE
                 BOOLEAN                 Valid;
                 otActiveScanResult      Results;
             } ActiveScanPayload;
+
+            // Payload for OTLWF_NOTIF_ENERGY_SCAN
+            struct
+            {
+                BOOLEAN                 Valid;
+                otEnergyScanResult      Results;
+            } EnergyScanPayload;
+
+            // Payload for OTLWF_NOTIF_COMMISSIONER_ENERGY_REPORT
+            struct
+            {
+                uint32_t                ChannelMask;
+                uint8_t                 EnergyListLength;
+                uint8_t                 EnergyList[MAX_ENERGY_REPORT_LENGTH];
+                                                          
+            } CommissionerEnergyReportPayload;
+
+            // Payload for OTLWF_NOTIF_COMMISSIONER_PANID_QUERY
+            struct
+            {
+                uint16_t                PanId;
+                uint32_t                ChannelMask;
+            } CommissionerPanIdQueryPayload;
         };
     } OTLWF_NOTIFICATION, *POTLWF_NOTIFICATION;
 
@@ -470,33 +498,165 @@ typedef enum _OTLWF_NOTIF_TYPE
     OTLWF_CTL_CODE(166, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
     // GUID - InterfaceGuid
     // uint8_t - aMaxChildren
-
-#define OPENTHREAD_PSK_MAX_LENGTH 32
-typedef struct otPSKd
-{
-    uint8_t buffer[OPENTHREAD_PSK_MAX_LENGTH + 1];
-} otPSKd;
     
 #define IOCTL_OTLWF_OT_COMMISIONER_START \
     OTLWF_CTL_CODE(167, METHOD_BUFFERED, FILE_WRITE_DATA)
     // GUID - InterfaceGuid
-    // otPSKd - aPSKd
     
 #define IOCTL_OTLWF_OT_COMMISIONER_STOP \
     OTLWF_CTL_CODE(168, METHOD_BUFFERED, FILE_WRITE_DATA)
     // GUID - InterfaceGuid
+
+#define OPENTHREAD_PSK_MAX_LENGTH       32
+#define OPENTHREAD_PROV_URL_MAX_LENGTH  64
+typedef struct otCommissionConfig
+{
+    uint8_t PSKd[OPENTHREAD_PSK_MAX_LENGTH + 1];
+    uint8_t ProvisioningUrl[OPENTHREAD_PROV_URL_MAX_LENGTH + 1];
+} otCommissionConfig;
     
 #define IOCTL_OTLWF_OT_JOINER_START \
     OTLWF_CTL_CODE(169, METHOD_BUFFERED, FILE_WRITE_DATA)
     // GUID - InterfaceGuid
-    // otPSKd - aPSKd
+    // otCommissionConfig - aConfig
     
 #define IOCTL_OTLWF_OT_JOINER_STOP \
     OTLWF_CTL_CODE(170, METHOD_BUFFERED, FILE_WRITE_DATA)
     // GUID - InterfaceGuid
+    
+#define IOCTL_OTLWF_OT_FACTORY_EUI64 \
+    OTLWF_CTL_CODE(171, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // otExtAddress - aEui64
+    
+#define IOCTL_OTLWF_OT_HASH_MAC_ADDRESS \
+    OTLWF_CTL_CODE(172, METHOD_BUFFERED, FILE_READ_DATA)
+    // GUID - InterfaceGuid
+    // otExtAddress - aEui64
+    
+#define IOCTL_OTLWF_OT_ROUTER_DOWNGRADE_THRESHOLD \
+    OTLWF_CTL_CODE(173, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aThreshold
+    
+#define IOCTL_OTLWF_OT_COMMISSIONER_PANID_QUERY \
+    OTLWF_CTL_CODE(174, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint16_t - aPanId
+    // uint32_t - aChannekMask
+    // otIp6Address - aAddress
+    
+#define IOCTL_OTLWF_OT_COMMISSIONER_ENERGY_SCAN \
+    OTLWF_CTL_CODE(175, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aChannekMask
+    // uint8_t - aCount
+    // uint16_t - aPeriod
+    // uint16_t - aScanDuration
+    // otIp6Address - aAddress
+    
+#define IOCTL_OTLWF_OT_ROUTER_SELECTION_JITTER \
+    OTLWF_CTL_CODE(176, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aRouterJitter
+    
+#define IOCTL_OTLWF_OT_JOINER_UDP_PORT \
+    OTLWF_CTL_CODE(177, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint16_t - aJoinerUdpPort
+    
+#define IOCTL_OTLWF_OT_SEND_DIAGNOSTIC_GET \
+    OTLWF_CTL_CODE(178, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otIp6Address - aDestination
+    // uint8_t - aCount
+    // uint8_t[aCount] - aTlvTypes
+    
+#define IOCTL_OTLWF_OT_SEND_DIAGNOSTIC_RESET \
+    OTLWF_CTL_CODE(179, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otIp6Address - aDestination
+    // uint8_t - aCount
+    // uint8_t[aCount] - aTlvTypes
+    
+#define IOCTL_OTLWF_OT_COMMISIONER_ADD_JOINER \
+    OTLWF_CTL_CODE(180, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aExtAddressValid
+    // otExtAddress - aExtAddress (optional)
+    // char[OPENTHREAD_PSK_MAX_LENGTH + 1] - aPSKd
+    
+#define IOCTL_OTLWF_OT_COMMISIONER_REMOVE_JOINER \
+    OTLWF_CTL_CODE(181, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aExtAddressValid
+    // otExtAddress - aExtAddress (optional)
+    
+#define IOCTL_OTLWF_OT_COMMISIONER_PROVISIONING_URL \
+    OTLWF_CTL_CODE(182, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // char[OPENTHREAD_PROV_URL_MAX_LENGTH + 1] - aProvisioningUrl (optional)
+    
+#define IOCTL_OTLWF_OT_COMMISIONER_ANNOUNCE_BEGIN \
+    OTLWF_CTL_CODE(183, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aChannelMask
+    // uint8_t - aCount
+    // uint16_t - aPeriod
+    // otIp6Address - aAddress
+    
+#define IOCTL_OTLWF_OT_ENERGY_SCAN \
+    OTLWF_CTL_CODE(184, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aScanChannels
+    // uint16_t - aScanDuration
+    
+#define IOCTL_OTLWF_OT_SEND_ACTIVE_GET \
+    OTLWF_CTL_CODE(185, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aLength
+    // uint8_t[aLength] - aTlvTypes
+    
+#define IOCTL_OTLWF_OT_SEND_ACTIVE_SET \
+    OTLWF_CTL_CODE(186, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otOperationalDataset - aDataset
+    // uint8_t - aLength
+    // uint8_t[aLength] - aTlvTypes
+    
+#define IOCTL_OTLWF_OT_SEND_PENDING_GET \
+    OTLWF_CTL_CODE(187, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aLength
+    // uint8_t[aLength] - aTlvTypes
+    
+#define IOCTL_OTLWF_OT_SEND_PENDING_SET \
+    OTLWF_CTL_CODE(188, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otOperationalDataset - aDataset
+    // uint8_t - aLength
+    // uint8_t[aLength] - aTlvTypes
+    
+#define IOCTL_OTLWF_OT_SEND_MGMT_COMMISSIONER_GET \
+    OTLWF_CTL_CODE(189, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint8_t - aLength
+    // uint8_t[aLength] - aTlvs
+    
+#define IOCTL_OTLWF_OT_SEND_MGMT_COMMISSIONER_SET \
+    OTLWF_CTL_CODE(190, METHOD_BUFFERED, FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // otOperationalDataset - aDataset
+    // uint8_t - aLength
+    // uint8_t[aLength] - aTlvs
+    
+#define IOCTL_OTLWF_OT_KEY_SWITCH_GUARDTIME \
+    OTLWF_CTL_CODE(191, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+    // GUID - InterfaceGuid
+    // uint32_t - aKeySwitchGuardTime
 
 // OpenThread function IOCTL codes
 #define MIN_OTLWF_IOCTL_FUNC_CODE 100
-#define MAX_OTLWF_IOCTL_FUNC_CODE 170
+#define MAX_OTLWF_IOCTL_FUNC_CODE 191
 
 #endif //__OTLWFIOCTL_H__

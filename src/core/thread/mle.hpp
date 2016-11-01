@@ -42,6 +42,7 @@
 #include <thread/mle_constants.hpp>
 #include <thread/mle_tlvs.hpp>
 #include <thread/topology.hpp>
+#include <meshcop/joiner_router.hpp>
 
 namespace Thread {
 
@@ -100,6 +101,24 @@ enum DeviceState
     kDeviceStateChild    = 2,   ///< Thread interface participating as a Child.
     kDeviceStateRouter   = 3,   ///< Thread interface participating as a Router.
     kDeviceStateLeader   = 4,   ///< Thread interface participating as a Leader.
+};
+
+/**
+ * This enumeration represents the allocation of the ALOC Space
+ *
+ */
+enum AlocAllocation
+{
+    kAloc16Mask                         = 0xfc,
+    kAloc16Leader                       = 0xfc00,
+    kAloc16DHCPv6AgentStart             = 0xfc01,
+    kAloc16DHCPv6AgentEnd               = 0xfc0f,
+    kAloc16ServiceStart                 = 0xfc10,
+    kAloc16ServiceEnd                   = 0xfc2f,
+    kAloc16CommissionerStart            = 0xfc30,
+    kAloc16CommissionerEnd              = 0xfc37,
+    kAloc16NeighborDiscoveryAgentStart  = 0xfc40,
+    kAloc16NeighborDiscoveryAgentEnd    = 0xfc4e,
 };
 
 /**
@@ -276,6 +295,7 @@ public:
         kCommandChildIdResponse      = 12,   ///< Child ID Response
         kCommandChildUpdateRequest   = 13,   ///< Child Update Request
         kCommandChildUpdateResponse  = 14,   ///< Child Update Response
+        kCommandAnnounce             = 15,   ///< Announce
         kCommandDiscoveryRequest     = 16,   ///< Discovery Request
         kCommandDiscoveryResponse    = 17,   ///< Discovery Response
     };
@@ -337,8 +357,8 @@ public:
     /**
      * This method enables MLE.
      *
-     * @retval kThreadError_None  Successfully enabled MLE.
-     * @retval kThreadError_Busy  MLE was already enabled.
+     * @retval kThreadError_None     Successfully enabled MLE.
+     * @retval kThreadError_Already  MLE was already enabled.
      *
      */
     ThreadError Enable(void);
@@ -346,8 +366,7 @@ public:
     /**
      * This method disables MLE.
      *
-     * @retval kThreadError_None  Successfully disabled MLE.
-     * @retval kThreadError_Busy  MLE was already disabled.
+     * @retval kThreadError_None     Successfully disabled MLE.
      *
      */
     ThreadError Disable(void);
@@ -355,8 +374,8 @@ public:
     /**
      * This method starts the MLE protocol operation.
      *
-     * @retval kThreadError_None  Successfully started the protocol operation.
-     * @retval kThreadError_Busy  The protocol operation was already started.
+     * @retval kThreadError_None     Successfully started the protocol operation.
+     * @retval kThreadError_Already  The protocol operation was already started.
      *
      */
     ThreadError Start(void);
@@ -365,7 +384,6 @@ public:
      * This method stops the MLE protocol operation.
      *
      * @retval kThreadError_None  Successfully stopped the protocol operation.
-     * @retval kThreadError_Busy  The protocol operation was already stopped.
      *
      */
     ThreadError Stop(void);
@@ -410,10 +428,22 @@ public:
     void HandleDiscoverComplete(void);
 
     /**
+     * This method generates an MLE Announce message.
+     *
+     * @param[in]  aChannel        The channel to use when transmitting.
+     * @param[in]  aOrphanAnnounce To indiciate if MLE Announce is sent from an orphan end device.
+     *
+     * @retval kThreadError_None    Successfully generated an MLE Announce message.
+     * @retval kThreadError_NoBufs  Insufficient buffers to generate the MLE Announce message.
+     *
+     */
+    ThreadError SendAnnounce(uint8_t aChannel, bool aOrphanAnnounce);
+
+    /**
      * This method causes the Thread interface to detach from the Thread network.
      *
-     * @retval kThreadError_None  Successfully detached from the Thread network.
-     * @retval kThreadError_Busy  The protocol operation was stopped.
+     * @retval kThreadError_None          Successfully detached from the Thread network.
+     * @retval kThreadError_InvalidState  MLE is Disabled.
      *
      */
     ThreadError BecomeDetached(void);
@@ -423,8 +453,9 @@ public:
      *
      * @param[in]  aFilter  Indicates what partitions to attach to.
      *
-     * @retval kThreadError_None  Successfully began the attach process.
-     * @retval kThreadError_Busy  An attach process is in progress or the protocol operation was stopped.
+     * @retval kThreadError_None          Successfully began the attach process.
+     * @retval kThreadError_InvalidState  MLE is Disabled.
+     * @retval kThreadError_Busy          An attach process is in progress.
      *
      */
     ThreadError BecomeChild(otMleAttachFilter aFilter);
@@ -525,6 +556,15 @@ public:
     bool IsRoutingLocator(const Ip6::Address &aAddress) const;
 
     /**
+     * This method indicates whether or not an IPv6 address is an ALOC.
+     *
+     * @retval TRUE   If @p aAddress is an ALOC.
+     * @retval FALSE  If @p aAddress is not an ALOC.
+     *
+     */
+    bool IsAnycastLocator(const Ip6::Address &aAddress) const;
+
+    /**
      * This method returns the MLE Timeout value.
      *
      * @returns The MLE Timeout value.
@@ -582,6 +622,27 @@ public:
     ThreadError GetLeaderAddress(Ip6::Address &aAddress) const;
 
     /**
+     * This method retrieves the Leader's ALOC.
+     *
+     * @param[out]  aAddress  A reference to the Leader's ALOC.
+     *
+     * @retval kThreadError_None   Successfully retrieved the Leader's ALOC.
+     * @retval kThreadError_Error  The Thread interface is not currently attached to a Thread Partition.
+     *
+     */
+    ThreadError GetLeaderAloc(Ip6::Address &aAddress) const;
+
+    /**
+     * This method adds Leader's ALOC to its Thread interface.
+     *
+     * @retval kThreadError_None           Successfully added the Leader's ALOC.
+     * @retval kThreadError_Busy           The Leader's ALOC address was already added.
+     * @retval kThreadError_InvalidState   The device's role is not Leader.
+     *
+     */
+    ThreadError AddLeaderAloc(void);
+
+    /**
      * This method returns the most recently received Leader Data TLV.
      *
      * @returns  A reference to the most recently received Leader Data TLV.
@@ -620,6 +681,22 @@ public:
      *
      */
     void SetAssignLinkQuality(const Mac::ExtAddress aMacAddr, uint8_t aLinkQuality);
+
+    /**
+     * This method returns the ROUTER_SELECTION_JITTER value.
+     *
+     * @returns The ROUTER_SELECTION_JITTER value.
+     *
+     */
+    uint8_t GetRouterSelectionJitter(void) const;
+
+    /**
+     * This method sets the ROUTER_SELECTION_JITTER value.
+     *
+     * @returns The ROUTER_SELECTION_JITTER value.
+     *
+     */
+    void SetRouterSelectionJitter(uint8_t aRouterJitter);
 
     /**
      * This method returns the Child ID portion of an RLOC16.
@@ -661,6 +738,15 @@ public:
      *
      */
     static bool IsActiveRouter(uint16_t aRloc16) { return GetChildId(aRloc16) == 0; }
+
+    /**
+     * This method fills the NetworkDataTlv.
+     *
+     * @param[out] aTlv         The NetworkDataTlv.
+     * @param[in]  aStableOnly  TRUE to append stable data, FALSE otherwise.
+     *
+     */
+    void FillNetworkDataTlv(NetworkDataTlv &aTlv, bool aStableOnly);
 
 protected:
     /**
@@ -976,7 +1062,7 @@ protected:
     /**
      * This method generates an MLE Child Update Request message.
      *
-     * @retval kThreadError_None    Successfully generated an MLE Child Update Request message..
+     * @retval kThreadError_None    Successfully generated an MLE Child Update Request message.
      * @retval kThreadError_NoBufs  Insufficient buffers to generate the MLE Child Update Request message.
      *
      */
@@ -1021,6 +1107,14 @@ protected:
     ThreadError SetStateChild(uint16_t aRloc16);
 
     /**
+     * This method returns a new MLE message.
+     *
+     * @returns A pointer to the message or NULL if no buffers are available.
+     *
+     */
+    Message *NewMessage(void) { return mSocket.NewMessage(0); };
+
+    /**
      * This method sets the Leader's Partition ID, Weighting, and Router ID values.
      *
      * @param[in]  aPartitionId     The Leader's Partition ID value.
@@ -1030,13 +1124,14 @@ protected:
      */
     void SetLeaderData(uint32_t aPartitionId, uint8_t aWeighting, uint8_t aLeaderRouterId);
 
-    ThreadNetif         &mNetif;            ///< The Thread Network Interface object.
-    AddressResolver     &mAddressResolver;  ///< The Address Resolver object.
-    KeyManager          &mKeyManager;       ///< The Key Manager object.
-    Mac::Mac            &mMac;              ///< The MAC object.
-    MeshForwarder       &mMesh;             ///< The Mesh Forwarding object.
-    MleRouter           &mMleRouter;        ///< The MLE Router object.
-    NetworkData::Leader &mNetworkData;      ///< The Network Data object.
+    ThreadNetif           &mNetif;            ///< The Thread Network Interface object.
+    AddressResolver       &mAddressResolver;  ///< The Address Resolver object.
+    KeyManager            &mKeyManager;       ///< The Key Manager object.
+    Mac::Mac              &mMac;              ///< The MAC object.
+    MeshForwarder         &mMesh;             ///< The Mesh Forwarding object.
+    MleRouter             &mMleRouter;        ///< The MLE Router object.
+    NetworkData::Leader   &mNetworkData;      ///< The Network Data object.
+    MeshCoP::JoinerRouter &mJoinerRouter;     ///< The Joiner Router object.
 
     LeaderDataTlv mLeaderData;              ///< Last received Leader Data TLV.
     bool mRetrieveNewNetworkData;           ///< Indicating new Network Data is needed if set.
@@ -1067,6 +1162,9 @@ protected:
 
     Timer mParentRequestTimer;  ///< The timer for driving the Parent Request process.
 
+    uint8_t mRouterSelectionJitter;         ///< The variable to save the assigned jitter value.
+    uint8_t mRouterSelectionJitterTimeout;  ///< The Timeout prior to request/release Router ID.
+
 private:
     enum
     {
@@ -1091,12 +1189,14 @@ private:
     ThreadError HandleDataResponse(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     ThreadError HandleParentResponse(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo,
                                      uint32_t aKeySequence);
+    ThreadError HandleAnnounce(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     ThreadError HandleDiscoveryRequest(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     ThreadError HandleDiscoveryResponse(const Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
 
     ThreadError SendParentRequest(void);
     ThreadError SendChildIdRequest(void);
     ThreadError SendDiscoveryResponse(const Ip6::Address &aDestination, uint16_t aPanId);
+    void SendOrphanAnnounce(void);
 
     bool IsBetterParent(uint16_t aRloc16, uint8_t aLinkQuality, ConnectivityTlv &aConnectivityTlv) const;
 
@@ -1128,6 +1228,12 @@ private:
     DiscoverHandler mDiscoverHandler;
     void *mDiscoverContext;
     bool mIsDiscoverInProgress;
+
+    uint8_t mAnnounceChannel;
+    uint8_t mPreviousChannel;
+    uint16_t mPreviousPanId;
+
+    Ip6::NetifUnicastAddress mLeaderAloc;
 
     Ip6::NetifUnicastAddress mLinkLocal16;
     Ip6::NetifUnicastAddress mLinkLocal64;

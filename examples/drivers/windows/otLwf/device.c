@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016, Microsoft Corporation.
+ *  Copyright (c) 2016, The OpenThread Authors.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -110,10 +110,13 @@ otLwfRegisterDevice(
             NdisAllocateSpinLock(&FilterDeviceExtension->Lock);
             InitializeListHead(&FilterDeviceExtension->ClientList);
 
+            #pragma push
+            #pragma warning(disable:28168) // The function 'otLwfDispatch' does not have a _Dispatch_type_ annotation matching dispatch table position *
             FilterDriverObject->MajorFunction[IRP_MJ_CREATE] = otLwfDispatch;
             FilterDriverObject->MajorFunction[IRP_MJ_CLEANUP] = otLwfDispatch;
             FilterDriverObject->MajorFunction[IRP_MJ_CLOSE] = otLwfDispatch;
             FilterDriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = otLwfDeviceIoControl;
+            #pragma pop
 
             HANDLE fileHandle;
             Status = ObOpenObjectByPointer(DeviceObject,
@@ -506,6 +509,9 @@ otLwfIndicateNotification(
 
         // Set next link
         Link = Link->Flink;
+        
+        KIRQL irql;
+        IoAcquireCancelSpinLock(&irql);
 
         // If there are other pending notifications or we don't have a pending IRP saved
         // then just go ahead and add the notification to the list
@@ -532,11 +538,17 @@ otLwfIndicateNotification(
         }
         else
         {
+            // Before we are allowed to complete the pending IRP, we must remove the cancel routine
+            IoSetCancelRoutine(DeviceClient->PendingNotificationIRP, NULL);
+
             IrpsToComplete[IrpOffset] = DeviceClient->PendingNotificationIRP;
             IrpOffset++;
 
             DeviceClient->PendingNotificationIRP = NULL;
         }
+        
+        // Release the cancel spin lock
+        IoReleaseCancelSpinLock(irql);
     }
 
     NdisReleaseSpinLock(&FilterDeviceExtension->Lock);
@@ -545,12 +557,6 @@ otLwfIndicateNotification(
     for (UCHAR i = 0; i < IrpOffset; i++)
     {
         PIRP IrpToComplete = IrpsToComplete[i];
-
-        // Before we are allowed to complete the pending IRP, we must remove the cancel routine
-        KIRQL irql;
-        IoAcquireCancelSpinLock(&irql);
-        IoSetCancelRoutine(IrpToComplete, NULL);
-        IoReleaseCancelSpinLock(irql);
 
         // Copy the notification payload
         PVOID IoBuffer = IrpToComplete->AssociatedIrp.SystemBuffer;

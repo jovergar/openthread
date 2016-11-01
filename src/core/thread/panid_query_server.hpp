@@ -36,6 +36,7 @@
 
 #include <openthread-core-config.h>
 #include <openthread-types.h>
+#include <coap/coap_client.hpp>
 #include <coap/coap_server.hpp>
 #include <common/timer.hpp>
 #include <net/ip6_address.hpp>
@@ -87,11 +88,12 @@ private:
     uint32_t mChannelMask;
     uint16_t mPanId;
 
-    Coap::Resource mPanIdQuery;
-    Ip6::UdpSocket mSocket;
     Timer mTimer;
 
+    Coap::Resource mPanIdQuery;
     Coap::Server &mCoapServer;
+    Coap::Client &mCoapClient;
+
     ThreadNetif &mNetif;
 };
 

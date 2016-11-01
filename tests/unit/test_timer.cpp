@@ -32,7 +32,7 @@
 #include <common/timer.hpp>
 #include <platform/alarm.h>
 #include <string.h>
-#include <openthreadinstance.h>
+#include <openthread-instance.h>
 
 enum
 {
@@ -389,9 +389,11 @@ void RunTimerTests(void)
     TestTenTimers();
 }
 
+#ifdef ENABLE_TEST_MAIN
 int main(void)
 {
     RunTimerTests();
     printf("All tests passed\n");
     return 0;
 }
+#endif

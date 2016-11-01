@@ -27,7 +27,6 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-import pexpect
 import time
 import unittest
 
@@ -53,6 +52,7 @@ class Cert_5_6_7_NetworkDataRequestREED(unittest.TestCase):
         self.nodes[ROUTER].set_mode('rsdn')
         self.nodes[ROUTER].add_whitelist(self.nodes[LEADER].get_addr64())
         self.nodes[ROUTER].enable_whitelist()
+        self.nodes[ROUTER].set_router_selection_jitter(1)
 
         self.nodes[REED].set_panid(0xface)
         self.nodes[REED].set_mode('rsdn')
@@ -71,17 +71,17 @@ class Cert_5_6_7_NetworkDataRequestREED(unittest.TestCase):
         self.assertEqual(self.nodes[LEADER].get_state(), 'leader')
 
         self.nodes[ROUTER].start()
-        time.sleep(3)
+        time.sleep(5)
         self.assertEqual(self.nodes[ROUTER].get_state(), 'router')
 
         self.nodes[REED].start()
-        time.sleep(3)
+        time.sleep(5)
         self.assertEqual(self.nodes[REED].get_state(), 'child')
 
         self.nodes[LEADER].remove_whitelist(self.nodes[REED].get_addr64())
         self.nodes[REED].remove_whitelist(self.nodes[LEADER].get_addr64())
 
-        self.nodes[ROUTER].add_prefix('2003::/64', 'paros')
+        self.nodes[ROUTER].add_prefix('2001:2:0:3::/64', 'paros')
         self.nodes[ROUTER].register_netdata()
 
         time.sleep(2)
@@ -92,10 +92,10 @@ class Cert_5_6_7_NetworkDataRequestREED(unittest.TestCase):
         time.sleep(10)
 
         addrs = self.nodes[REED].get_addrs()
-        self.assertTrue(any('2003' in word for word in addrs))
+        self.assertTrue(any('2001:2:0:3' in addr[0:10] for addr in addrs))
         for addr in addrs:
-            if addr[0:3] == '200':
-                self.nodes[LEADER].ping(addr)
+            if addr[0:10] == '2001:2:0:3':
+                self.assertTrue(self.nodes[LEADER].ping(addr))
 
 if __name__ == '__main__':
     unittest.main()
