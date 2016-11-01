@@ -365,7 +365,8 @@ void BorderRouter::HandleCoapMessage(OffMesh::Coap::Header& aRequestHeader, uint
     else if (strcmp(aUriPath, OPENTHREAD_URI_ACTIVE_GET) == 0 ||
              strcmp(aUriPath, OPENTHREAD_URI_ACTIVE_SET) == 0 ||
              strcmp(aUriPath, OPENTHREAD_URI_PENDING_GET) == 0 ||
-             strcmp(aUriPath, OPENTHREAD_URI_PENDING_SET) == 0)
+             strcmp(aUriPath, OPENTHREAD_URI_PENDING_SET) == 0 ||
+             strcmp(aUriPath, OPENTHREAD_URI_COMMISSIONER_SET))
     {
         // these URIs don't need to be modified, send them as is
         destinationUri = aUriPath;
