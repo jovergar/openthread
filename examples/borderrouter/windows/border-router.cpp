@@ -248,7 +248,7 @@ HRESULT BorderRouter::Start()
         return hr;
     }
 
-    hr = mCommissionerSocket.Bind(19779);
+    hr = mCommissionerSocket.Bind(DEFAULT_MESHCOP_PORT);
     if (FAILED(hr))
     {
         return hr;
@@ -391,9 +391,6 @@ void BorderRouter::HandleCoapMessage(OffMesh::Coap::Header& aRequestHeader, uint
     header.SetMessageId(aRequestHeader.GetMessageId());
     header.SetToken(aRequestHeader.GetToken(), aRequestHeader.GetTokenLength());
     header.AppendUriPathOptions(destinationUri);
-    // this is the only content format option that is allowed for thread so we don't need to look
-    // through the incoming options to get it
-    header.AppendContentFormatOption(OffMesh::Coap::Header::kApplicationOctetStream);
     header.Finalize();
 
     uint8_t requiredSize = header.GetLength() + aLength;

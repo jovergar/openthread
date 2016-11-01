@@ -131,7 +131,6 @@ void FakeLeader::HandleLeaderPetition(OffMesh::Coap::Header& aRequestHeader, uin
     responseHeader.SetCode(OffMesh::Coap::Header::kCodeChanged);
     responseHeader.SetMessageId(aRequestHeader.GetMessageId());
     responseHeader.SetToken(aRequestHeader.GetToken(), aRequestHeader.GetTokenLength());
-    responseHeader.AppendContentFormatOption(OffMesh::Coap::Header::kApplicationOctetStream);
     responseHeader.Finalize();
 
     state.Init();
@@ -172,7 +171,6 @@ void FakeLeader::HandleLeaderKeepAlive(OffMesh::Coap::Header& aRequestHeader, ui
     responseHeader.SetCode(OffMesh::Coap::Header::kCodeChanged);
     responseHeader.SetMessageId(aRequestHeader.GetMessageId());
     responseHeader.SetToken(aRequestHeader.GetToken(), aRequestHeader.GetTokenLength());
-    responseHeader.AppendContentFormatOption(OffMesh::Coap::Header::kApplicationOctetStream);
     responseHeader.Finalize();
 
     state.Init();
@@ -209,7 +207,6 @@ void FakeLeader::HandleActiveGet(OffMesh::Coap::Header& aRequestHeader, uint8_t*
     responseHeader.SetCode(OffMesh::Coap::Header::kCodeChanged);
     responseHeader.SetMessageId(aRequestHeader.GetMessageId());
     responseHeader.SetToken(aRequestHeader.GetToken(), aRequestHeader.GetTokenLength());
-    responseHeader.AppendContentFormatOption(OffMesh::Coap::Header::kApplicationOctetStream);
     responseHeader.Finalize();
 
     // if the payload includes a Get TLV, then we send just those parameters. Otherwise we must send
@@ -311,7 +308,6 @@ void FakeLeader::HandleActiveSet(OffMesh::Coap::Header& aRequestHeader, uint8_t*
     responseHeader.SetCode(OffMesh::Coap::Header::kCodeChanged);
     responseHeader.SetMessageId(aRequestHeader.GetMessageId());
     responseHeader.SetToken(aRequestHeader.GetToken(), aRequestHeader.GetTokenLength());
-    responseHeader.AppendContentFormatOption(OffMesh::Coap::Header::kApplicationOctetStream);
     responseHeader.Finalize();
 
     state.Init();

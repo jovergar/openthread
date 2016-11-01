@@ -49,6 +49,8 @@
 */
 #define OPENTHREAD_URI_COMMISSIONER_KEEP_ALIVE  "c/ca"
 
+#define DEFAULT_MESHCOP_PORT 49191
+
 void getPSKc(const char* passPhrase, const char* networkName, const char* const xPanId, uint8_t* derivedKeyOut);
 
 class BorderRouter

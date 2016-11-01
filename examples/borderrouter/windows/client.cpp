@@ -78,7 +78,6 @@ HRESULT Client::Start()
     header.SetMessageId(++mCoapMessageId);
     header.SetToken(mCoapToken, sizeof(mCoapToken));
     header.AppendUriPathOptions(OPENTHREAD_URI_COMMISSIONER_PETITION);
-    header.AppendContentFormatOption(OffMesh::Coap::Header::kApplicationOctetStream);
     header.Finalize();
     commissionerId.Init();
     commissionerId.SetCommissionerId("Windows Test Commissioner");
@@ -164,7 +163,7 @@ ThreadError Client::HandleDtlsSend(const uint8_t * aBuf, uint16_t aLength)
     SOCKADDR_IN sendAddr = {};
     sendAddr.sin_family = AF_INET;
     inet_pton(AF_INET, "127.0.0.1", &sendAddr.sin_addr);
-    sendAddr.sin_port = htons(19779);
+    sendAddr.sin_port = htons(DEFAULT_MESHCOP_PORT);
 
     HRESULT hr = mBorderRouterSocket.SendTo(aBuf, aLength, &sendAddr);
     if (FAILED(hr))
